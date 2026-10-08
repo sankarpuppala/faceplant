@@ -1,0 +1,45 @@
+{
+  "name": "faceplant",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Your face is their world. Don't open your mouth.",
+  "license": "MIT",
+  "scripts": {
+    "setup": "npm run setup:fonts && npm run setup:mediapipe",
+    "setup:fonts": "node --experimental-strip-types scripts/copy-fonts.ts",
+    "setup:mediapipe": "node --experimental-strip-types scripts/copy-mediapipe.ts",
+    "make:fixtures": "node --experimental-strip-types scripts/make-fixtures.ts",
+    "make:levels": "node --experimental-strip-types scripts/make-levels.ts",
+    "dev": "vite",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "check:privacy": "node --experimental-strip-types scripts/check-privacy.ts",
+    "check:flash": "node --experimental-strip-types scripts/check-flash.ts",
+    "build": "tsc --noEmit && vite build",
+    "verify": "npm run typecheck && npm test && npm run build && npm run check:privacy && npm run check:flash",
+    "preview": "vite preview",
+    "package:itch": "node --experimental-strip-types scripts/package-itch.ts"
+  },
+  "dependencies": {
+    "@mediapipe/tasks-vision": "1.1.0",
+    "pixi-filters": "6.1.5",
+    "pixi.js": "8.22.0"
+  },
+  "devDependencies": {
+    "@fontsource/inter": "5.3.0",
+    "@fontsource/special-elite": "5.3.0",
+    "@fontsource/vt323": "5.3.0",
+    "@types/node": "26.6.4",
+    "typescript": "5.9.3",
+    "vite": "7.3.7",
+    "vitest": "5.0.3"
+  },
+  "engines": {
+    "node": ">=20.11"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true
+  }
+}

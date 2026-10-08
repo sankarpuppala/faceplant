@@ -1,0 +1,83 @@
+{
+  "id": "03-1",
+  "tape": 3,
+  "index": 1,
+  "label": "T03/1",
+  "title": "The Conga Line",
+  "timeLimitS": 75,
+  "spawn": {
+    "x": -1.42,
+    "y": -0.62,
+    "count": 11,
+    "intervalMs": 1100,
+    "dir": 1
+  },
+  "gate": {
+    "x": 1.42,
+    "y": -0.6599999999999999,
+    "w": 0.22,
+    "h": 0.3
+  },
+  "ruins": [
+    {
+      "points": [
+        [
+          -1.72,
+          -0.36
+        ],
+        [
+          -0.42,
+          -0.36
+        ]
+      ]
+    },
+    {
+      "points": [
+        [
+          0.42,
+          -0.36
+        ],
+        [
+          1.72,
+          -0.36
+        ]
+      ]
+    }
+  ],
+  "walls": [],
+  "hazards": [],
+  "dark": {
+    "startRadiusFh": 99,
+    "shrinkFhPerS": 0
+  },
+  "scares": [],
+  "lines": [
+    {
+      "atMs": 1500,
+      "text": "form a line. a dignified line."
+    },
+    {
+      "atMs": 9000,
+      "text": "this is not a dignified line."
+    },
+    {
+      "atMs": 18000,
+      "text": "do not laugh at the queue. the queue can hear you."
+    },
+    {
+      "atMs": 32000,
+      "text": "the queue is now a religion."
+    },
+    {
+      "atMs": 48000,
+      "text": "the queue has elected a leader. it is barnaby."
+    }
+  ],
+  "candles": {
+    "1": 4,
+    "2": 7,
+    "3": 10
+  },
+  "mode": "story",
+  "hint": "eleven of them, fast. the procession brightens as they get through."
+}

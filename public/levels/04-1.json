@@ -1,0 +1,110 @@
+{
+  "id": "04-1",
+  "tape": 4,
+  "index": 1,
+  "label": "T04/1",
+  "title": "Lights Out",
+  "timeLimitS": 90,
+  "spawn": {
+    "x": 1.42,
+    "y": -0.62,
+    "count": 9,
+    "intervalMs": 2400,
+    "dir": -1
+  },
+  "gate": {
+    "x": -1.64,
+    "y": -0.6599999999999999,
+    "w": 0.22,
+    "h": 0.3
+  },
+  "ruins": [
+    {
+      "points": [
+        [
+          -1.72,
+          -0.36
+        ],
+        [
+          -0.42,
+          -0.36
+        ]
+      ]
+    },
+    {
+      "points": [
+        [
+          0.42,
+          -0.36
+        ],
+        [
+          1.72,
+          -0.36
+        ]
+      ]
+    }
+  ],
+  "walls": [],
+  "hazards": [
+    {
+      "type": "drip",
+      "x": -0.3,
+      "y": -1.14,
+      "atMs": 6000,
+      "intervalMs": 2400
+    },
+    {
+      "type": "drip",
+      "x": 0.3,
+      "y": -1.14,
+      "atMs": 9000,
+      "intervalMs": 2700
+    },
+    {
+      "type": "drip",
+      "x": 0,
+      "y": -1.14,
+      "atMs": 30000,
+      "intervalMs": 3100
+    }
+  ],
+  "dark": {
+    "startRadiusFh": 2.5,
+    "shrinkFhPerS": 0.009
+  },
+  "scares": [
+    {
+      "type": "flicker",
+      "atMs": 22000
+    },
+    {
+      "type": "whisper",
+      "atMs": 40000
+    },
+    {
+      "type": "flicker",
+      "atMs": 58000
+    }
+  ],
+  "lines": [
+    {
+      "atMs": 2000,
+      "text": "the dark was here first."
+    },
+    {
+      "atMs": 25000,
+      "text": "closer, everyone. closer to the flames."
+    },
+    {
+      "atMs": 50000,
+      "text": "the wax falls. a brow is a roof."
+    }
+  ],
+  "candles": {
+    "1": 3,
+    "2": 5,
+    "3": 8
+  },
+  "mode": "story",
+  "hint": "the dark closes in, and wax falls. tilt: a brow makes a roof."
+}

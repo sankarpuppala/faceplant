@@ -1,0 +1,86 @@
+{
+  "id": "fixture-arena",
+  "tape": 0,
+  "index": 0,
+  "label": "TEST",
+  "title": "Fixture Arena",
+  "timeLimitS": 600,
+  "spawn": {
+    "x": -1.42,
+    "y": -0.62,
+    "count": 20,
+    "intervalMs": 450,
+    "dir": 1
+  },
+  "gate": {
+    "x": 1.42,
+    "y": -0.66,
+    "w": 0.22,
+    "h": 0.3
+  },
+  "ruins": [
+    {
+      "points": [
+        [
+          -1.72,
+          -0.36
+        ],
+        [
+          -0.42,
+          -0.36
+        ]
+      ]
+    },
+    {
+      "points": [
+        [
+          0.42,
+          -0.36
+        ],
+        [
+          1.72,
+          -0.36
+        ]
+      ]
+    },
+    {
+      "points": [
+        [
+          -0.34,
+          -0.2
+        ],
+        [
+          -0.05,
+          -0.2
+        ]
+      ]
+    },
+    {
+      "points": [
+        [
+          0.05,
+          -0.2
+        ],
+        [
+          0.34,
+          -0.2
+        ]
+      ]
+    }
+  ],
+  "walls": [],
+  "hazards": [],
+  "dark": {
+    "startRadiusFh": 99,
+    "shrinkFhPerS": 0
+  },
+  "scares": [],
+  "lines": [],
+  "candles": {
+    "3": 20,
+    "2": 12,
+    "1": 5
+  },
+  "mode": "story",
+  "hint": "A wide arena used only by the fixture simulations (AC-4)."
+}

@@ -1,0 +1,187 @@
+/**
+ * Small DOM helpers for the overlay screens (decision D14: menus are DOM over
+ * the Pixi stage, so they stay crisp, selectable and keyboard-navigable).
+ *
+ * Accessibility is built in here rather than remembered per screen: `screen()`
+ * creates a labelled dialog, `focusFirst` moves focus into it, and `trapFocus`
+ * keeps Tab inside it. Every screen gets that for free.
+ */
+
+export type Attrs = Record<string, string | number | boolean | undefined>;
+
+export function el<K extends keyof HTMLElementTagNameMap>(
+  tag: K,
+  attrs: Attrs = {},
+  children: (Node | string | null | undefined)[] = [],
+): HTMLElementTagNameMap[K] {
+  const node = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (v === undefined || v === false) continue;
+    if (k === 'class') node.className = String(v);
+    else if (k === 'text') node.textContent = String(v);
+    else if (k === 'html') node.innerHTML = String(v);
+    else if (v === true) node.setAttribute(k, '');
+    else node.setAttribute(k, String(v));
+  }
+  for (const c of children) {
+    if (c === null || c === undefined) continue;
+    node.appendChild(typeof c === 'string' ? document.createTextNode(c) : c);
+  }
+  return node;
+}
+
+export function button(label: string, onClick: () => void, cls = 'btn'): HTMLButtonElement {
+  const b = el('button', { class: cls, type: 'button' }, [label]);
+  b.addEventListener('click', onClick);
+  return b;
+}
+
+/** A labelled row with a control on the right, used throughout Settings. */
+export function field(label: string, control: Node, hint?: string): HTMLElement {
+  return el('div', { class: 'field' }, [
+    el('span', {}, [label, hint === undefined ? null : el('div', { class: 'small dim', text: hint })]),
+    control,
+  ]);
+}
+
+/** A segmented control. Returns the wrapper; re-render by calling `update`. */
+export function segmented<T extends string>(
+  options: readonly { value: T; label: string; disabled?: boolean }[],
+  current: T,
+  onPick: (value: T) => void,
+): { node: HTMLElement; update: (value: T) => void } {
+  const buttons = new Map<T, HTMLButtonElement>();
+  const node = el('div', { class: 'segmented', role: 'group' });
+
+  for (const opt of options) {
+    const b = el('button', {
+      class: 'btn',
+      type: 'button',
+      'aria-pressed': opt.value === current ? 'true' : 'false',
+      disabled: opt.disabled === true,
+      title: opt.disabled === true ? 'Locked' : undefined,
+    }, [opt.label]);
+    b.addEventListener('click', () => onPick(opt.value));
+    buttons.set(opt.value, b);
+    node.appendChild(b);
+  }
+
+  return {
+    node,
+    update(value: T): void {
+      for (const [v, b] of buttons) b.setAttribute('aria-pressed', v === value ? 'true' : 'false');
+    },
+  };
+}
+
+export function toggle(label: string, on: boolean, onChange: (next: boolean) => void): { node: HTMLElement; update: (on: boolean) => void } {
+  const seg = segmented(
+    [
+      { value: 'on' as const, label: 'On' },
+      { value: 'off' as const, label: 'Off' },
+    ],
+    on ? 'on' : 'off',
+    (v) => onChange(v === 'on'),
+  );
+  return { node: field(label, seg.node), update: (v: boolean) => seg.update(v ? 'on' : 'off') };
+}
+
+export function slider(label: string, value: number, onChange: (v: number) => void): HTMLElement {
+  const input = el('input', {
+    type: 'range',
+    min: '0',
+    max: '100',
+    value: String(Math.round(value * 100)),
+    'aria-label': label,
+  });
+  input.addEventListener('input', () => onChange(Number(input.value) / 100));
+  return field(label, input);
+}
+
+/** A full-screen overlay. `variant` controls whether the stage shows through. */
+export function screen(
+  title: string,
+  body: (Node | string | null | undefined)[],
+  variant: 'solid' | 'transparent' | 'clear' = 'solid',
+): HTMLElement {
+  const cls = variant === 'solid' ? 'layer' : `layer ${variant}`;
+  const panel = el('div', { class: 'panel' }, body);
+  return el('div', { class: cls, role: 'dialog', 'aria-modal': 'true', 'aria-label': title }, [panel]);
+}
+
+export function focusFirst(root: HTMLElement): void {
+  const target = root.querySelector<HTMLElement>(
+    'button:not([disabled]), [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+  );
+  target?.focus();
+}
+
+/** Keeps Tab inside a dialog, and routes Escape to a handler. */
+export function trapFocus(root: HTMLElement, onEscape?: () => void): () => void {
+  const onKey = (e: KeyboardEvent): void => {
+    if (e.key === 'Escape' && onEscape !== undefined) {
+      e.preventDefault();
+      onEscape();
+      return;
+    }
+    if (e.key !== 'Tab') return;
+    const items = [
+      ...root.querySelectorAll<HTMLElement>('button:not([disabled]), [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'),
+    ].filter((n) => n.offsetParent !== null);
+    if (items.length === 0) return;
+    const first = items[0];
+    const last = items[items.length - 1];
+    if (first === undefined || last === undefined) return;
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  };
+  root.addEventListener('keydown', onKey);
+  return () => root.removeEventListener('keydown', onKey);
+}
+
+/** The lit/unlit candle icon used on the shelf and the results screen. */
+export function candleIcon(lit: boolean): SVGSVGElement {
+  const ns = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(ns, 'svg');
+  svg.setAttribute('viewBox', '0 0 12 24');
+  svg.setAttribute('aria-hidden', 'true');
+  if (!lit) svg.classList.add('pending');
+
+  const body = document.createElementNS(ns, 'rect');
+  body.setAttribute('x', '3');
+  body.setAttribute('y', '9');
+  body.setAttribute('width', '6');
+  body.setAttribute('height', '14');
+  body.setAttribute('rx', '1');
+  body.setAttribute('fill', lit ? '#EADCC0' : '#3a3342');
+  svg.appendChild(body);
+
+  if (lit) {
+    const flame = document.createElementNS(ns, 'path');
+    flame.setAttribute('d', 'M6 1c1.8 3 3 4.3 3 6a3 3 0 0 1-6 0c0-1.7 1.2-3 3-6z');
+    flame.setAttribute('fill', '#FFB547');
+    svg.appendChild(flame);
+    const core = document.createElementNS(ns, 'path');
+    core.setAttribute('d', 'M6 4.2c.9 1.5 1.4 2.1 1.4 3a1.4 1.4 0 0 1-2.8 0c0-.9.5-1.5 1.4-3z');
+    core.setAttribute('fill', '#FF6A2B');
+    svg.appendChild(core);
+  }
+  return svg;
+}
+
+export function candleRow(count: number, of = 3): HTMLElement {
+  const row = el('div', { class: 'candlerow' });
+  for (let i = 0; i < of; i++) row.appendChild(candleIcon(i < count));
+  return row;
+}
+
+export function toast(parent: HTMLElement, message: string, ms = 2200): void {
+  const t = el('div', { class: 'toast', role: 'status' }, [message]);
+  parent.appendChild(t);
+  setTimeout(() => t.remove(), ms);
+}

@@ -1,0 +1,79 @@
+{
+  "id": "01-1",
+  "tape": 1,
+  "index": 1,
+  "label": "T01/1",
+  "title": "Warm",
+  "timeLimitS": 60,
+  "spawn": {
+    "x": -1.42,
+    "y": -0.62,
+    "count": 3,
+    "intervalMs": 5000,
+    "dir": 1
+  },
+  "gate": {
+    "x": 1.42,
+    "y": -0.6599999999999999,
+    "w": 0.22,
+    "h": 0.3
+  },
+  "ruins": [
+    {
+      "points": [
+        [
+          -1.72,
+          -0.36
+        ],
+        [
+          -0.42,
+          -0.36
+        ]
+      ]
+    },
+    {
+      "points": [
+        [
+          0.42,
+          -0.36
+        ],
+        [
+          1.72,
+          -0.36
+        ]
+      ]
+    }
+  ],
+  "walls": [],
+  "hazards": [],
+  "dark": {
+    "startRadiusFh": 99,
+    "shrinkFhPerS": 0
+  },
+  "scares": [],
+  "lines": [
+    {
+      "atMs": 1400,
+      "text": "…warm."
+    },
+    {
+      "atMs": 6000,
+      "text": "do not wake the maw."
+    },
+    {
+      "atMs": 15000,
+      "text": "the forehead is a field. we walk it."
+    },
+    {
+      "atMs": 30000,
+      "text": "hold still and this is easy. that is the trick."
+    }
+  ],
+  "candles": {
+    "1": 1,
+    "2": 2,
+    "3": 3
+  },
+  "mode": "story",
+  "hint": "hold still. your forehead is the bridge."
+}

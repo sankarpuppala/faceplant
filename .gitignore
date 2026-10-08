@@ -1,0 +1,27 @@
+node_modules/
+dist/
+dist-itch/
+*.zip
+!faceplant-starter.zip
+
+# Never commit captured media or anyone's face
+*.webm
+*.mp4
+*.mov
+*.png
+*.jpg
+*.jpeg
+!docs/**/*.png
+recordings/
+
+# MediaPipe wasm + models are fetched by `npm run setup:mediapipe`
+public/mediapipe/*
+!public/mediapipe/README.md
+# Fonts are copied by `npm run setup:fonts`
+public/fonts/*
+!public/fonts/README.md
+
+.env
+.env.*
+.DS_Store
+*.log

@@ -1,0 +1,310 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FACEPLANT design reference</title>
+<!-- Dev reference only. The shipped game must self-host these fonts (CLAUDE.md invariant 1). -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&family=Special+Elite&family=VT323&display=swap">
+<style>
+:root{
+  --void:#07060A; --ink:#15121B; --dusk:#2B2236;
+  --bone:#EDE6D6; --bone-dim:#9E968A;
+  --candle:#FFB547; --ember:#FF6A2B; --rec:#E0322B; --mold:#5F6E4C;
+  --wax:#EADCC0;
+  --osd:"VT323", "Courier New", monospace;
+  --label:"Special Elite", "Courier New", serif;
+  --ui:"Inter", system-ui, sans-serif;
+  color-scheme: dark;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--void);color:var(--bone);font-family:var(--ui);font-size:16px;line-height:1.55}
+.page{max-width:1180px;margin:0 auto;padding-inline:20px;padding-block:56px 96px}
+.intro{max-width:62ch;margin-bottom:56px}
+.intro h1{font-family:var(--label);font-weight:400;font-size:clamp(28px,4vw,40px);letter-spacing:.06em;margin:0 0 12px}
+.intro p{color:var(--bone-dim);margin:0}
+
+.screen{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:32px;align-items:start;margin-bottom:72px}
+.screen h2{font-family:var(--label);font-weight:400;font-size:22px;margin:0 0 10px;color:var(--bone)}
+.note p{color:var(--bone-dim);margin:0 0 12px;max-width:42ch}
+.note p strong{color:var(--bone);font-weight:500}
+@media (max-width:900px){.screen{grid-template-columns:1fr}}
+
+/* ---------- the CRT frame shared by every screen ---------- */
+.crt{position:relative;aspect-ratio:16/9;background:var(--void);border-radius:18px;overflow:hidden;
+  box-shadow:0 0 0 1px #221d29, 0 30px 80px -30px rgba(255,140,40,.18)}
+.crt svg.stage{position:absolute;inset:0;width:100%;height:100%}
+.crt::before{ /* scanlines */
+  content:"";position:absolute;inset:0;z-index:5;pointer-events:none;
+  background:repeating-linear-gradient(to bottom, rgba(0,0,0,0) 0 2px, rgba(0,0,0,.22) 2px 3px)}
+.crt::after{ /* vignette + grain */
+  content:"";position:absolute;inset:0;z-index:6;pointer-events:none;
+  background:radial-gradient(ellipse at center, rgba(0,0,0,0) 55%, rgba(0,0,0,.65) 100%),
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 .9  0 0 0 0 .8  0 0 0 .07 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>")}
+
+/* camcorder on-screen display */
+.osd{position:absolute;z-index:4;font-family:var(--osd);color:var(--bone);font-size:clamp(14px,2.1vw,26px);
+  letter-spacing:.04em;text-shadow:1px 0 rgba(224,50,43,.55), -1px 0 rgba(80,160,255,.45)}
+.osd.tl{top:5%;left:5%} .osd.tr{top:5%;right:5%;text-align:right} .osd.bl{bottom:6%;left:5%} .osd.br{bottom:6%;right:5%}
+.rec-dot{display:inline-block;width:.55em;height:.55em;border-radius:50%;background:var(--rec);margin-right:.35em;vertical-align:.05em;
+  animation:blink 2s steps(1) infinite} /* 0.5 Hz on, well under the 3 Hz limit */
+@keyframes blink{50%{opacity:0}}
+
+/* ---------- 1. title ---------- */
+.title-wrap{position:absolute;inset:0;z-index:3;display:grid;place-content:center;text-align:center;gap:clamp(6px,1.4vw,16px);
+  background:radial-gradient(ellipse 60% 55% at 50% 52%, rgba(255,181,71,.10), transparent 70%)}
+.wordmark{font-family:var(--label);font-size:clamp(34px,8.2vw,104px);letter-spacing:.18em;margin:0;line-height:1;
+  padding-left:.18em;color:var(--bone);
+  text-shadow:2px 0 rgba(224,50,43,.5), -2px 0 rgba(80,160,255,.35), 0 0 34px rgba(255,181,71,.25);
+  animation:jitter 6s infinite}
+@keyframes jitter{0%,92%,100%{transform:translate(0,0)}93%{transform:translate(1px,-1px)}95%{transform:translate(-2px,0)}97%{transform:translate(1px,1px)}}
+.tagline{font-family:var(--osd);font-size:clamp(16px,2.6vw,30px);color:var(--candle);margin:0}
+.flame-solo{width:clamp(18px,2.6vw,30px);margin:0 auto}
+.cta{font-family:var(--osd);font-size:clamp(16px,2.4vw,28px);color:var(--bone);background:none;border:0;cursor:pointer;padding:.2em .6em;margin-top:clamp(6px,1.6vw,18px)}
+.cta:focus-visible,.btn:focus-visible{outline:2px solid var(--candle);outline-offset:3px}
+.cta .caret{animation:blink 1.2s steps(1) infinite}
+.quiet{font-family:var(--label);font-size:clamp(12px,1.5vw,17px);color:var(--bone-dim);background:none;border:0;cursor:pointer;text-decoration:underline;text-underline-offset:4px}
+.footer-note{position:absolute;z-index:4;bottom:5%;left:0;right:0;text-align:center;font-family:var(--ui);font-size:clamp(10px,1.1vw,13px);color:var(--bone-dim)}
+
+/* ---------- 2. tape shelf: VHS spines on a shelf ---------- */
+.shelf{position:absolute;inset:0;z-index:3;padding:7% 7% 0;
+  background:radial-gradient(ellipse 70% 60% at 50% 40%, rgba(255,181,71,.07), transparent 70%), var(--void)}
+.shelf-head{font-family:var(--label);font-size:clamp(14px,2vw,24px);color:var(--bone-dim);margin:0}
+.rack{position:absolute;left:7%;right:7%;bottom:20%;height:54%;display:flex;align-items:flex-end;gap:1.4%}
+.rack::after{content:"";position:absolute;left:-3%;right:-3%;bottom:-5%;height:5%;background:linear-gradient(#2a2131,#120e16);border-radius:2px;box-shadow:0 10px 24px -6px #000}
+.spine{position:relative;width:9.5%;height:100%;background:linear-gradient(90deg,#0f0c13,#1d1923 45%,#0f0c13);border-radius:3px 3px 0 0;
+  box-shadow:inset 0 0 0 1px #2b2533;display:flex;flex-direction:column;align-items:center;padding:5% 0 6%;gap:3%}
+.spine.blank{opacity:.5}
+.spine .sticker{flex:1 1 0;min-height:0;overflow:hidden;width:72%;background:var(--wax);color:#2a2018;border-radius:2px;display:flex;align-items:center;justify-content:center;
+  writing-mode:vertical-rl;transform:rotate(180deg);font-family:var(--label);font-size:clamp(9px,1.3vw,17px);letter-spacing:.02em;white-space:nowrap;
+  box-shadow:0 1px 0 rgba(0,0,0,.4)}
+.spine .sticker small{font-size:.62em;opacity:.6;margin-block-end:.6em}
+.spine .candles{display:flex;flex-direction:row;gap:2px;align-items:flex-end;min-height:clamp(12px,1.9vw,24px)}
+.spine .candles svg{width:clamp(7px,1vw,12px)}
+.spine.locked{opacity:.36}
+.spine.daily .sticker{background:var(--rec);color:#fff1ea}
+.spine.current{transform:translateY(-9%);box-shadow:inset 0 0 0 1px #3a3342,0 0 0 2px var(--candle),0 0 34px -4px rgba(255,181,71,.5)}
+.pick-label{position:absolute;left:7%;bottom:4.5%;font-family:var(--osd);font-size:clamp(13px,1.9vw,22px);color:var(--bone)}
+.pick-label span{color:var(--candle)}
+
+/* ---------- 3/4. game + results ---------- */
+.bubble{position:absolute;z-index:4;font-family:var(--label);font-size:clamp(9px,1.25vw,15px);color:var(--bone);
+  background:rgba(7,6,10,.72);padding:.35em .6em;border-radius:3px;white-space:nowrap}
+.counter{display:flex;gap:.18em;align-items:flex-end}
+.counter svg{width:clamp(9px,1.25vw,15px)}
+.maw-ind{display:flex;align-items:center;gap:.35em}
+.maw-ind svg{width:clamp(20px,2.6vw,32px)}
+
+.results-veil{position:absolute;inset:0;z-index:3;background:rgba(7,6,10,.62)}
+.tear{position:absolute;left:0;right:0;top:58%;height:3%;z-index:3;background:linear-gradient(90deg,transparent,rgba(237,230,214,.10) 20%,rgba(237,230,214,.03) 60%,transparent);
+  transform:translateX(2%);mix-blend-mode:screen}
+.results{position:absolute;z-index:4;inset:0;display:grid;grid-template-columns:1fr 1fr;align-items:center;padding:0 7%}
+.stamp{justify-self:center;font-family:var(--label);color:var(--rec);border:3px solid var(--rec);padding:.35em .6em;
+  font-size:clamp(16px,3.1vw,40px);line-height:1.05;text-align:center;transform:rotate(-9deg);opacity:.92;
+  box-shadow:inset 0 0 0 2px rgba(224,50,43,.25);letter-spacing:.04em}
+.panel{font-family:var(--label);color:var(--bone)}
+.panel .big-candles{display:flex;gap:4%;margin-bottom:5%}
+.panel .big-candles svg{width:13%}
+.panel dl{margin:0 0 6%;display:grid;grid-template-columns:auto 1fr;gap:.2em 1em;font-size:clamp(11px,1.6vw,20px)}
+.panel dt{color:var(--bone-dim)} .panel dd{margin:0}
+.actions{display:flex;flex-wrap:wrap;gap:.5em}
+.btn{font-family:var(--label);font-size:clamp(10px,1.35vw,16px);border-radius:2px;padding:.45em .8em;cursor:pointer;
+  border:1px solid #3a3342;background:transparent;color:var(--bone)}
+.btn.primary{background:var(--candle);border-color:var(--candle);color:#1a1006}
+.sharetext{margin-top:28px;font-family:var(--osd);font-size:20px;line-height:1.25;color:var(--bone);background:var(--ink);
+  border-left:2px solid var(--candle);padding:14px 18px;white-space:pre;overflow-x:auto;max-width:100%}
+
+/* flame flicker, gentle (< 2 Hz), disabled with reduced motion */
+.flicker{animation:flick 1.7s ease-in-out infinite;transform-origin:50% 100%}
+.flicker.b{animation-duration:2.3s} .flicker.c{animation-duration:1.9s;animation-delay:-.6s}
+@keyframes flick{0%,100%{transform:scale(1,1)}40%{transform:scale(.94,1.06)}70%{transform:scale(1.04,.97)}}
+@media (prefers-reduced-motion: reduce){
+  .flicker,.wordmark,.rec-dot,.cta .caret{animation:none}
+}
+</style>
+</head>
+<body>
+<!-- Shared SVG symbols: a Wick, a lit/unlit candle icon, lips -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <radialGradient id="glow" r="0.5"><stop offset="0" stop-color="#FFB547" stop-opacity=".55"/><stop offset=".45" stop-color="#FF6A2B" stop-opacity=".16"/><stop offset="1" stop-color="#FF6A2B" stop-opacity="0"/></radialGradient>
+    <radialGradient id="gateGlow" r="0.5"><stop offset="0" stop-color="#FFB547" stop-opacity=".9"/><stop offset=".6" stop-color="#FF6A2B" stop-opacity=".25"/><stop offset="1" stop-color="#FF6A2B" stop-opacity="0"/></radialGradient>
+    <symbol id="flame" viewBox="0 0 20 30"><path d="M10 1 C14 9 18 13 17 20 C16 26 13 29 10 29 C7 29 4 26 3 20 C2 13 7 10 10 1Z" fill="#FFB547"/><path d="M10 12 C12 16 14 18 13.5 22 C13 25 11.5 26.5 10 26.5 C8.5 26.5 7 25 6.5 22 C6 18 8.5 16 10 12Z" fill="#FF6A2B"/></symbol>
+    <symbol id="wick" viewBox="0 0 24 44">
+      <g class="flicker"><use href="#flame" x="5" y="0" width="14" height="19"/></g>
+      <rect x="10.6" y="17" width="2.8" height="4" fill="#2a2018"/>
+      <rect x="4" y="20" width="16" height="20" rx="4" fill="#EADCC0"/>
+      <path d="M4 26 Q6 29 8 26" stroke="#d8c7a3" stroke-width="1.4" fill="none"/>
+      <circle cx="9.5" cy="29" r="1.5" fill="#15121B"/><circle cx="14.5" cy="29" r="1.5" fill="#15121B"/>
+      <rect x="6" y="39.5" width="3" height="4" rx="1" fill="#EADCC0"/><rect x="15" y="39.5" width="3" height="4" rx="1" fill="#EADCC0"/>
+    </symbol>
+    <symbol id="candle-lit" viewBox="0 0 12 24"><use href="#flame" x="2" y="0" width="8" height="11"/><rect x="2" y="11" width="8" height="12" rx="2" fill="#EADCC0"/></symbol>
+    <symbol id="candle-out" viewBox="0 0 12 24"><path d="M6 10 C5 7 7 5 6 2" stroke="#9E968A" stroke-width="1" fill="none" opacity=".6"/><rect x="2" y="11" width="8" height="12" rx="2" fill="#4a4351"/></symbol>
+    <symbol id="lips" viewBox="0 0 32 16"><path d="M2 8 Q9 1 16 5 Q23 1 30 8 Q23 15 16 14 Q9 15 2 8Z" fill="none" stroke="currentColor" stroke-width="2"/><path d="M5 8 Q16 11 27 8" stroke="currentColor" stroke-width="1.4" fill="none"/></symbol>
+  </defs>
+</svg>
+
+<main class="page">
+  <header class="intro">
+    <h1>FACEPLANT design reference</h1>
+    <p>How the game should feel: a cursed camcorder tape, lit only by the candles the Wicks carry. Match the mood, not the pixels. Tokens and fonts are the ones in SPEC §12.</p>
+  </header>
+
+  <!-- 1. TITLE -->
+  <section class="screen">
+    <div class="crt" role="img" aria-label="Title screen mock-up">
+      <div class="osd tl"><span class="rec-dot"></span>REC<br>00:00:00</div>
+      <div class="osd tr">SP</div>
+      <div class="title-wrap">
+        <svg class="flame-solo" viewBox="0 0 20 30" aria-hidden="true"><g class="flicker"><use href="#flame"/></g></svg>
+        <p class="wordmark">FACEPLANT</p>
+        <p class="tagline">Don't open your mouth.</p>
+        <button class="cta" type="button">▶ INSERT FACE<span class="caret">_</span></button>
+        <button class="quiet" type="button">Play without camera</button>
+      </div>
+      <p class="footer-note">The camera never leaves this device.</p>
+    </div>
+    <div class="note">
+      <h2>Title</h2>
+      <p><strong>One candle, one word, one instruction.</strong> Nothing else competes. The faint red/blue edge on the type is tape bleed, not decoration.</p>
+      <p>The main button speaks in the camcorder's voice. Everything else uses sentence case.</p>
+    </div>
+  </section>
+
+  <!-- 2. SHELF -->
+  <section class="screen">
+    <div class="crt" role="img" aria-label="Tape shelf mock-up">
+      <div class="shelf">
+        <p class="shelf-head">Pick a tape</p>
+        <div class="rack">
+          <div class="spine"><div class="sticker"><small>01</small>keep still</div><div class="candles"><svg viewBox="0 0 12 24"><use href="#candle-lit"/></svg><svg viewBox="0 0 12 24"><use href="#candle-lit"/></svg><svg viewBox="0 0 12 24"><use href="#candle-lit"/></svg></div></div>
+          <div class="spine current"><div class="sticker"><small>02</small>the maw</div><div class="candles"><svg viewBox="0 0 12 24"><use href="#candle-lit"/></svg><svg viewBox="0 0 12 24"><use href="#candle-lit"/></svg><svg viewBox="0 0 12 24"><use href="#candle-out"/></svg></div></div>
+          <div class="spine locked"><div class="sticker"><small>03</small>don't laugh</div><div class="candles"></div></div>
+          <div class="spine locked"><div class="sticker"><small>04</small>dread</div><div class="candles"></div></div>
+          <div class="spine blank"></div>
+          <div class="spine blank"></div>
+          <div class="spine daily"><div class="sticker"><small>today</small>daily #017</div><div class="candles"><svg viewBox="0 0 12 24"><use href="#candle-out"/></svg></div></div>
+        </div>
+        <p class="pick-label">▶ THE MAW <span>2/3 candles</span></p>
+      </div>
+    </div>
+    <div class="note">
+      <h2>Tape shelf</h2>
+      <p><strong>Levels are physical objects.</strong> Each tape has a handwritten sticker; candles earned sit on the spine. The only red sticker is today's Daily Tape.</p>
+      <p>Locked tapes are dimmed, not hidden — players should see there is more.</p>
+    </div>
+  </section>
+
+  <!-- 3. IN-GAME -->
+  <section class="screen">
+    <div class="crt" role="img" aria-label="In-game mock-up: a face outlined in candlelight with three Wicks on it">
+      <svg class="stage" viewBox="0 0 1280 720" aria-hidden="true">
+        <rect width="1280" height="720" fill="#07060A"/>
+        <!-- candlelight on skin -->
+        <circle cx="596" cy="104" r="190" fill="url(#glow)"/>
+        <circle cx="546" cy="250" r="150" fill="url(#glow)"/>
+        <circle cx="646" cy="370" r="150" fill="url(#glow)"/>
+        <circle cx="250" cy="262" r="120" fill="url(#glow)"/>
+        <circle cx="1080" cy="470" r="170" fill="url(#gateGlow)" opacity=".55"/>
+        <!-- face contours: the terrain (chalk line) -->
+        <g fill="none" stroke="#FFB547" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M640 110 C800 110 860 230 860 360 C860 520 760 630 640 630 C520 630 420 520 420 360 C420 230 480 110 640 110Z" stroke-width="3" opacity=".42"/>
+          <path d="M498 282 Q545 254 602 268" stroke-width="4" opacity=".7"/>
+          <path d="M678 268 Q735 254 782 282" stroke-width="4" opacity=".55"/>
+          <ellipse cx="550" cy="314" rx="38" ry="13" stroke-width="1.5" opacity=".18"/>
+          <ellipse cx="730" cy="314" rx="38" ry="13" stroke-width="1.5" opacity=".18"/>
+          <path d="M640 292 L636 404 Q640 428 662 432" stroke-width="3.5" opacity=".6"/>
+          <path d="M612 430 Q640 444 668 430" stroke-width="2" opacity=".35"/>
+          <path d="M574 492 Q610 476 640 484 Q670 476 706 492" stroke-width="3.5" opacity=".5"/>
+          <path d="M574 492 Q640 528 706 492" stroke-width="3" opacity=".42"/>
+        </g>
+        <!-- ruins + spawn lantern (left), gate (right) -->
+        <path d="M150 300 L190 292 L230 298 L300 290 L360 297 L405 292 L405 330 L150 330Z" fill="#15121B" stroke="#FF6A2B" stroke-opacity=".5" stroke-width="2"/>
+        <rect x="232" y="246" width="34" height="44" rx="4" fill="#15121B" stroke="#FFB547" stroke-width="2"/>
+        <rect x="241" y="256" width="16" height="24" rx="2" fill="#FFB547" opacity=".85"/>
+        <path d="M940 560 L1000 552 L1080 558 L1170 550 L1170 600 L940 600Z" fill="#15121B" stroke="#FF6A2B" stroke-opacity=".5" stroke-width="2"/>
+        <path d="M1040 556 L1040 470 Q1080 430 1120 470 L1120 556Z" fill="#2B2236" stroke="#FFB547" stroke-width="2.5"/>
+        <path d="M1052 556 L1052 476 Q1080 448 1108 476 L1108 556Z" fill="#FFB547" opacity=".7"/>
+        <text x="300" y="322" font-family="Special Elite, serif" font-size="15" fill="#9E968A" text-anchor="middle">we trust the face.</text>
+        <!-- crawler near the lips -->
+        <g transform="translate(722 470)" stroke="#5F6E4C" stroke-width="2.4" fill="none" stroke-linecap="round">
+          <path d="M-14 4 L-24 -4 M-14 8 L-26 8 M14 4 L24 -4 M14 8 L26 8 M-10 12 L-18 20 M10 12 L18 20"/>
+          <ellipse cx="0" cy="6" rx="15" ry="10" fill="#2d3326"/>
+          <circle cx="-5" cy="3" r="2" fill="#E0322B" stroke="none"/><circle cx="5" cy="3" r="2" fill="#E0322B" stroke="none"/>
+        </g>
+        <!-- Wicks: forehead, left brow, sliding down the nose -->
+        <use href="#wick" x="579" y="56" width="34" height="60"/>
+        <use href="#wick" x="529" y="208" width="34" height="60"/>
+        <use href="#wick" x="624" y="322" width="34" height="60" transform="rotate(-8 641 359)"/>
+        <!-- one still waiting at the lantern -->
+        <use href="#wick" x="292" y="232" width="34" height="60"/>
+      </svg>
+      <div class="osd tl"><span class="rec-dot"></span>REC 00:01:12</div>
+      <div class="osd tr">T02/3</div>
+      <div class="bubble" style="left:53.5%;top:42%">big nose. good slide.</div>
+      <div class="osd bl"><div class="counter">
+        <svg viewBox="0 0 12 24"><use href="#candle-lit"/></svg><svg viewBox="0 0 12 24"><use href="#candle-lit"/></svg><svg viewBox="0 0 12 24"><use href="#candle-lit"/></svg><svg viewBox="0 0 12 24"><use href="#candle-lit"/></svg><svg viewBox="0 0 12 24"><use href="#candle-lit"/></svg><svg viewBox="0 0 12 24"><use href="#candle-lit"/></svg><svg viewBox="0 0 12 24"><use href="#candle-out"/></svg>
+      </div></div>
+      <div class="osd br"><div class="maw-ind" style="color:#4a4351"><svg viewBox="0 0 32 16"><use href="#lips"/></svg></div></div>
+    </div>
+    <div class="note">
+      <h2>In-game</h2>
+      <p><strong>Your face exists only where candlelight touches it.</strong> This mock shows INK mode (contour lines only). In VHS mode the same light falls on your real, graded video.</p>
+      <p>The amber line is the terrain. Bright segments are walkable; the eyes are holes.</p>
+      <p>The lips icon at bottom right stays dim while your mouth is closed and glows red when the Maw is open — the only other use of red besides REC.</p>
+    </div>
+  </section>
+
+  <!-- 4. RESULTS -->
+  <section class="screen">
+    <div>
+      <div class="crt" role="img" aria-label="Results screen mock-up">
+        <svg class="stage" viewBox="0 0 1280 720" aria-hidden="true">
+          <rect width="1280" height="720" fill="#07060A"/>
+          <circle cx="640" cy="300" r="300" fill="url(#glow)" opacity=".5"/>
+          <g fill="none" stroke="#FFB547" stroke-linecap="round" opacity=".35">
+            <path d="M640 110 C800 110 860 230 860 360 C860 520 760 630 640 630 C520 630 420 520 420 360 C420 230 480 110 640 110Z" stroke-width="3"/>
+            <path d="M498 282 Q545 254 602 268 M678 268 Q735 254 782 282" stroke-width="4"/>
+            <path d="M640 292 L636 404 Q640 428 662 432" stroke-width="3.5"/>
+            <path d="M574 492 Q610 470 640 480 Q670 470 706 492 M574 500 Q640 590 706 500" stroke-width="3.5"/>
+          </g>
+        </svg>
+        <div class="results-veil"></div>
+        <div class="tear"></div>
+        <div class="osd tl">PAUSE ‖</div>
+        <div class="osd tr">T02/3</div>
+        <div class="results">
+          <div class="stamp">THE MAW<br>AWOKE</div>
+          <div class="panel">
+            <div class="big-candles"><svg viewBox="0 0 12 24"><use href="#candle-lit"/></svg><svg viewBox="0 0 12 24"><use href="#candle-lit"/></svg><svg viewBox="0 0 12 24"><use href="#candle-out"/></svg></div>
+            <dl>
+              <dt>saved</dt><dd>8 of 9</dd>
+              <dt>the maw woke</dt><dd>twice</dd>
+              <dt>laughs</dt><dd>3</dd>
+            </dl>
+            <div class="actions">
+              <button class="btn primary" type="button">Next level</button>
+              <button class="btn" type="button">Retry</button>
+              <button class="btn" type="button">Save card</button>
+              <button class="btn" type="button">Copy result</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="sharetext" aria-label="Copied result text">FACEPLANT · TAPE 02-3
+🕯🕯🕯🕯🕯🕯🕯👄🕯
+saved 8/9 · the maw woke 2×
+yourname.github.io/faceplant</div>
+    </div>
+    <div class="note">
+      <h2>Results</h2>
+      <p><strong>The stamp is the punchline.</strong> <em>Kept still</em>, <em>The Maw awoke</em> or <em>Lights out</em>, set like an evidence stamp over a paused tape.</p>
+      <p>Candles light one by one. The stats are written as the Wicks would say them, not as a scoreboard.</p>
+      <p>The copied text is the Wordle-style share: one symbol per Wick, in the order they emerged.</p>
+    </div>
+  </section>
+</main>
+</body>
+</html>

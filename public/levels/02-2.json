@@ -1,0 +1,94 @@
+{
+  "id": "02-2",
+  "tape": 2,
+  "index": 2,
+  "label": "T02/2",
+  "title": "Supper",
+  "timeLimitS": 85,
+  "spawn": {
+    "x": 1.42,
+    "y": -0.020000000000000018,
+    "count": 8,
+    "intervalMs": 2400,
+    "dir": -1
+  },
+  "gate": {
+    "x": -1.64,
+    "y": -0.06,
+    "w": 0.22,
+    "h": 0.3
+  },
+  "ruins": [
+    {
+      "points": [
+        [
+          -1.72,
+          0.24
+        ],
+        [
+          -0.22,
+          0.24
+        ]
+      ]
+    },
+    {
+      "points": [
+        [
+          0.22,
+          0.24
+        ],
+        [
+          1.72,
+          0.24
+        ]
+      ]
+    }
+  ],
+  "walls": [],
+  "hazards": [
+    {
+      "type": "crawler",
+      "x": -1.3,
+      "y": 0.24,
+      "atMs": 9000
+    },
+    {
+      "type": "crawler",
+      "x": 1.3,
+      "y": 0.24,
+      "atMs": 26000
+    },
+    {
+      "type": "crawler",
+      "x": -1.3,
+      "y": 0.24,
+      "atMs": 48000
+    }
+  ],
+  "dark": {
+    "startRadiusFh": 99,
+    "shrinkFhPerS": 0
+  },
+  "scares": [],
+  "lines": [
+    {
+      "atMs": 1800,
+      "text": "supper time. not ours."
+    },
+    {
+      "atMs": 10000,
+      "text": "feed it to the maw. use the mouth. the MOUTH."
+    },
+    {
+      "atMs": 30000,
+      "text": "so the mouth can be a friend. noted. uneasily."
+    }
+  ],
+  "candles": {
+    "1": 4,
+    "2": 6,
+    "3": 8
+  },
+  "mode": "story",
+  "hint": "swallow the crawlers on purpose. your mouth is a weapon too."
+}

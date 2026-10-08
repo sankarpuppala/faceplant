@@ -1,0 +1,75 @@
+{
+  "id": "02-1",
+  "tape": 2,
+  "index": 1,
+  "label": "T02/1",
+  "title": "The Lip",
+  "timeLimitS": 80,
+  "spawn": {
+    "x": -1.42,
+    "y": -0.020000000000000018,
+    "count": 7,
+    "intervalMs": 2600,
+    "dir": 1
+  },
+  "gate": {
+    "x": 1.42,
+    "y": -0.06,
+    "w": 0.22,
+    "h": 0.3
+  },
+  "ruins": [
+    {
+      "points": [
+        [
+          -1.72,
+          0.24
+        ],
+        [
+          -0.22,
+          0.24
+        ]
+      ]
+    },
+    {
+      "points": [
+        [
+          0.22,
+          0.24
+        ],
+        [
+          1.72,
+          0.24
+        ]
+      ]
+    }
+  ],
+  "walls": [],
+  "hazards": [],
+  "dark": {
+    "startRadiusFh": 99,
+    "shrinkFhPerS": 0
+  },
+  "scares": [],
+  "lines": [
+    {
+      "atMs": 2000,
+      "text": "the lip is a bridge and a promise."
+    },
+    {
+      "atMs": 11000,
+      "text": "keep it shut. keep it shut. keep it shut."
+    },
+    {
+      "atMs": 40000,
+      "text": "we are walking on the lid of the hunger."
+    }
+  ],
+  "candles": {
+    "1": 4,
+    "2": 5,
+    "3": 7
+  },
+  "mode": "story",
+  "hint": "your closed mouth is the bridge. do not open it."
+}

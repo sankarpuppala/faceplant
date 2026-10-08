@@ -1,0 +1,11 @@
+# Normalise text in the repository, check out native on each platform.
+* text=auto eol=lf
+
+*.woff2 binary
+*.task  binary
+*.wasm  binary
+*.zip   binary
+*.png   binary
+*.jpg   binary
+*.mp4   binary
+*.webm  binary

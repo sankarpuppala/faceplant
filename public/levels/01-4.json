@@ -1,0 +1,82 @@
+{
+  "id": "01-4",
+  "tape": 1,
+  "index": 4,
+  "label": "T01/4",
+  "title": "Closer",
+  "timeLimitS": 85,
+  "spawn": {
+    "x": -1.42,
+    "y": -0.62,
+    "count": 7,
+    "intervalMs": 2600,
+    "dir": 1
+  },
+  "gate": {
+    "x": 1.42,
+    "y": -0.6599999999999999,
+    "w": 0.22,
+    "h": 0.3
+  },
+  "ruins": [
+    {
+      "points": [
+        [
+          -1.72,
+          -0.36
+        ],
+        [
+          -0.42,
+          -0.36
+        ]
+      ]
+    },
+    {
+      "points": [
+        [
+          0.42,
+          -0.36
+        ],
+        [
+          1.72,
+          -0.36
+        ]
+      ]
+    }
+  ],
+  "walls": [],
+  "hazards": [
+    {
+      "type": "crawler",
+      "x": 1.2,
+      "y": -0.36,
+      "atMs": 24000
+    }
+  ],
+  "dark": {
+    "startRadiusFh": 99,
+    "shrinkFhPerS": 0
+  },
+  "scares": [],
+  "lines": [
+    {
+      "atMs": 2000,
+      "text": "it comes closer…"
+    },
+    {
+      "atMs": 12000,
+      "text": "lean in, mountain. be larger."
+    },
+    {
+      "atMs": 26000,
+      "text": "something else lives here."
+    }
+  ],
+  "candles": {
+    "1": 4,
+    "2": 5,
+    "3": 7
+  },
+  "mode": "story",
+  "hint": "lean in. a bigger face makes wider bridges."
+}
