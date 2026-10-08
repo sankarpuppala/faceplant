@@ -1,6 +1,6 @@
-// Smoke test: fetch the built page and walk its module graph, so a broken
+﻿// Smoke test: fetch the built page and walk its module graph, so a broken
 // import or a missing asset fails here rather than in front of a player.
-const BASE = 'http://localhost:4173';
+const BASE = 'http://localhost:4174';
 const seen = new Set();
 const problems = [];
 
@@ -45,7 +45,7 @@ for (const p of ['/levels/01-1.json','/levels/04-2.json','/mediapipe/face_landma
 }
 
 // Every level must parse and validate through the real schema.
-const { parseLevel } = await import('./src/game/levelSchema.ts');
+const { parseLevel } = await import('../src/game/levelSchema.ts');
 let validated = 0;
 for (const id of ['01-1','01-2','01-3','01-4','02-1','02-2','02-3','03-1','03-2','03-3','04-1','04-2']) {
   const r = await get(`/levels/${id}.json`);
@@ -56,3 +56,4 @@ console.log('levels validated over HTTP:', validated, '/ 12');
 
 console.log(problems.length === 0 ? '\nSMOKE TEST PASS' : `\nSMOKE TEST FAIL:\n  ${problems.join('\n  ')}`);
 process.exit(problems.length === 0 ? 0 : 1);
+
