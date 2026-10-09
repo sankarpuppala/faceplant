@@ -23,6 +23,22 @@ import { shareText } from '../share/shareText.ts';
 import { copy } from './copy.ts';
 import { button, candleIcon, candleRow, el, field, screen, segmented, slider, toggle } from './dom.ts';
 import { faceMapSvg } from './diagrams.ts';
+import {
+  iconCoin,
+  iconForCause,
+  iconForOutcome,
+  iconComposure,
+  iconCrawler,
+  iconDrip,
+  iconForShopItem,
+  iconMawCard,
+  iconMoth,
+  iconOssuary,
+  iconShelf,
+  iconStepBridge,
+  iconStepLose,
+  iconStepWalk,
+} from './icons.ts';
 
 // ------------------------------------------------------------------- notice --
 
@@ -147,13 +163,17 @@ export function titleScreen(actions: TitleActions, state: TitleState): HTMLEleme
  * wants them, in that order, and nothing is a wall of text.
  */
 export function howToPlayScreen(onClose: () => void): HTMLElement {
+  // Each step leads with a drawing. "Your eyebrow is a ledge" is a strange
+  // sentence to read and an obvious thing to look at.
+  const stepArt = [iconStepWalk, iconStepBridge, iconStepLose];
   const steps = el('div', { class: 'step-grid' });
-  for (const st of copy.howTo.steps) {
+  for (const [i, st] of copy.howTo.steps.entries()) {
+    const art = stepArt[i] ?? iconStepWalk;
     steps.appendChild(
       el('div', { class: 'step-card' }, [
-        el('div', { class: 'step-n', text: st.n }),
+        el('div', { class: 'step-art' }, [art()]),
         el('div', {}, [
-          el('div', { class: 'step-title', text: st.title }),
+          el('div', { class: 'step-title' }, [el('span', { class: 'step-n', text: st.n }), st.title]),
           el('div', { class: 'step-body', text: st.body }),
         ]),
       ]),
@@ -167,13 +187,14 @@ export function howToPlayScreen(onClose: () => void): HTMLElement {
   }
 
   const elsewhere = el('div', { class: 'card-row' });
-  for (const [title, body] of [
-    [copy.howTo.tapesTitle, copy.howTo.tapesExplain],
-    [copy.howTo.shopTitle, copy.howTo.shopExplain],
-    [copy.howTo.ossuaryTitle, copy.howTo.ossuaryExplain],
+  for (const [title, body, art] of [
+    [copy.howTo.tapesTitle, copy.howTo.tapesExplain, iconShelf],
+    [copy.howTo.shopTitle, copy.howTo.shopExplain, iconCoin],
+    [copy.howTo.ossuaryTitle, copy.howTo.ossuaryExplain, iconOssuary],
   ] as const) {
     elsewhere.appendChild(
       el('div', { class: 'mini-card' }, [
+        el('div', { class: 'mini-card-art' }, [art()]),
         el('div', { class: 'mini-card-title', text: title }),
         el('p', { class: 'small dim', text: body }),
       ]),
@@ -193,13 +214,24 @@ export function howToPlayScreen(onClose: () => void): HTMLElement {
     el('h3', { text: copy.howTo.twoRulesTitle }),
     el('div', { class: 'card-row' }, [
       el('div', { class: 'mini-card danger' }, [
+        el('div', { class: 'mini-card-art' }, [iconMawCard()]),
         el('div', { class: 'mini-card-title', text: copy.howTo.mawTitle }),
         el('p', { class: 'small dim', text: copy.howTo.maw }),
       ]),
       el('div', { class: 'mini-card' }, [
+        el('div', { class: 'mini-card-art' }, [iconComposure()]),
         el('div', { class: 'mini-card-title', text: copy.howTo.composureTitle }),
         el('p', { class: 'small dim', text: copy.howTo.composure }),
       ]),
+    ]),
+
+    // What the moving things are. A player previously had to infer a Moth from
+    // a Wick's line of dialogue; now it is simply shown.
+    el('h3', { text: copy.howTo.hazardsTitle }),
+    el('div', { class: 'legend' }, [
+      el('div', { class: 'legend-item' }, [iconCrawler(), el('span', { text: copy.howTo.hazardCrawler })]),
+      el('div', { class: 'legend-item' }, [iconMoth(), el('span', { text: copy.howTo.hazardMoth })]),
+      el('div', { class: 'legend-item' }, [iconDrip(), el('span', { text: copy.howTo.hazardDrip })]),
     ]),
 
     el('h3', { text: copy.howTo.elsewhereTitle }),
@@ -363,10 +395,7 @@ export function shelfScreen(progress: Progress, actions: ShelfActions, dayNumber
     el('h2', { text: copy.shelf.heading }),
     // Coins live here too, so the shop's currency is visible where you choose
     // what to play rather than only on the title screen.
-    el('div', { class: 'coin-banner' }, [
-      el('span', { class: 'coin-icon', text: '◉' }),
-      el('span', { text: copy.shop.coinsHeld(progress.coins) }),
-    ]),
+    el('div', { class: 'coin-banner' }, [iconCoin(), el('span', { text: copy.shop.coinsHeld(progress.coins) })]),
     rack,
     blurb,
     levelHost,
@@ -495,15 +524,23 @@ export function resultsScreen(
     el('p', { class: 'small dim', text: blurb }),
     result.failed ? el('p', { class: 'small', style: 'color:var(--rec)', text: copy.results.failed }) : null,
     candleRow(result.candles),
+
+    // Every Wick's fate, in spawn order, as pictures. The same information the
+    // share text carries as emoji - it just was not on screen anywhere.
+    (() => {
+      const strip = el('div', { class: 'outcome-strip' });
+      for (const o of result.outcomes) {
+        strip.appendChild(el('span', { class: `outcome outcome-${o}` }, [iconForOutcome(o)]));
+      }
+      return strip;
+    })(),
+
     el('div', { class: 'bigscore', text: result.score.toLocaleString('en-US') }),
 
     // Coins earned. A failed tape pays nothing, and says so, because an
     // unexplained zero reads as a bug.
     result.coins > 0
-      ? el('div', { class: 'coin-banner earned' }, [
-          el('span', { class: 'coin-icon', text: '◉' }),
-          el('span', { text: copy.results.coins(result.coins) }),
-        ])
+      ? el('div', { class: 'coin-banner earned' }, [iconCoin(), el('span', { text: copy.results.coins(result.coins) })])
       : el('p', { class: 'small dim', text: result.failed ? copy.results.noCoins : '' }),
 
     opts.newBest ? el('p', { class: 'tagline', text: copy.results.newBest }) : null,
@@ -691,6 +728,7 @@ export function ossuaryScreen(progress: Progress, onBack: () => void): HTMLEleme
     for (const b of bones) {
       list.appendChild(
         el('div', { class: `bone-row ${b.cause === 'maw' ? 'maw' : ''}` }, [
+          el('div', { class: 'bone-icon' }, [iconForCause(b.cause)]),
           el('div', {}, [
             el('div', { text: displayName(b.name, b.title) }),
             b.lastWords === null ? null : el('div', { class: 'last', text: `“${b.lastWords}”` }),
@@ -748,6 +786,7 @@ export function shopScreen(
 
     rows.appendChild(
       el('div', { class: `shop-row ${owned ? 'owned' : ''}` }, [
+        el('div', { class: 'shop-icon' }, [iconForShopItem(item.id)]),
         el('div', {}, [
           el('div', { class: 'shop-name', text: item.name }),
           el('div', { class: 'shop-blurb', text: item.blurb }),
@@ -760,10 +799,7 @@ export function shopScreen(
 
   return screen(copy.shop.heading, [
     el('h2', { text: copy.shop.heading }),
-    el('div', { class: 'coin-banner' }, [
-      el('span', { class: 'coin-icon', text: '◉' }),
-      el('span', { text: copy.shop.coinsHeld(progress.coins) }),
-    ]),
+    el('div', { class: 'coin-banner' }, [iconCoin(), el('span', { text: copy.shop.coinsHeld(progress.coins) })]),
     el('p', { class: 'small dim centered', text: copy.shop.blurb }),
     progress.coinsEarned === 0 ? el('p', { class: 'small dim centered', text: copy.shop.empty }) : null,
     rows,

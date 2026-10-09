@@ -124,28 +124,64 @@ describe('the fail threshold', () => {
 });
 
 describe('the Watcher animation', () => {
-  it('runs through approach, hold and leave, then stops', () => {
+  it('runs stare, approach, hold and leave, then stops', () => {
+    // The stare is the beat the first version was missing: a moment where you
+    // can tell something is out there and not yet what it is.
     const total = watcherTotalMs(false);
+    const stare = config.watcher.stareMs;
+
     expect(watcherStateAt(-1, false).phase).toBe('gone');
-    expect(watcherStateAt(0, false).phase).toBe('approaching');
-    expect(watcherStateAt(config.watcher.approachMs + 10, false).phase).toBe('holding');
+    expect(watcherStateAt(0, false).phase).toBe('staring');
+    expect(watcherStateAt(stare - 10, false).phase).toBe('staring');
+    expect(watcherStateAt(stare + 10, false).phase).toBe('approaching');
+    expect(watcherStateAt(stare + config.watcher.approachMs + 10, false).phase).toBe('holding');
     expect(watcherStateAt(total - 10, false).phase).toBe('leaving');
     expect(watcherStateAt(total + 1, false).phase).toBe('gone');
+  });
+
+  it('shows nothing but the eyes during the stare', () => {
+    // Nothing has approached yet, so the face must not be assembled.
+    const mid = watcherStateAt(config.watcher.stareMs * 0.5, false);
+    expect(mid.phase).toBe('staring');
+    expect(mid.approach).toBe(0);
+    // It fades the dark in rather than cutting to it.
+    expect(mid.alpha).toBeGreaterThan(0);
+    expect(mid.alpha).toBeLessThan(1);
   });
 
   it('comes closer the whole way in, and never jumps', () => {
     // The approach has to be a smooth ramp: a jump in size would be a flash,
     // and flashes are what the photosensitivity rule forbids.
+    const stare = config.watcher.stareMs;
     let prev = -1;
-    for (let t = 0; t <= config.watcher.approachMs; t += 8) {
+    for (let t = stare; t <= stare + config.watcher.approachMs; t += 8) {
       const a = watcherStateAt(t, false).approach;
       expect(a).toBeGreaterThanOrEqual(prev);
       expect(a).toBeLessThanOrEqual(1);
       if (prev >= 0) expect(a - prev).toBeLessThan(0.1);
       prev = a;
     }
-    // And it is exactly arrived at the end of the approach.
-    expect(watcherStateAt(config.watcher.approachMs, false).approach).toBeCloseTo(1, 6);
+    // And it has arrived by the end of the approach.
+    expect(watcherStateAt(stare + config.watcher.approachMs, false).approach).toBeCloseTo(1, 6);
+  });
+
+  it('screams through the hold, measurably', () => {
+    const stare = config.watcher.stareMs;
+    const intoHold = stare + config.watcher.approachMs + config.watcher.holdMs * 0.5;
+    const st = watcherStateAt(intoHold, false);
+    expect(st.phase).toBe('holding');
+    expect(st.scream).toBeGreaterThan(0.3);
+    expect(st.scream).toBeLessThan(0.7);
+  });
+
+  it('gets close enough to fill the frame', () => {
+    // A scare that stays politely inside the viewport is a portrait.
+    expect(config.watcher.finalHeightFraction).toBeGreaterThan(1.5);
+  });
+
+  it('judders and pulses under the photosensitivity ceiling', () => {
+    expect(config.watcher.jawJudderHz).toBeLessThanOrEqual(3);
+    expect(config.watcher.eyePulseHz).toBeLessThanOrEqual(3);
   });
 
   it('fades out rather than cutting', () => {
@@ -158,7 +194,8 @@ describe('the Watcher animation', () => {
   it('looms more slowly with reduced effects, but still arrives', () => {
     // Reduced effects should take the violence out of it, not the information.
     expect(watcherTotalMs(true)).toBeGreaterThan(watcherTotalMs(false));
-    expect(watcherStateAt(config.watcher.approachMs * 1.8 - 10, true).phase).toBe('approaching');
+    const midApproach = config.watcher.stareMs + config.watcher.approachMs * 1.9 * 0.5;
+    expect(watcherStateAt(midApproach, true).phase).toBe('approaching');
     expect(watcherStateAt(watcherTotalMs(true) * 0.8, true).alpha).toBeGreaterThan(0);
   });
 

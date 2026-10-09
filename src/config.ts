@@ -257,18 +257,32 @@ export const config = {
    * happen at all - the level simply ends.
    */
   watcher: {
-    /** Rush toward the screen. */
-    approachMs: 850,
-    /** Hold at full size, staring. */
-    holdMs: 700,
+    /**
+     * A scare needs anticipation or it is just a loud picture. The sequence is
+     * stare -> rush -> scream -> linger, and the first beat is the one the
+     * original version was missing: a moment where you can tell something is
+     * out there, and not yet what.
+     */
+    /** Two eyes, far off in the dark. Nothing else is visible yet. */
+    stareMs: 500,
+    /** It closes the distance. */
+    approachMs: 620,
+    /** In your face, screaming. */
+    holdMs: 1100,
     /** Fade out. */
-    leaveMs: 450,
+    leaveMs: 500,
     /** How much of the frame height the face fills at its closest; 0..1+ fraction. */
-    finalHeightFraction: 1.35,
+    finalHeightFraction: 2.1,
+    /** How far past its final size it lunges before settling; 0..1 fraction. */
+    overshootFraction: 0.12,
     /** Screen shake while it is in your face, FH. Clamped by render.maxShakeFh. */
-    shakeFh: 0.09,
+    shakeFh: 0.14,
     /** Eye glow pulse, Hz. Well under the 3 Hz flash ceiling. */
     eyePulseHz: 2,
+    /** Jaw judder while screaming, Hz. Motion, not luminance, and still under 3. */
+    jawJudderHz: 2.5,
+    /** Wax tears: how many run from each eye. */
+    tearCount: 3,
   },
 
   /** U4 - THE LONG TAPE (endless). */

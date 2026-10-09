@@ -26,6 +26,8 @@ export type ShopItemId =
 export interface ShopItem {
   id: ShopItemId;
   name: string;
+  /** Key into `src/ui/icons.ts`, so each row leads with a picture. */
+  icon: ShopItemId;
   /** What it does, in the Wicks' register but plain enough to act on. */
   blurb: string;
   /** What it does mechanically, stated in numbers the player can verify. */
@@ -41,6 +43,7 @@ export interface ShopItem {
 export const SHOP_ITEMS: readonly ShopItem[] = [
   {
     id: 'steadyWicks',
+    icon: 'steadyWicks',
     name: 'Steady Feet',
     blurb: 'They will risk a longer stride.',
     effect: `Gaps and drops they will cross are ${Math.round((config.rites.steadyWicksMultiple - 1) * 100)}% wider.`,
@@ -48,6 +51,7 @@ export const SHOP_ITEMS: readonly ShopItem[] = [
   },
   {
     id: 'lanternOil',
+    icon: 'lanternOil',
     name: 'Lantern Oil',
     blurb: 'A better flame sees further into the dark.',
     effect: 'Every flame lights 25% further, and the Dark takes longer to find them.',
@@ -55,6 +59,7 @@ export const SHOP_ITEMS: readonly ShopItem[] = [
   },
   {
     id: 'slowSpawn',
+    icon: 'slowSpawn',
     name: 'Rite of Patience',
     blurb: 'They leave the lantern less often.',
     effect: `Spawns are ${Math.round((config.rites.slowSpawnMultiple - 1) * 100)}% further apart, so fewer are exposed at once.`,
@@ -62,6 +67,7 @@ export const SHOP_ITEMS: readonly ShopItem[] = [
   },
   {
     id: 'wardingSalt',
+    icon: 'wardingSalt',
     name: 'Warding Salt',
     blurb: 'Crawlers do not like the taste of the road.',
     effect: 'Crawlers move 20% slower and take 50% longer to put a flame out.',
@@ -69,6 +75,7 @@ export const SHOP_ITEMS: readonly ShopItem[] = [
   },
   {
     id: 'wideGate',
+    icon: 'wideGate',
     name: 'The Wider Door',
     blurb: 'The Gate counts a near miss as an arrival.',
     effect: `The Gate's reach grows by ${config.rites.wideGateBonusFh.toFixed(2)} face-heights on every side.`,
@@ -76,6 +83,7 @@ export const SHOP_ITEMS: readonly ShopItem[] = [
   },
   {
     id: 'ironNerve',
+    icon: 'ironNerve',
     name: 'Iron Nerve',
     blurb: 'You will hold yourself together a little longer.',
     effect: 'Composure drains 25% more slowly, so laughing costs less.',
@@ -83,6 +91,7 @@ export const SHOP_ITEMS: readonly ShopItem[] = [
   },
   {
     id: 'secondChance',
+    icon: 'secondChance',
     name: 'The Second Flame',
     blurb: 'One of them gets to come back.',
     effect: `${config.rites.secondChanceCount} lost Wick per run returns to the lantern. The Maw is exempt.`,
