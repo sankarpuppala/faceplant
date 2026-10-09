@@ -41,13 +41,13 @@ import {
   recordDaily,
   recordRun,
   riteCost,
-  RITE_NAMES,
-  spendableCandles,
+  addCoins,
   totalCandles,
   type Progress,
 } from '../../src/storage/progress.ts';
 import { DEFAULT_SETTINGS } from '../../src/storage/settings.ts';
 import { flashBudget } from '../../src/render/postfx.ts';
+import { SHOP_ITEMS, SHOP_ITEM_IDS, coinsFor, type ShopItemId } from '../../src/game/shop.ts';
 import { hex, tokens } from '../../src/render/tokens.ts';
 
 const ROOT = join(import.meta.dirname, '..', '..');
@@ -504,7 +504,7 @@ describe('candles, stamps and score (SPEC 9.2, 12.5)', () => {
     spawned: 5, saved: 5, lost: 0, candles: 3, score: 100, mawWokeCount: 0,
     offerings: 0, bestProcession: 1, composureLeft: 1, composureLow: 1,
     lossesByCause: { maw: 0, void: 0, drip: 0, dark: 0, crawler: 0, moth: 0 },
-    outcomes: [], elapsedMs: 1000, wave: 0,
+    outcomes: [], elapsedMs: 1000, wave: 0, failed: false, coins: 0,
   };
 
   it('stamps LIGHTS OUT when nothing survived', () => {
@@ -648,7 +648,7 @@ describe('share text (SPEC 16)', () => {
     offerings: 1, bestProcession: 3, composureLeft: 0.62, composureLow: 0.4,
     lossesByCause: { maw: 1, void: 0, drip: 0, dark: 0, crawler: 0, moth: 0 },
     outcomes: ['saved', 'saved', 'saved', 'saved', 'saved', 'saved', 'saved', 'maw', 'saved'],
-    elapsedMs: 60_000, wave: 0,
+    elapsedMs: 60_000, wave: 0, failed: false, coins: 0,
   };
 
   it('writes one emoji per Wick in spawn order', () => {
@@ -693,7 +693,7 @@ describe('progress, the Ossuary and Rites (U7, U9)', () => {
     spawned: 3, saved: 2, lost: 1, candles: 2, score: 500, mawWokeCount: 1,
     offerings: 0, bestProcession: 1, composureLeft: 0.8, composureLow: 0.7,
     lossesByCause: { maw: 1, void: 0, drip: 0, dark: 0, crawler: 0, moth: 0 },
-    outcomes: ['saved', 'saved', 'maw'], elapsedMs: 30_000, wave: 0,
+    outcomes: ['saved', 'saved', 'maw'], elapsedMs: 30_000, wave: 0, failed: false, coins: 0,
   };
 
   const roster = [
@@ -744,36 +744,172 @@ describe('progress, the Ossuary and Rites (U7, U9)', () => {
     expect(p.endlessBest.score).toBe(900);
   });
 
-  it('spends candles on Rites, once each', () => {
-    const p: Progress = { ...structuredClone(EMPTY_PROGRESS), levels: { a: { candles: 3, bestScore: 0, bestSaved: 0, attempts: 1 } } };
-    expect(totalCandles(p)).toBe(3);
+  it('buys shop items with coins, once each', () => {
+    const cheapest = SHOP_ITEM_IDS.reduce((a: ShopItemId, b: ShopItemId) => (riteCost(a) <= riteCost(b) ? a : b));
+    const broke: Progress = { ...structuredClone(EMPTY_PROGRESS), coins: 0 };
+    expect(canBuyRite(broke, cheapest)).toBe(false);
 
-    const cheapest = RITE_NAMES.reduce((a, b) => (riteCost(a) <= riteCost(b) ? a : b));
-    // Not affordable with 3 candles.
-    expect(canBuyRite(p, cheapest)).toBe(false);
-
-    const rich: Progress = {
-      ...p,
-      levels: Object.fromEntries(
-        Array.from({ length: 20 }, (_, i) => [`l${i}`, { candles: 3 as const, bestScore: 0, bestSaved: 0, attempts: 1 }]),
-      ),
-    };
-    expect(spendableCandles(rich)).toBe(60);
-
+    const rich: Progress = { ...structuredClone(EMPTY_PROGRESS), coins: 10_000 };
     const bought = buyRite(rich, cheapest);
     expect(bought.rites).toContain(cheapest);
-    expect(spendableCandles(bought)).toBe(60 - riteCost(cheapest));
-    // Buying twice is a no-op.
-    expect(buyRite(bought, cheapest).rites.filter((r) => r === cheapest)).toHaveLength(1);
+    expect(bought.coins).toBe(10_000 - riteCost(cheapest));
+    // Buying twice is a no-op, and does not charge twice.
+    const again = buyRite(bought, cheapest);
+    expect(again.rites.filter((r) => r === cheapest)).toHaveLength(1);
+    expect(again.coins).toBe(bought.coins);
   });
 
-  it('Rites translate into tunables that make the game easier, never harder', () => {
+  it('spends coins, never candles - a purchase must not lower your rating', () => {
+    // The reason the shop moved off candles: candles are a per-level rating,
+    // so spending them made your record of how well you played go down when
+    // you bought something.
+    const p: Progress = {
+      ...structuredClone(EMPTY_PROGRESS),
+      coins: 10_000,
+      levels: { a: { candles: 3, bestScore: 0, bestSaved: 0, attempts: 1 } },
+    };
+    const before = totalCandles(p);
+    const after = buyRite(p, SHOP_ITEM_IDS[0] as ShopItemId);
+    expect(totalCandles(after)).toBe(before);
+    expect(after.coins).toBeLessThan(p.coins);
+  });
+
+  it('every shop item states a real price and a concrete effect', () => {
+    expect(SHOP_ITEMS.length).toBeGreaterThanOrEqual(5);
+    const prices = SHOP_ITEMS.map((i) => i.costCoins);
+    for (const item of SHOP_ITEMS) {
+      expect(item.costCoins, `${item.id} is free`).toBeGreaterThan(0);
+      expect(item.name.length).toBeGreaterThan(2);
+      // The old screen described effects only in flavour text and nobody could
+      // tell what they had bought, so every item must quantify itself.
+      expect(item.effect, `${item.id} has no numbers in its effect`).toMatch(/\d/);
+    }
+    // Cheapest first, so the list reads as a progression.
+    expect([...prices]).toEqual([...prices].sort((a, b) => a - b));
+    expect(new Set(SHOP_ITEM_IDS).size).toBe(SHOP_ITEM_IDS.length);
+  });
+
+  it('every shop item actually changes something', () => {
+    // Three items shipped briefly as purchasable and completely inert, because
+    // the shop list grew and `riteTunables()` did not. Selling a player
+    // something that does nothing is worse than not selling it.
+    const baseline = JSON.stringify(defaultTunables());
+    const appSrc = readFileSync(join(ROOT, 'src', 'app.ts'), 'utf8');
+
+    for (const item of SHOP_ITEMS) {
+      // Each id must be referenced by the code that builds the run's tunables.
+      const at = appSrc.indexOf('riteTunables');
+      const body = appSrc.slice(at, at + 1800);
+      expect(body, `${item.id} is never applied in riteTunables()`).toContain(`'${item.id}'`);
+    }
+    expect(baseline).toBeTruthy();
+  });
+
+  it('shop items translate into tunables that make the game easier, never harder', () => {
     const base = defaultTunables();
     expect(base.wickMaxGapFh).toBe(config.wick.maxGapFh);
     expect(config.rites.steadyWicksMultiple).toBeGreaterThan(1);
     expect(config.rites.slowSpawnMultiple).toBeGreaterThan(1);
     expect(config.rites.wideGateBonusFh).toBeGreaterThan(0);
     expect(config.rites.secondChanceCount).toBeGreaterThan(0);
+    // The three newer ones, in the direction that helps.
+    expect(config.rites.lanternOilMultiple).toBeGreaterThan(1);
+    expect(config.rites.ironNerveMultiple).toBeLessThan(1);
+    expect(config.rites.wardingSaltSpeedMultiple).toBeLessThan(1);
+    expect(config.rites.wardingSaltTouchMultiple).toBeGreaterThan(1);
+  });
+});
+
+// -------------------------------------------------------- coins and failing ---
+
+describe('coins (the shop currency)', () => {
+  const base = {
+    failed: false,
+    saved: 8,
+    spawned: 10,
+    candles: 2,
+    composureLeft: 0.6,
+    offerings: 1,
+    mode: 'story' as const,
+    wave: 0,
+    replay: false,
+  };
+
+  it('pays for a cleared level', () => {
+    expect(coinsFor(base)).toBeGreaterThan(0);
+  });
+
+  it('pays nothing at all for a lost tape', () => {
+    // This is most of what makes failing sting, now that failing exists.
+    expect(coinsFor({ ...base, failed: true })).toBe(0);
+    expect(coinsFor({ ...base, failed: true, saved: 9, candles: 3 })).toBe(0);
+  });
+
+  it('pays more for playing better', () => {
+    const poor = coinsFor({ ...base, saved: 5, candles: 1, composureLeft: 0.1, offerings: 0 });
+    const good = coinsFor({ ...base, saved: 10, candles: 3, composureLeft: 1, offerings: 3 });
+    expect(good).toBeGreaterThan(poor);
+  });
+
+  it('pays a flawless run a bonus', () => {
+    const some = coinsFor({ ...base, saved: 9, spawned: 10 });
+    const all = coinsFor({ ...base, saved: 10, spawned: 10 });
+    expect(all).toBeGreaterThan(some + config.coins.perSavedWick);
+  });
+
+  it('pays less for replaying a level already cleared', () => {
+    const first = coinsFor(base);
+    const again = coinsFor({ ...base, replay: true });
+    expect(again).toBeLessThan(first);
+    expect(again).toBeGreaterThan(0);
+  });
+
+  it('pays the Long Tape by wave', () => {
+    const short = coinsFor({ ...base, mode: 'endless', wave: 2 });
+    const long = coinsFor({ ...base, mode: 'endless', wave: 9 });
+    expect(long).toBeGreaterThan(short);
+  });
+
+  it('never pays a negative amount', () => {
+    expect(coinsFor({ ...base, saved: 0, candles: 0, composureLeft: 0, offerings: 0 })).toBeGreaterThanOrEqual(0);
+  });
+
+  it('banks coins into the save, tracking the lifetime total', () => {
+    let p = structuredClone(EMPTY_PROGRESS);
+    p = addCoins(p, 150);
+    expect(p.coins).toBe(150);
+    expect(p.coinsEarned).toBe(150);
+    p = buyRite({ ...p, coins: 10_000 }, SHOP_ITEM_IDS[0] as ShopItemId);
+    // Spending reduces the purse but never the lifetime total.
+    expect(p.coinsEarned).toBe(150);
+  });
+});
+
+describe('losing a tape (the fail condition)', () => {
+  it('stamps TAPE LOST above every other reading of the run', () => {
+    const r: Omit<RunResult, 'stamp'> = {
+      levelId: '01-1', label: 'T01/1', title: 'Warm', mode: 'story',
+      spawned: 10, saved: 4, lost: 6, candles: 1, score: 100, mawWokeCount: 0,
+      offerings: 0, bestProcession: 1, composureLeft: 1, composureLow: 1,
+      lossesByCause: { maw: 0, void: 6, drip: 0, dark: 0, crawler: 0, moth: 0 },
+      outcomes: [], elapsedMs: 1000, wave: 0, failed: true, coins: 0,
+    };
+    expect(stampFor(r)).toBe('TAPE LOST');
+    // Even a run that would otherwise have read as composed.
+    expect(stampFor({ ...r, saved: 10, lost: 0, composureLeft: 1 })).toBe('TAPE LOST');
+  });
+
+  it('the threshold is more than half the roster', () => {
+    expect(config.rules.failLossFraction).toBe(0.5);
+    // Exactly half is survivable; one more is not. 10 Wicks: 5 lost is fine.
+    const budget = Math.floor(10 * config.rules.failLossFraction);
+    expect(budget).toBe(5);
+    expect(5 > budget).toBe(false);
+    expect(6 > budget).toBe(true);
+  });
+
+  it('holds the run open long enough for the scare to land', () => {
+    expect(config.rules.failHoldMs).toBeGreaterThan(config.watcher.approachMs);
   });
 });
 

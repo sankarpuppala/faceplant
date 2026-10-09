@@ -387,11 +387,16 @@ const SPECS: Spec[] = [
     // The finale (SPEC 10.3). Midway the contours smile and wink on their own,
     // which on the mouth route moves the bridge out from under them. With
     // scares off the ScareDirector drops the event and the level plays straight.
+    // Crawler counts were set when a single one could wipe a whole level.
+    // Now that each retires after taking one flame, the count is the dial.
     hazards: [
       { type: 'crawler', x: 1.3, y: 0.24, atMs: 13_000 },
       { type: 'drip', x: 0, y: CEILING_Y, atMs: 22_000, intervalMs: 3000 },
+      { type: 'crawler', x: -1.3, y: 0.24, atMs: 28_000 },
       { type: 'moth', x: -1.2, y: CEILING_Y, atMs: 32_000 },
+      { type: 'crawler', x: 1.3, y: 0.24, atMs: 46_000 },
       { type: 'crawler', x: -1.3, y: 0.24, atMs: 60_000 },
+      { type: 'moth', x: 1.1, y: CEILING_Y, atMs: 72_000 },
     ],
     dark: { startRadiusFh: 2.8, shrinkFhPerS: 0.013 },
     scares: [
@@ -437,10 +442,12 @@ const SPECS: Spec[] = [
     hazards: [
       { type: 'crawler', x: -1.3, y: 0.24, atMs: 6000 },
       { type: 'moth', x: 0.9, y: CEILING_Y, atMs: 14_000 },
-      { type: 'crawler', x: 1.3, y: 0.24, atMs: 24_000 },
+      { type: 'crawler', x: 1.3, y: 0.24, atMs: 20_000 },
+      { type: 'crawler', x: -1.3, y: 0.24, atMs: 30_000 },
       { type: 'moth', x: -0.9, y: CEILING_Y, atMs: 36_000 },
-      { type: 'crawler', x: -1.3, y: 0.24, atMs: 48_000 },
-      { type: 'moth', x: 0.9, y: CEILING_Y, atMs: 58_000 },
+      { type: 'crawler', x: 1.3, y: 0.24, atMs: 44_000 },
+      { type: 'crawler', x: -1.3, y: 0.24, atMs: 54_000 },
+      { type: 'moth', x: 0.9, y: CEILING_Y, atMs: 62_000 },
     ],
     scares: [
       { type: 'figure', atMs: 9000 },
@@ -473,9 +480,11 @@ const SPECS: Spec[] = [
       { type: 'drip', x: 0.5, y: CEILING_Y, atMs: 5000, intervalMs: 2000 },
       { type: 'drip', x: 0, y: CEILING_Y, atMs: 14_000, intervalMs: 1700 },
       { type: 'crawler', x: -1.3, y: 0.46, atMs: 20_000 },
-      { type: 'crawler', x: 1.3, y: 0.46, atMs: 36_000 },
+      { type: 'crawler', x: 1.3, y: 0.46, atMs: 30_000 },
+      { type: 'crawler', x: -1.3, y: 0.46, atMs: 40_000 },
       { type: 'drip', x: -0.25, y: CEILING_Y, atMs: 44_000, intervalMs: 1800 },
-      { type: 'crawler', x: -1.3, y: 0.46, atMs: 58_000 },
+      { type: 'crawler', x: 1.3, y: 0.46, atMs: 52_000 },
+      { type: 'crawler', x: -1.3, y: 0.46, atMs: 62_000 },
     ],
     dark: { startRadiusFh: 2.2, shrinkFhPerS: 0.016 },
     scares: [
@@ -511,11 +520,14 @@ const SPECS: Spec[] = [
     hazards: [
       { type: 'crawler', x: 1.3, y: 0.24, atMs: 5000 },
       { type: 'drip', x: -0.2, y: CEILING_Y, atMs: 10_000, intervalMs: 2100 },
+      { type: 'crawler', x: -1.3, y: 0.24, atMs: 14_000 },
       { type: 'moth', x: -1.0, y: CEILING_Y, atMs: 16_000 },
-      { type: 'crawler', x: -1.3, y: 0.24, atMs: 28_000 },
-      { type: 'drip', x: 0.2, y: CEILING_Y, atMs: 32_000, intervalMs: 2000 },
+      { type: 'crawler', x: 1.3, y: 0.24, atMs: 24_000 },
+      { type: 'crawler', x: -1.3, y: 0.24, atMs: 32_000 },
+      { type: 'drip', x: 0.2, y: CEILING_Y, atMs: 34_000, intervalMs: 2000 },
       { type: 'moth', x: 1.0, y: CEILING_Y, atMs: 42_000 },
-      { type: 'crawler', x: 1.3, y: 0.24, atMs: 54_000 },
+      { type: 'crawler', x: 1.3, y: 0.24, atMs: 50_000 },
+      { type: 'crawler', x: -1.3, y: 0.24, atMs: 60_000 },
       { type: 'moth', x: -0.9, y: CEILING_Y, atMs: 66_000 },
     ],
     dark: { startRadiusFh: 2.6, shrinkFhPerS: 0.012 },

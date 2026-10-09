@@ -245,7 +245,15 @@ export function drawCrawler(g: Graphics, c: Crawler, ctx: DrawContext): void {
   // on. A thin warm rim - the same trick the ruins use - keeps its outline
   // legible without making the Crawler itself look lit.
   g.ellipse(p.x, p.y, r * 1.08, r * 0.8).stroke({ width: Math.max(1, r * 0.1), color: tokens.candle, alpha: 0.35 });
-  g.ellipse(p.x, p.y, r, r * 0.72).fill({ color: tokens.mold, alpha: 0.98 });
+  g.ellipse(p.x, p.y, r, r * 0.72).fill({ color: tokens.mold, alpha: c.sated ? 0.4 : 0.98 });
+
+  // A sated Crawler has had its flame and cannot take another, so it must not
+  // keep looking like a threat. Its eyes go out; it is still worth swallowing.
+  if (c.sated) {
+    g.circle(p.x - r * 0.3, p.y - r * 0.18, r * 0.13).fill({ color: tokens.void, alpha: 0.7 });
+    g.circle(p.x + r * 0.3, p.y - r * 0.18, r * 0.13).fill({ color: tokens.void, alpha: 0.7 });
+    return;
+  }
   g.circle(p.x - r * 0.3, p.y - r * 0.18, r * 0.16).fill({ color: tokens.rec, alpha: 0.95 });
   g.circle(p.x + r * 0.3, p.y - r * 0.18, r * 0.16).fill({ color: tokens.rec, alpha: 0.95 });
 }

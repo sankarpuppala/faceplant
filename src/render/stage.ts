@@ -41,6 +41,7 @@ import {
   SpeechBubble,
 } from './sprites.ts';
 import { tokens } from './tokens.ts';
+import { Watcher, watcherTotalMs } from './watcher.ts';
 
 export interface RenderInput {
   world: World;
@@ -55,6 +56,11 @@ export interface RenderInput {
   timeMs: number;
   dtMs: number;
   gateBonusFh: number;
+  /**
+   * ms since THE WATCHER was summoned, or null when it is not here. Null
+   * whenever Scares are off, so the app does not have to special-case it.
+   */
+  watcherElapsedMs: number | null;
   /** Shown when no face has been seen yet. */
   showNoFaceHint: boolean;
 }
@@ -67,6 +73,7 @@ export class Stage {
   private readonly faceLayer = new Container();
   private readonly worldLayer = new Container();
   private readonly osd = new Osd();
+  private readonly watcher = new Watcher();
   private readonly bubble = new SpeechBubble();
 
   private videoSprite: Sprite | null = null;
@@ -109,7 +116,7 @@ export class Stage {
     this.faceLayer.addChild(this.contourG);
     this.worldLayer.addChild(this.staticG, this.lanternG, this.gateG, this.flareG, this.bodiesG, this.figureG);
     this.taped.addChild(this.videoLayer, this.faceLayer, this.worldLayer, this.bubble);
-    this.app.stage.addChild(this.taped, this.osd);
+    this.app.stage.addChild(this.taped, this.watcher, this.osd);
 
     this.lightMap = new LightMap(config.render.aspect);
     this.lightmapFilter = new SimpleLightmapFilter({
@@ -245,6 +252,15 @@ export class Stage {
       this.bubble.hide();
     }
 
+    // --- THE WATCHER ------------------------------------------------------
+    // Drawn last and above the tape effects: it is not part of the footage.
+    if (input.watcherElapsedMs !== null) {
+      const shake = this.watcher.draw(input.watcherElapsedMs, this.vp, reduced, input.timeMs);
+      if (shake > 0) this.addShake(shake, input.cal);
+    } else {
+      this.watcher.hide();
+    }
+
     // --- OSD --------------------------------------------------------------
     // `osdVisible` is honoured here rather than set: the menus render over a
     // live stage, and an earlier version forced it true every frame, so hiding
@@ -272,7 +288,9 @@ export class Stage {
     for (const w of world.wicks) {
       if (!w.lit || w.state === 'saved' || w.state === 'lost') continue;
       const p = worldToScreen({ x: w.body.x, y: w.body.y }, cal, this.vp);
-      lights.push({ x: p.x, y: p.y, r: (config.light.wickRadiusFh + bonus) * fhPx, intensity: 1 });
+      // `world.wickLightRadiusFh` already includes Lantern Oil from the shop,
+      // so the visible glow and the radius the Dark measures against agree.
+      lights.push({ x: p.x, y: p.y, r: (world.wickLightRadiusFh + bonus) * fhPx, intensity: 1 });
     }
 
     const lantern = worldToScreen({ x: level.spawn.x, y: level.spawn.y }, cal, this.vp);
@@ -404,6 +422,11 @@ export class Stage {
   }
 
   private osdVisible = false;
+
+  /** How long the Watcher animation runs, so the app knows when to stop it. */
+  watcherDurationMs(reducedEffects: boolean): number {
+    return watcherTotalMs(reducedEffects);
+  }
 
   setOsdVisible(v: boolean): void {
     this.osdVisible = v;

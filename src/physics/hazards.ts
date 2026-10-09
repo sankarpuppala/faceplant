@@ -36,6 +36,32 @@ export interface Crawler {
   targetWickId: number | null;
   retargetAtMs: number;
   alive: boolean;
+  /**
+   * Continuous contact with the Wick it is touching, ms, and which one. A
+   * Crawler used to extinguish a flame the instant the circles overlapped,
+   * which gave the player no window at all to swallow or flick it away - so a
+   * death by Crawler read as arbitrary rather than earned.
+   */
+  touchingWickId: number | null;
+  touchMs: number;
+  /**
+   * It has had its flame and will not take another.
+   *
+   * Killing the Crawler outright after its kill was the obvious move and it
+   * was wrong: a Crawler meets its first Wick on the *approach ledge*, so it
+   * died before ever crossing the mouth - which made the Offering (U2)
+   * unperformable on 02-2, the level that teaches it. Sated instead: harmless,
+   * still walking, and still very much swallowable.
+   */
+  sated: boolean;
+  /**
+   * Where a sated Crawler heads for. Hunting the nearest Wick after being
+   * sated sent it back toward the lantern - where new Wicks keep appearing -
+   * so it loitered at the spawn point for the rest of the level and never
+   * crossed the mouth, which quietly broke the Offering. A sated Crawler
+   * leaves instead, across the face, where it can still be swallowed.
+   */
+  leaveToX: number;
 }
 
 let nextHazardId = 1;
@@ -52,10 +78,22 @@ export function makeCrawler(x: number, y: number): Crawler {
     targetWickId: null,
     retargetAtMs: 0,
     alive: true,
+    touchingWickId: null,
+    touchMs: 0,
+    sated: false,
+    leaveToX: 0,
   };
 }
 
-export function stepCrawler(c: Crawler, wicks: readonly Wick[], index: SegmentIndex, dtS: number, nowMs: number): void {
+export function stepCrawler(
+  c: Crawler,
+  wicks: readonly Wick[],
+  index: SegmentIndex,
+  dtS: number,
+  nowMs: number,
+  /** Warding Salt (shop) slows them down. 1 is unmodified. */
+  speedMultiple = 1,
+): void {
   if (!c.alive) return;
 
   const ground = index.get(c.body.groundId);
@@ -65,9 +103,16 @@ export function stepCrawler(c: Crawler, wicks: readonly Wick[], index: SegmentIn
   }
   stepAttached(c.body, ground, dtS);
 
+  // A sated Crawler stops hunting and walks for the far side, which takes it
+  // across the face - and across the Maw - on its way out.
+  if (c.sated) {
+    const segPointsRight = ground.bx >= ground.ax;
+    c.dir = c.leaveToX > c.body.x === segPointsRight ? 1 : -1;
+  }
+
   // Re-target on a timer rather than every step, so it does not jitter between
   // two equidistant Wicks.
-  if (nowMs >= c.retargetAtMs) {
+  if (!c.sated && nowMs >= c.retargetAtMs) {
     c.retargetAtMs = nowMs + config.crawler.retargetMs;
     let best: Wick | null = null;
     let bestD = Infinity;
@@ -82,7 +127,7 @@ export function stepCrawler(c: Crawler, wicks: readonly Wick[], index: SegmentIn
     c.targetWickId = best?.id ?? null;
   }
 
-  const target = wicks.find((w) => w.id === c.targetWickId);
+  const target = c.sated ? undefined : wicks.find((w) => w.id === c.targetWickId);
   if (target !== undefined) {
     const towardTarget = target.body.x > c.body.x;
     const segPointsRight = ground.bx >= ground.ax;
@@ -95,7 +140,7 @@ export function stepCrawler(c: Crawler, wicks: readonly Wick[], index: SegmentIn
     c.dir = towardB ? 1 : -1;
   }
 
-  const moved = advanceAlong(c.body, ground, config.crawler.walkSpeedFhPerS * c.dir, dtS);
+  const moved = advanceAlong(c.body, ground, config.crawler.walkSpeedFhPerS * speedMultiple * c.dir, dtS);
   if (moved.kind !== 'ranOff') return;
 
   // Crawlers cross gaps the same way Wicks do - otherwise they can never leave

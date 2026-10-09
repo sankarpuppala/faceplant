@@ -74,6 +74,8 @@ export type WorldEvent =
   | { kind: 'procession'; multiple: number }
   | { kind: 'processionBroken' }
   | { kind: 'turn'; x: number; y: number }
+  | { kind: 'crawlerSated'; x: number; y: number }
+  | { kind: 'watcher' }
   | { kind: 'wave'; n: number };
 
 export interface WorldOptions {
@@ -102,6 +104,10 @@ export interface WorldSnapshot {
   maw: MawState;
   wave: number;
   over: boolean;
+  /** True once more than `rules.failLossFraction` of the roster is lost. */
+  failed: boolean;
+  /** How many may still be lost before the tape is. Null in endless mode. */
+  lossesRemaining: number | null;
   /** Per-Wick outcome in spawn order, for the share string (SPEC section 16). */
   outcomes: ('saved' | LostCause | 'alive')[];
 }
@@ -123,6 +129,9 @@ export class World {
   swallow: { x: number; y: number }[] = [];
 
   elapsedMs = 0;
+  /** Set when the loss threshold is crossed; the run holds open for the scare. */
+  failed = false;
+  private failedAtMs = -1;
   score = 0;
   offerings = 0;
   mawWokeCount = 0;
@@ -285,7 +294,13 @@ export class World {
     // --- the Maw, composure and THE YAWN ----------------------------------
     // Composure is evaluated first, because its yawn overrides the real jaw.
     const preMaw = this.maw.isOpen;
-    this.composureState = this.composure.update(this.reactions, preMaw, dtMs, this.elapsedMs);
+    this.composureState = this.composure.update(
+      this.reactions,
+      preMaw,
+      dtMs,
+      this.elapsedMs,
+      this.tunables.composureDrainMultiple,
+    );
     if (this.composureState.justYawned) this.events.push({ kind: 'yawn' });
 
     this.mawState = this.maw.update(blend.jawOpen, dtMs, this.composureState.yawning);
@@ -480,7 +495,7 @@ export class World {
     void mawCentre;
     for (const c of this.crawlers) {
       if (!c.alive) continue;
-      stepCrawler(c, this.wicks, this.index, dtS, this.elapsedMs);
+      stepCrawler(c, this.wicks, this.index, dtS, this.elapsedMs, this.tunables.crawlerSpeedMultiple);
 
       // U2 - THE OFFERING: a Crawler that crosses the open Maw is swallowed,
       // and that is worth doing on purpose.
@@ -494,11 +509,60 @@ export class World {
         continue;
       }
 
+      // A sated Crawler is harmless. It keeps walking - and keeps being worth
+      // swallowing - but it will not take a second flame.
+      if (c.sated) {
+        c.touchingWickId = null;
+        c.touchMs = 0;
+        continue;
+      }
+
+      // Contact has to be *held* to put a flame out, so there is a window in
+      // which the player can still swallow or flick the Crawler away. The
+      // timer resets the moment they come apart, and it tracks a specific Wick
+      // so brushing past a second one does not inherit the first one's progress.
+      let touching: Wick | null = null;
       for (const w of this.wicks) {
         if (w.state === 'saved' || w.state === 'lost') continue;
         if (Math.hypot(w.body.x - c.body.x, w.body.y - c.body.y) < w.body.r + c.body.r) {
-          this.lose(w, 'crawler');
+          touching = w;
+          break;
         }
+      }
+
+      if (touching === null) {
+        c.touchingWickId = null;
+        c.touchMs = 0;
+        continue;
+      }
+
+      if (c.touchingWickId !== touching.id) {
+        c.touchingWickId = touching.id;
+        c.touchMs = 0;
+      }
+      c.touchMs += dtS * 1000;
+
+      if (c.touchMs >= config.crawler.touchMs * this.tunables.crawlerTouchMultiple) {
+        this.lose(touching, 'crawler');
+        c.touchingWickId = null;
+        c.touchMs = 0;
+        // It came for a flame and it got one. A Crawler that kept hunting
+        // after a kill walked the whole single-file road and extinguished
+        // *every* Wick on it - a headless sweep had three Crawlers taking all
+        // 13 on 05-3. Capping it at one makes the Crawler count a level's
+        // difficulty dial: three Crawlers threaten at most three Wicks, and a
+        // player who reacts inside the contact window saves even those.
+        c.sated = true;
+        // It leaves across the face, toward whichever side it is *not* on.
+        // That is the one rule that always takes it over the centre - and so
+        // over the Maw, where it can still be swallowed for an Offering.
+        //
+        // Two earlier attempts both failed: aiming at the Gate left a Crawler
+        // that spawned on the Gate side standing still, and carrying on its
+        // current heading was unreliable because its direction oscillates
+        // while it is in contact with its victim.
+        c.leaveToX = c.body.x > 0 ? -99 : 99;
+        this.events.push({ kind: 'crawlerSated', x: c.body.x, y: c.body.y });
       }
     }
   }
@@ -555,6 +619,11 @@ export class World {
         this.events.push({ kind: 'flick', x: c.body.x, y: c.body.y });
       }
     }
+  }
+
+  /** Light radius for a Wick, after Lantern Oil. The renderer uses this too. */
+  get wickLightRadiusFh(): number {
+    return config.light.wickRadiusFh * this.tunables.lightRadiusMultiple;
   }
 
   private lightAnchors(): { x: number; y: number }[] {
@@ -620,6 +689,11 @@ export class World {
     this.events.push({ kind: 'offering', what, x, y });
   }
 
+  /** Losses allowed before the tape is lost. */
+  private get lossBudget(): number {
+    return Math.floor(this.level.spawn.count * config.rules.failLossFraction);
+  }
+
   private checkEnd(): void {
     const timeUp = this.elapsedMs >= this.level.timeLimitS * 1000;
 
@@ -627,6 +701,21 @@ export class World {
       if (this.lostCount >= config.endless.lossesAllowed) this.over = true;
       return;
     }
+
+    // Losing more than half the roster loses the tape. The run is *not* ended
+    // on the spot: it holds open for `failHoldMs` so THE WATCHER has time to
+    // arrive, which is the whole point of failing being a moment rather than
+    // a number on a results screen.
+    if (!this.failed && this.lostCount > this.lossBudget) {
+      this.failed = true;
+      this.failedAtMs = this.elapsedMs;
+      this.events.push({ kind: 'watcher' });
+    }
+    if (this.failed && this.elapsedMs - this.failedAtMs >= config.rules.failHoldMs) {
+      this.over = true;
+      return;
+    }
+    if (this.failed) return;
 
     const allResolved = this.spawned >= this.level.spawn.count && this.wicks.every((w) => w.state === 'saved' || w.state === 'lost');
     if (timeUp || allResolved) this.over = true;
@@ -659,6 +748,8 @@ export class World {
       maw: this.mawState,
       wave: this.wave,
       over: this.over,
+      failed: this.failed,
+      lossesRemaining: this.endless ? null : Math.max(0, this.lossBudget - this.lostCount),
       outcomes: this.spawnOrder.map((w) =>
         w.state === 'saved' ? 'saved' : w.state === 'lost' ? (w.cause ?? 'void') : 'alive',
       ),

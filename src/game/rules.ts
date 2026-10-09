@@ -6,8 +6,9 @@ import { config } from '../config.ts';
 import type { Level } from './levelSchema.ts';
 import type { WorldSnapshot } from '../physics/world.ts';
 import type { LostCause } from '../physics/wick.ts';
+import { coinsFor } from './shop.ts';
 
-export type Stamp = 'KEPT STILL' | 'THE MAW AWOKE' | 'LIGHTS OUT' | 'COMPOSED' | 'CRACKED';
+export type Stamp = 'KEPT STILL' | 'THE MAW AWOKE' | 'LIGHTS OUT' | 'COMPOSED' | 'CRACKED' | 'TAPE LOST';
 
 export interface RunResult {
   levelId: string;
@@ -31,6 +32,10 @@ export interface RunResult {
   outcomes: ('saved' | LostCause | 'alive')[];
   elapsedMs: number;
   wave: number;
+  /** True when more than half the roster was lost - the tape is lost. */
+  failed: boolean;
+  /** Coins earned, 0 on a failed or practice run. */
+  coins: number;
 }
 
 export function candlesFor(level: Level, saved: number): 0 | 1 | 2 | 3 {
@@ -47,6 +52,8 @@ export function candlesFor(level: Level, saved: number): 0 | 1 | 2 | 3 {
  * steady face, which is the thing the game is actually asking for (U1).
  */
 export function stampFor(result: Omit<RunResult, 'stamp'>): Stamp {
+  // Failure outranks every other reading of the run.
+  if (result.failed) return 'TAPE LOST';
   if (result.saved === 0) return 'LIGHTS OUT';
   if (result.composureLow <= config.composure.panicFraction && result.saved === result.spawned) return 'CRACKED';
   if (result.lossesByCause.maw > 0) return 'THE MAW AWOKE';
@@ -54,7 +61,16 @@ export function stampFor(result: Omit<RunResult, 'stamp'>): Stamp {
   return 'KEPT STILL';
 }
 
-export function buildResult(level: Level, snap: WorldSnapshot, finalScore: number): RunResult {
+/**
+ * @param replay true when this level has already been cleared, which pays
+ *   fewer coins - so grinding the easiest level is not the best way to earn.
+ */
+export function buildResult(
+  level: Level,
+  snap: WorldSnapshot,
+  finalScore: number,
+  replay = false,
+): RunResult {
   const partial: Omit<RunResult, 'stamp'> = {
     levelId: level.id,
     label: level.label,
@@ -74,6 +90,18 @@ export function buildResult(level: Level, snap: WorldSnapshot, finalScore: numbe
     outcomes: snap.outcomes,
     elapsedMs: snap.elapsedMs,
     wave: snap.wave,
+    failed: snap.failed,
+    coins: coinsFor({
+      failed: snap.failed,
+      saved: snap.saved,
+      spawned: snap.spawned,
+      candles: candlesFor(level, snap.saved),
+      composureLeft: snap.composure.fraction,
+      offerings: snap.offerings,
+      mode: level.mode,
+      wave: snap.wave,
+      replay,
+    }),
   };
   return { ...partial, stamp: stampFor(partial) };
 }

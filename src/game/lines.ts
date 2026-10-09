@@ -37,6 +37,7 @@ export type LineTrigger =
   | 'yawn'
   | 'blinkBridge'
   | 'turn'
+  | 'watcher'
   | 'finale';
 
 export interface Line {
@@ -172,6 +173,13 @@ export const LINES: readonly Line[] = [
   { trigger: 'lostOther', text: '{name} has gone out.', mood: 'any', weight: 3 },
   { trigger: 'lostOther', text: 'we are one flame fewer. the dark notices.', mood: 'any', weight: 2 },
   { trigger: 'lostOther', text: 'light a thought for {name}.', mood: 'any' },
+
+  // --- THE WATCHER (earned by losing half the roster) ---------------------
+  { trigger: 'watcher', text: 'it has stopped pretending to be a mountain.', mood: 'any', weight: 5 },
+  { trigger: 'watcher', text: 'DO NOT LOOK AT IT', mood: 'any', weight: 4 },
+  { trigger: 'watcher', text: 'that is what was under the face.', mood: 'any', weight: 4 },
+  { trigger: 'watcher', text: 'we were never pilgrims. we were supper.', mood: 'any', weight: 3 },
+  { trigger: 'watcher', text: 'it knows how many of us are left. it is counting.', mood: 'cracking', weight: 3 },
 
   // --- the finale (SPEC 10.3) ---------------------------------------------
   { trigger: 'finale', text: 'that is not the face.', mood: 'any', weight: 5 },

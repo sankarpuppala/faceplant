@@ -60,6 +60,12 @@
       "intervalMs": 2100
     },
     {
+      "type": "crawler",
+      "x": -1.3,
+      "y": 0.24,
+      "atMs": 14000
+    },
+    {
       "type": "moth",
       "x": -1,
       "y": -1.14,
@@ -67,15 +73,21 @@
     },
     {
       "type": "crawler",
+      "x": 1.3,
+      "y": 0.24,
+      "atMs": 24000
+    },
+    {
+      "type": "crawler",
       "x": -1.3,
       "y": 0.24,
-      "atMs": 28000
+      "atMs": 32000
     },
     {
       "type": "drip",
       "x": 0.2,
       "y": -1.14,
-      "atMs": 32000,
+      "atMs": 34000,
       "intervalMs": 2000
     },
     {
@@ -88,7 +100,13 @@
       "type": "crawler",
       "x": 1.3,
       "y": 0.24,
-      "atMs": 54000
+      "atMs": 50000
+    },
+    {
+      "type": "crawler",
+      "x": -1.3,
+      "y": 0.24,
+      "atMs": 60000
     },
     {
       "type": "moth",

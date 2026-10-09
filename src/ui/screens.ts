@@ -16,12 +16,13 @@ import type { Level } from '../game/levelSchema.ts';
 import type { RunResult, Stamp } from '../game/rules.ts';
 import { filterUnlocked } from '../game/rules.ts';
 import { displayName } from '../game/names.ts';
-import { RITE_NAMES, canBuyRite, riteCost, spendableCandles, type Progress, type RiteName } from '../storage/progress.ts';
+import type { Progress } from '../storage/progress.ts';
+import { SHOP_ITEMS, type ShopItemId } from '../game/shop.ts';
 import type { FilterName, Settings } from '../storage/settings.ts';
 import { shareText } from '../share/shareText.ts';
 import { copy } from './copy.ts';
 import { button, candleIcon, candleRow, el, field, screen, segmented, slider, toggle } from './dom.ts';
-import { faceMapSvg, flowChartSvg } from './diagrams.ts';
+import { faceMapSvg } from './diagrams.ts';
 
 // ------------------------------------------------------------------- notice --
 
@@ -44,7 +45,7 @@ export interface TitleActions {
   shelf: () => void;
   settings: () => void;
   ossuary: () => void;
-  rites: () => void;
+  shop: () => void;
   howToPlay: () => void;
 }
 
@@ -54,10 +55,20 @@ export interface TitleState {
   /** True once anything has been played - switches the primary button to CONTINUE. */
   returning: boolean;
   candles: number;
+  coins: number;
   /** False in a private window or with site data blocked; the notice changes. */
   canSave: boolean;
 }
 
+/**
+ * The title screen.
+ *
+ * The buttons were previously three rows of equal-weight pills, which read as
+ * a crowded toolbar rather than a menu. They are now one unmistakable primary
+ * action, a row of two things you might do *instead* of playing, and a small
+ * tray of places to visit - so there is a clear first move for a new player
+ * and a clear second move for a returning one.
+ */
 export function titleScreen(actions: TitleActions, state: TitleState): HTMLElement {
   const wordmark = el('h1', {
     class: state.reducedEffects ? 'wordmark' : 'wordmark jitter',
@@ -73,84 +84,132 @@ export function titleScreen(actions: TitleActions, state: TitleState): HTMLEleme
   // first level they have not finished, with the shelf one click away.
   const primaryLabel = state.returning ? copy.title.continueLabel : copy.title.play;
 
+  const secondary = el('div', { class: 'title-secondary' }, [
+    state.returning ? button(copy.title.shelf, actions.shelf, 'btn') : null,
+    button(copy.title.howToPlay, actions.howToPlay, 'btn'),
+    state.returning ? null : button(copy.title.playNoCamera, actions.playNoCamera, 'btn'),
+  ]);
+
+  const tray = el('div', { class: 'title-tray' }, [
+    button(copy.title.shop, actions.shop, 'btn quiet'),
+    button(copy.title.ossuary, actions.ossuary, 'btn quiet'),
+    button(copy.title.settings, actions.settings, 'btn quiet'),
+  ]);
+
   return screen('FACEPLANT', [
-    wordmark,
-    el('p', { class: 'tagline', text: copy.title.tagline }),
-    el('div', { class: 'row' }, [button(primaryLabel, actions.play, 'btn primary')]),
-    el('div', { class: 'row' }, [
-      state.returning ? button(copy.title.shelf, actions.shelf, 'btn') : null,
-      button(copy.title.howToPlay, actions.howToPlay, 'btn'),
-      state.returning ? null : button(copy.title.playNoCamera, actions.playNoCamera, 'btn quiet'),
+    el('div', { class: 'title-block' }, [
+      wordmark,
+      el('p', { class: 'tagline', text: copy.title.tagline }),
     ]),
-    el('div', { class: 'row' }, [
-      button(copy.title.settings, actions.settings, 'btn quiet'),
-      button(copy.title.ossuary, actions.ossuary, 'btn quiet'),
-      button(copy.title.rites, actions.rites, 'btn quiet'),
+
+    el('div', { class: 'title-actions' }, [
+      button(primaryLabel, actions.play, 'btn primary big'),
+      secondary,
     ]),
+
     state.returning
-      ? el('p', { class: 'small dim osd-text', text: copy.title.candles(state.candles) })
+      ? el('div', { class: 'title-stats osd-text' }, [
+          el('span', { text: copy.title.candles(state.candles) }),
+          el('span', { class: 'dot', text: '·' }),
+          el('span', { text: copy.shop.coinsHeld(state.coins) }),
+        ])
       : null,
-    el('p', {
-      class: 'small dim',
-      style: state.canSave ? undefined : 'color:var(--rec)',
-      text: state.canSave ? copy.title.saved : copy.title.notSaved,
-    }),
-    el('p', { class: 'small dim', text: copy.title.footer }),
+
+    tray,
+
+    el('div', { class: 'title-footer' }, [
+      el('p', {
+        class: 'small dim',
+        style: state.canSave ? undefined : 'color:var(--rec)',
+        text: state.canSave ? copy.title.saved : copy.title.notSaved,
+      }),
+      el('p', { class: 'small dim', text: copy.title.footer }),
+    ]),
   ]);
 }
 
 // ---------------------------------------------------------------- how to play --
 
 /**
- * The instructions screen, added after feedback that the game had none at
- * all. Reachable from the title screen at any time, and shown automatically
- * the first time a player ever sees the title (see app.ts).
+ * The instructions screen.
  *
- * Covers, in order: what each part of your face does (a diagram, because
- * "your eyebrow is a ledge" is a strange sentence without a picture), the
- * loop from title to results (a flow chart, because the Ossuary and Rites
- * buttons on the title screen were confusing people - they are not steps in
- * that loop, and the chart says so directly), the Maw and Composure since
- * those are the two systems the whole game is about, and the Assist controls.
+ * Rewritten after the first version was called congested and confusing: it was
+ * a single column of six prose paragraphs with two diagrams buried in it, and
+ * the most important sentence - what you are actually trying to do - was in
+ * the middle of the third paragraph.
+ *
+ * This version is built so that reading *less* of it still works. One line at
+ * the top is enough to play. Three numbered cards are enough to play well. The
+ * diagram, the two systems and the controls table are there for anyone who
+ * wants them, in that order, and nothing is a wall of text.
  */
 export function howToPlayScreen(onClose: () => void): HTMLElement {
+  const steps = el('div', { class: 'step-grid' });
+  for (const st of copy.howTo.steps) {
+    steps.appendChild(
+      el('div', { class: 'step-card' }, [
+        el('div', { class: 'step-n', text: st.n }),
+        el('div', {}, [
+          el('div', { class: 'step-title', text: st.title }),
+          el('div', { class: 'step-body', text: st.body }),
+        ]),
+      ]),
+    );
+  }
+
+  const controls = el('div', { class: 'key-grid' });
+  for (const [key, what] of copy.howTo.controls) {
+    controls.appendChild(el('kbd', { class: 'key', text: key }));
+    controls.appendChild(el('span', { class: 'key-what', text: what }));
+  }
+
+  const elsewhere = el('div', { class: 'card-row' });
+  for (const [title, body] of [
+    [copy.howTo.tapesTitle, copy.howTo.tapesExplain],
+    [copy.howTo.shopTitle, copy.howTo.shopExplain],
+    [copy.howTo.ossuaryTitle, copy.howTo.ossuaryExplain],
+  ] as const) {
+    elsewhere.appendChild(
+      el('div', { class: 'mini-card' }, [
+        el('div', { class: 'mini-card-title', text: title }),
+        el('p', { class: 'small dim', text: body }),
+      ]),
+    );
+  }
+
   return screen(copy.howTo.heading, [
     el('h2', { text: copy.howTo.heading }),
-    el('p', { class: 'small', text: copy.howTo.intro }),
+    el('p', { class: 'lede', text: copy.howTo.inOneLine }),
+
+    steps,
 
     el('h3', { text: copy.howTo.faceMapTitle }),
     el('div', { class: 'diagram-wrap' }, [faceMapSvg()]),
+    el('p', { class: 'small dim centered', text: copy.howTo.mapLegend }),
 
-    el('h3', { text: copy.howTo.mawTitle }),
-    el('p', { class: 'small dim', text: copy.howTo.maw }),
-
-    el('h3', { text: copy.howTo.composureTitle }),
-    el('p', { class: 'small dim', text: copy.howTo.composure }),
-
-    el('h3', { text: copy.howTo.goalTitle }),
-    el('p', { class: 'small dim', text: copy.howTo.goal }),
-
-    el('h3', { text: copy.howTo.flowTitle }),
-    el('div', { class: 'diagram-wrap' }, [flowChartSvg()]),
-
-    el('div', { class: 'row', style: 'align-items:stretch' }, [
-      el('div', { class: 'howto-card' }, [
-        el('div', { class: 'howto-card-title', text: copy.howTo.ossuaryTitle }),
-        el('p', { class: 'small dim', text: copy.howTo.ossuaryExplain }),
+    el('h3', { text: copy.howTo.twoRulesTitle }),
+    el('div', { class: 'card-row' }, [
+      el('div', { class: 'mini-card danger' }, [
+        el('div', { class: 'mini-card-title', text: copy.howTo.mawTitle }),
+        el('p', { class: 'small dim', text: copy.howTo.maw }),
       ]),
-      el('div', { class: 'howto-card' }, [
-        el('div', { class: 'howto-card-title', text: copy.howTo.ritesTitle }),
-        el('p', { class: 'small dim', text: copy.howTo.ritesExplain }),
+      el('div', { class: 'mini-card' }, [
+        el('div', { class: 'mini-card-title', text: copy.howTo.composureTitle }),
+        el('p', { class: 'small dim', text: copy.howTo.composure }),
       ]),
     ]),
 
-    el('h3', { text: copy.howTo.controlsTitle }),
-    el('p', { class: 'small dim osd-text', text: copy.hud.assistHint }),
+    el('h3', { text: copy.howTo.elsewhereTitle }),
+    elsewhere,
 
-    el('p', { class: 'small dim', text: copy.howTo.again }),
+    el('h3', { text: copy.howTo.controlsTitle }),
+    controls,
+
+    el('p', { class: 'small dim centered', text: copy.howTo.again }),
     el('div', { class: 'row' }, [button(copy.howTo.close, onClose, 'btn primary')]),
   ]);
 }
+
 
 // ---------------------------------------------------------- camera explainer --
 
@@ -298,6 +357,12 @@ export function shelfScreen(progress: Progress, actions: ShelfActions, dayNumber
 
   const node = screen(copy.shelf.heading, [
     el('h2', { text: copy.shelf.heading }),
+    // Coins live here too, so the shop's currency is visible where you choose
+    // what to play rather than only on the title screen.
+    el('div', { class: 'coin-banner' }, [
+      el('span', { class: 'coin-icon', text: '◉' }),
+      el('span', { text: copy.shop.coinsHeld(progress.coins) }),
+    ]),
     rack,
     blurb,
     levelHost,
@@ -384,6 +449,7 @@ export interface ResultsActions {
 }
 
 const STAMP_CLASS: Record<Stamp, string> = {
+  'TAPE LOST': 'lost',
   'KEPT STILL': '',
   'THE MAW AWOKE': '',
   'LIGHTS OUT': 'out',
@@ -417,15 +483,32 @@ export function resultsScreen(
     el('div', { class: 'tear' }),
     el('div', { class: `stamp ${STAMP_CLASS[result.stamp]}`, text: result.stamp }),
     el('p', { class: 'small dim', text: blurb }),
+    result.failed ? el('p', { class: 'small', style: 'color:var(--rec)', text: copy.results.failed }) : null,
     candleRow(result.candles),
     el('div', { class: 'bigscore', text: result.score.toLocaleString('en-US') }),
+
+    // Coins earned. A failed tape pays nothing, and says so, because an
+    // unexplained zero reads as a bug.
+    result.coins > 0
+      ? el('div', { class: 'coin-banner earned' }, [
+          el('span', { class: 'coin-icon', text: '◉' }),
+          el('span', { text: copy.results.coins(result.coins) }),
+        ])
+      : el('p', { class: 'small dim', text: result.failed ? copy.results.noCoins : '' }),
+
     opts.newBest ? el('p', { class: 'tagline', text: copy.results.newBest }) : null,
     stats,
     opts.practice ? el('p', { class: 'small dim', text: copy.results.practice }) : null,
     el('pre', { class: 'sharetext', text: shareText(result) }),
     el('div', { class: 'row' }, [
+      // A lost tape offers no way forward: the only ways out are to try again
+      // or leave. `next` is null in that case, set by the caller.
       actions.next === null ? null : button(copy.results.next, actions.next, 'btn primary'),
-      button(copy.results.retry, actions.retry, 'btn'),
+      button(
+        result.failed ? copy.results.retryFailed : copy.results.retry,
+        actions.retry,
+        result.failed ? 'btn primary' : 'btn',
+      ),
       button(copy.results.shelf, actions.shelf, 'btn'),
     ]),
     el('div', { class: 'row' }, [
@@ -590,41 +673,60 @@ export function ossuaryScreen(progress: Progress, onBack: () => void): HTMLEleme
   ]);
 }
 
-// -------------------------------------------------------------------- rites --
+// --------------------------------------------------------------------- shop --
 
-/** U9 - spend candles on small permanent help. */
-export function ritesScreen(progress: Progress, onBuy: (rite: RiteName) => void, onBack: () => void): HTMLElement {
-  const available = spendableCandles(progress);
+/**
+ * THE PEDLAR - the coin shop, replacing the old candle-spending Rites screen.
+ *
+ * Each row states its exact mechanical effect in numbers, because the previous
+ * screen described its effects only in the Wicks' voice ("they will risk
+ * slightly longer steps") and nobody could tell what they had bought.
+ */
+export function shopScreen(
+  progress: Progress,
+  onBuy: (item: ShopItemId) => void,
+  onBack: () => void,
+): HTMLElement {
   const rows = el('div', { class: 'col' });
 
-  for (const rite of RITE_NAMES) {
-    const owned = progress.rites.includes(rite);
-    const affordable = canBuyRite(progress, rite);
+  for (const item of SHOP_ITEMS) {
+    const owned = progress.rites.includes(item.id);
+    const affordable = progress.coins >= item.costCoins;
+
+    const action = owned
+      ? el('span', { class: 'owned-tag', text: copy.shop.owned })
+      : (() => {
+          const b = button(`${copy.shop.buy} · ${copy.shop.cost(item.costCoins)}`, () => onBuy(item.id), 'btn');
+          b.disabled = !affordable;
+          if (!affordable) b.title = copy.shop.cantAfford;
+          return b;
+        })();
+
     rows.appendChild(
-      el('div', { class: `rite ${owned ? 'owned' : ''}` }, [
+      el('div', { class: `shop-row ${owned ? 'owned' : ''}` }, [
         el('div', {}, [
-          el('div', { class: 'name', text: copy.rites.names[rite] }),
-          el('div', { class: 'desc', text: copy.rites.descriptions[rite] }),
+          el('div', { class: 'shop-name', text: item.name }),
+          el('div', { class: 'shop-blurb', text: item.blurb }),
+          el('div', { class: 'shop-effect', text: item.effect }),
         ]),
-        owned
-          ? el('span', { class: 'small', style: 'color:var(--candle)', text: copy.rites.owned })
-          : (() => {
-              const b = button(`${copy.rites.buy} · ${copy.rites.cost(riteCost(rite))}`, () => onBuy(rite), 'btn');
-              b.disabled = !affordable;
-              return b;
-            })(),
+        action,
       ]),
     );
   }
 
-  return screen(copy.rites.heading, [
-    el('h2', { text: copy.rites.heading }),
-    el('p', { class: 'small dim', text: copy.rites.blurb }),
-    el('p', { class: 'osd-text', text: copy.rites.available(available) }),
+  return screen(copy.shop.heading, [
+    el('h2', { text: copy.shop.heading }),
+    el('div', { class: 'coin-banner' }, [
+      el('span', { class: 'coin-icon', text: '◉' }),
+      el('span', { text: copy.shop.coinsHeld(progress.coins) }),
+    ]),
+    el('p', { class: 'small dim centered', text: copy.shop.blurb }),
+    progress.coinsEarned === 0 ? el('p', { class: 'small dim centered', text: copy.shop.empty }) : null,
     rows,
-    el('div', { class: 'row' }, [button(copy.rites.back, onBack, 'btn primary')]),
+    el('div', { class: 'row' }, [button(copy.shop.back, onBack, 'btn primary')]),
   ]);
 }
+
 
 // ------------------------------------------------------------------- ending --
 
@@ -646,15 +748,22 @@ export function endingScreen(onBack: () => void): HTMLElement {
 export interface HudView {
   node: HTMLElement;
   update: (fraction: number, mood: 'steady' | 'cracking' | 'panic') => void;
+  /**
+   * How many more may be lost before the tape is. Null in endless mode. Shown
+   * so that failing never arrives without warning - a fail condition the
+   * player cannot see coming is just an ambush.
+   */
+  setLossBudget: (remaining: number | null) => void;
   setHint: (text: string | null) => void;
 }
 
 export function hud(): HudView {
   const fill = el('i');
   const bar = el('div', { class: 'composure' }, [fill]);
+  const budget = el('div', { class: 'loss-budget', style: 'display:none' });
   const hint = el('div', { class: 'toast', style: 'display:none' });
   const node = el('div', { class: 'layer clear' }, [
-    el('div', { class: 'hud-top' }, [el('div', { text: copy.hud.composure }), bar]),
+    el('div', { class: 'hud-top' }, [el('div', { text: copy.hud.composure }), bar, budget]),
     hint,
   ]);
 
@@ -664,6 +773,17 @@ export function hud(): HudView {
       fill.style.width = `${Math.round(Math.max(0, Math.min(1, fraction)) * 100)}%`;
       bar.classList.toggle('cracking', mood === 'cracking');
       bar.classList.toggle('panic', mood === 'panic');
+    },
+    setLossBudget(remaining) {
+      if (remaining === null) {
+        budget.style.display = 'none';
+        return;
+      }
+      budget.style.display = '';
+      budget.textContent = copy.hud.lossBudget(remaining);
+      // Only shout about it when it is nearly spent.
+      budget.classList.toggle('warn', remaining <= 2);
+      budget.classList.toggle('critical', remaining === 0);
     },
     setHint(text) {
       hint.style.display = text === null ? 'none' : '';

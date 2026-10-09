@@ -211,14 +211,25 @@ describe('AC-8 story levels are completable in Assist mode', () => {
     }
   });
 
-  it('02-2 "Supper" genuinely requires using the Maw', () => {
-    // The level's whole lesson (U2) is that the mouth is the counter to a
-    // Crawler. If a passive player could clear it, the lesson would be a lie.
+  it('02-2 "Supper" makes the Offering worth performing', () => {
+    // The level's lesson (U2) is that the mouth can be used *on* a Crawler.
+    //
+    // This used to assert that a passive player saved fewer Wicks - that the
+    // Maw was required for survival. That stopped being true once a Crawler
+    // could only take one flame each: a passive player now loses the same one
+    // or two either way. What the level has to prove is narrower and more
+    // honest - that the Offering is actually performable here, and that doing
+    // it pays. Both were briefly broken when a sated Crawler stopped walking
+    // before it ever reached the mouth.
     const level = loadLevelFile('02-2');
     const passive = play(level, calmBot);
     const competent = play(level, 'competent');
-    expect(competent.saved).toBeGreaterThan(passive.saved);
-    expect(competent.offerings).toBeGreaterThan(0);
+
+    expect(competent.offerings, 'the Offering is not performable on 02-2').toBeGreaterThan(0);
+    expect(passive.offerings).toBe(0);
+    expect(competent.score).toBeGreaterThan(passive.score);
+    // And it pays in coins, which is what the shop runs on.
+    expect(competent.coins).toBeGreaterThan(passive.coins);
   });
 
   it('a calm player three-candles the opening level', () => {

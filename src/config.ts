@@ -135,13 +135,23 @@ export const config = {
 
   crawler: {
     /**
-     * Raised from 0.04/0.26 after playtest feedback: at the old size and speed
-     * a Crawler was smaller and slower than the Wicks it was hunting, so it
-     * read as background furniture rather than a threat. Now it is visibly
-     * bigger than a Wick and faster than one, so it can actually catch up.
+     * Size was raised from 0.04 so a Crawler reads as a threat rather than
+     * background furniture, and that stands.
+     *
+     * Speed went 0.26 -> 0.44 at the same time, and that was too far: at 0.44,
+     * against a Wick's 0.35, a Crawler caught every Wick on the road and a
+     * still player had no answer. A headless sweep had it wiping 13 of 13 on
+     * 05-3 and 7 of 8 on 02-2, which is the second level that even has one.
+     * 0.38 still runs a Wick down, but slowly enough to be answered.
      */
     radiusFh: 0.056,
-    walkSpeedFhPerS: 0.44,
+    walkSpeedFhPerS: 0.38,
+    /**
+     * Contact time before the flame goes out, the same courtesy the Moth
+     * already had. Instant death on overlap gave the player no window to
+     * swallow or flick the Crawler away, so a touch read as arbitrary.
+     */
+    touchMs: 320,
     /** A Crawler keeps hunting the same Wick for at least this long. */
     retargetMs: 900,
   },
@@ -220,6 +230,47 @@ export const config = {
     perSecondRemaining: 10,
   },
 
+  /**
+   * Failing a level. Until now every run ended in a result and you could always
+   * walk on to the next level, which meant the game had no teeth: losing
+   * eleven of twelve Wicks and losing none led to the same place.
+   */
+  rules: {
+    /**
+     * Lose more than this fraction of the roster and the tape is lost. The
+     * threshold is also what summons THE WATCHER, so the two read as one event:
+     * the moment you have failed, something notices.
+     */
+    failLossFraction: 0.5,
+    /** The run keeps running this long after failing, so the scare can land. */
+    failHoldMs: 2200,
+  },
+
+  /**
+   * THE WATCHER - the jump scare for losing half the roster. The only scare in
+   * the game that is earned by playing badly rather than scheduled by a level.
+   *
+   * It is loud and it is close, and it still obeys every safety rule: the
+   * approach is one smooth ramp rather than a flash (declared at 0 Hz in
+   * render.effects), the shout goes through the same -6 dBFS limiter as
+   * everything else with a 40 ms attack, and with Scares off it does not
+   * happen at all - the level simply ends.
+   */
+  watcher: {
+    /** Rush toward the screen. */
+    approachMs: 850,
+    /** Hold at full size, staring. */
+    holdMs: 700,
+    /** Fade out. */
+    leaveMs: 450,
+    /** How much of the frame height the face fills at its closest; 0..1+ fraction. */
+    finalHeightFraction: 1.35,
+    /** Screen shake while it is in your face, FH. Clamped by render.maxShakeFh. */
+    shakeFh: 0.09,
+    /** Eye glow pulse, Hz. Well under the 3 Hz flash ceiling. */
+    eyePulseHz: 2,
+  },
+
   /** U4 - THE LONG TAPE (endless). */
   endless: {
     waveIntervalMs: 22_000,
@@ -237,6 +288,32 @@ export const config = {
     lossesAllowed: 12,
   },
 
+  /**
+   * Coins: the shop currency, earned by finishing levels.
+   *
+   * Separate from candles on purpose. Candles are a *rating* - how well you
+   * played a given level, like stars - and spending them would mean your score
+   * going down when you bought something. Coins are earnings, so they can be
+   * spent without erasing the record of how you did.
+   */
+  coins: {
+    /** Just for finishing a level without losing the tape. */
+    perClear: 20,
+    perSavedWick: 5,
+    /** Per candle earned, so playing well pays better. */
+    perCandle: 15,
+    /** Nobody lost at all. */
+    flawlessBonus: 40,
+    /** Multiplied by composure remaining as a fraction of max. */
+    composureBonus: 30,
+    /** U2 - rewarding the risky play. */
+    perOffering: 10,
+    /** A first clear pays more than a replay, so grinding one easy level is poor. */
+    replayMultiple: 0.35,
+    /** The Long Tape pays per wave survived. */
+    perEndlessWave: 25,
+  },
+
   /** U9 - RITES: candles spent on small permanent help. */
   rites: {
     costCandles: { steadyWicks: 6, slowSpawn: 10, wideGate: 14, secondChance: 20 },
@@ -248,6 +325,13 @@ export const config = {
     wideGateBonusFh: 0.06,
     /** secondChance returns this many lost Wicks per run to the lantern. */
     secondChanceCount: 1,
+    /** lanternOil: multiplies every light radius. */
+    lanternOilMultiple: 1.25,
+    /** ironNerve: multiplies composure drain; below 1 is a benefit. */
+    ironNerveMultiple: 0.75,
+    /** wardingSalt: slows Crawlers and lengthens their time-to-kill. */
+    wardingSaltSpeedMultiple: 0.8,
+    wardingSaltTouchMultiple: 1.5,
   },
 
   lines: {
@@ -286,13 +370,19 @@ export const config = {
       recDot: { maxFlashHz: 1 },
       shake: { maxFlashHz: 2 },
       processionFlare: { maxFlashHz: 0 },
+      /**
+       * THE WATCHER approaches on one smooth ramp and its eyes pulse at 2 Hz.
+       * Nothing about it flashes, so it is safe to leave on in reduced effects
+       * - only its screen shake is suppressed, via the `shake` entry.
+       */
+      watcher: { maxFlashHz: 2 },
     },
     /**
      * Effects that "Reduce effects" disables entirely. Every effect with a
      * non-zero maxFlashHz must appear here; `npm run check:flash` enforces it.
      * The REC dot is held solid rather than removed, which is why it is listed.
      */
-    reducedEffectsDisables: ['flicker', 'aberration', 'wobble', 'shake', 'scanlines', 'recDot'],
+    reducedEffectsDisables: ['flicker', 'aberration', 'wobble', 'shake', 'scanlines', 'recDot', 'watcher'],
     shakeDecayPerS: 6,
     maxShakeFh: 0.06,
   },
@@ -340,6 +430,13 @@ export interface Tunables {
   spawnIntervalMultiple: number;
   gateBonusFh: number;
   secondChanceCount: number;
+  /** Lantern Oil: multiplies every light radius. */
+  lightRadiusMultiple: number;
+  /** Iron Nerve: multiplies every composure drain. Below 1 is a benefit. */
+  composureDrainMultiple: number;
+  /** Warding Salt: multiplies Crawler speed and their time-to-kill. */
+  crawlerSpeedMultiple: number;
+  crawlerTouchMultiple: number;
 }
 
 export function defaultTunables(): Tunables {
@@ -349,5 +446,9 @@ export function defaultTunables(): Tunables {
     spawnIntervalMultiple: 1,
     gateBonusFh: 0,
     secondChanceCount: 0,
+    lightRadiusMultiple: 1,
+    composureDrainMultiple: 1,
+    crawlerSpeedMultiple: 1,
+    crawlerTouchMultiple: 1,
   };
 }

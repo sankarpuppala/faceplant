@@ -37,6 +37,8 @@ export interface LineRequest {
 
 /** Reaction triggers outrank scripted ones (SPEC section 12.7). */
 const PRIORITY: Partial<Record<LineTrigger, number>> = {
+  // THE WATCHER outranks everything: nothing else matters while it is here.
+  watcher: 120,
   finale: 100,
   yawn: 90,
   swallowed: 80,

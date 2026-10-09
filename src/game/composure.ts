@@ -53,7 +53,16 @@ export class Composure {
   private tells: ComposureTell[] = [];
   private justYawned = false;
 
-  update(reactions: Reactions, mawOpen: boolean, dtMs: number, nowMs: number): ComposureState {
+  /**
+   * @param drainMultiple Iron Nerve (shop) scales every drain. 1 is unmodified.
+   */
+  update(
+    reactions: Reactions,
+    mawOpen: boolean,
+    dtMs: number,
+    nowMs: number,
+    drainMultiple = 1,
+  ): ComposureState {
     const dtS = dtMs / 1000;
     const before = this.units;
     this.justYawned = false;
@@ -89,7 +98,7 @@ export class Composure {
     }
 
     if (drain > 0) {
-      this.units -= drain * dtS;
+      this.units -= drain * dtS * drainMultiple;
       this.lastTellMs = nowMs;
     } else if (nowMs - this.lastTellMs >= config.composure.regainDelayMs) {
       this.units += config.composure.regainPerS * dtS;

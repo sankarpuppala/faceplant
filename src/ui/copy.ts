@@ -15,7 +15,7 @@ export const copy = {
     footer: 'The camera never leaves this device.',
     settings: 'Settings',
     ossuary: 'The Ossuary',
-    rites: 'Rites',
+    shop: 'The Pedlar',
     howToPlay: 'How to Play',
     /** Shown instead of "INSERT FACE" once there is something to come back to. */
     continueLabel: '▶ CONTINUE',
@@ -28,37 +28,39 @@ export const copy = {
 
   howTo: {
     heading: 'How to Play',
-    intro:
-      'Tiny candle creatures - Wicks - walk out of a lantern and cross your face to reach a glowing Gate. ' +
-      'Your own expressions are the terrain. Here is what each part of your face does, and where everything in the menus fits.',
-    faceMapTitle: 'Your face is the level',
-    flowTitle: 'The loop',
-    goalTitle: 'The goal',
-    goal:
-      'Get as many Wicks to the Gate as you can before time runs out. Candles (1-3) are awarded per level by how ' +
-      'many you saved. The more composed you stay, the better you do - and the game is built to make that hard.',
-    mawTitle: 'The Maw: your biggest risk and your only weapon',
-    maw:
-      'Opening your mouth removes the lip bridge and can swallow any Wick standing on it - but it also lets you ' +
-      "swallow Crawlers and Moths on purpose for bonus score and composure back (an Offering). Holding it open costs " +
-      'composure the whole time it is open, so it is never a free move.',
-    composureTitle: 'Composure: the real enemy',
-    composure:
-      'The bar at the top of the screen. Laughing, gasping, flinching and holding the Maw open all drain it. ' +
-      'At zero your mouth opens on its own for a moment, whatever your real jaw is doing - the game punishes losing ' +
-      'control, not having a mouth.',
+    /** Three lines. If someone reads only this much, they can still play. */
+    inOneLine: 'Tiny candles walk across your face. Get them to the door. Keep your mouth shut.',
+    steps: [
+      { n: '1', title: 'They walk on you', body: 'Wicks drop from the lantern and cross your face to reach the glowing Gate on the far side.' },
+      { n: '2', title: 'Your face is the bridge', body: 'Hold still and the road holds. Move, tilt or open your mouth and it changes under their feet.' },
+      { n: '3', title: 'Lose half and you lose the tape', body: 'Save more than half of them to pass. Lose more than half and something comes to look at you.' },
+    ],
+    faceMapTitle: 'What each part of your face does',
+    mapLegend: 'Bright parts are floors. The nose and cheeks are slides. Your mouth is the Maw.',
+    twoRulesTitle: 'The two things that decide a run',
+    mawTitle: 'The Maw',
+    maw: 'Your open mouth. It deletes the lip bridge and eats anyone standing on it - but it is also the only way to swallow a Crawler or blow a Moth away, which pays well.',
+    composureTitle: 'Composure',
+    composure: 'The bar at the top. Laughing, gasping and flinching drain it. At zero your mouth opens on its own. The game is built to make you laugh.',
+    elsewhereTitle: 'Everything else',
+    shopTitle: 'The Pedlar',
+    shopExplain: 'A shop. Finish levels to earn coins, spend them here on permanent help.',
     ossuaryTitle: 'The Ossuary',
-    ossuaryExplain:
-      'A memorial, not a level. Every Wick you lose is recorded here by name, with what killed it and its last ' +
-      'words. Nothing to do here but look - it exists so losing one means something.',
-    ritesTitle: 'Rites',
-    ritesExplain:
-      'A shop, not a level. Spend candles you have already earned on small permanent help for every future run: ' +
-      'steadier footing, slower spawns, a wider Gate, or one lost Wick returned per run. Visit it from the title ' +
-      'screen whenever you have candles to spend.',
-    controlsTitle: 'Controls (Assist mode)',
+    ossuaryExplain: 'A memorial. Every Wick you lose is listed here by name. Nothing to do but look.',
+    tapesTitle: 'The Shelf',
+    tapesExplain: 'Five tapes of levels, a new Daily Tape each day, and the endless Long Tape.',
+    controlsTitle: 'Controls without a camera',
+    controls: [
+      ['Mouse', 'move your face'],
+      ['Space', 'open the Maw'],
+      ['Shift', 'raise your brows (flings them)'],
+      ['B', 'blink (an eyelid is a bridge)'],
+      ['↑ ↓', 'lean in and out'],
+      ['Wheel', 'tilt your head'],
+      ['P / Esc', 'pause'],
+    ] as const,
     close: 'Got it',
-    again: 'You can reopen this anytime from the title screen.',
+    again: 'Reopen this anytime from the title screen or the pause menu.',
   },
 
   notice: {
@@ -116,6 +118,8 @@ export const copy = {
 
   hud: {
     composure: 'COMPOSURE',
+    lossBudget: (n: number): string =>
+      n === 0 ? 'ONE MORE AND THE TAPE IS LOST' : `${n} MORE CAN BE LOST`,
     noFace: 'No face yet — press P for Assist, or move into the light.',
     assistHint:
       'Mouse moves your face · Space opens the Maw · Shift raises brows · B blinks · ↑↓ lean · wheel tilts · P or Esc pauses',
@@ -147,6 +151,10 @@ export const copy = {
     discard: 'Discard',
     save: 'Save',
     practice: 'Practice run — your first attempt is the one that counts.',
+    coins: (n: number): string => `+${n} coins`,
+    noCoins: 'A lost tape pays nothing.',
+    failed: 'Lose more than half and the tape is lost. Try again.',
+    retryFailed: 'Try again',
     newBest: 'New best.',
   },
 
@@ -193,25 +201,15 @@ export const copy = {
     },
   },
 
-  rites: {
-    heading: 'Rites',
-    blurb: 'Candles can be spent on small, permanent help. The Wicks insist it is not cheating.',
-    owned: 'Observed',
-    buy: 'Observe',
-    cost: (n: number): string => `${n} candles`,
-    available: (n: number): string => `${n} candles to spend`,
-    names: {
-      steadyWicks: 'Rite of Steady Feet',
-      slowSpawn: 'Rite of Patience',
-      wideGate: 'Rite of the Wider Door',
-      secondChance: 'Rite of the Second Flame',
-    },
-    descriptions: {
-      steadyWicks: 'They will risk slightly longer steps and wider gaps.',
-      slowSpawn: 'They leave the lantern less often, so there are fewer at once.',
-      wideGate: 'The Gate counts a near miss as an arrival.',
-      secondChance: 'One lost Wick per run returns to the lantern. The Maw is exempt.',
-    },
+  shop: {
+    heading: 'The Pedlar',
+    blurb: 'Coins come from finishing levels. The Pedlar takes coins, never candles - your ratings are yours to keep.',
+    owned: 'Owned',
+    buy: 'Buy',
+    cost: (n: number): string => `${n} coins`,
+    coinsHeld: (n: number): string => `${n} coins`,
+    empty: 'Nothing here yet. Finish a level to earn your first coins.',
+    cantAfford: 'Not enough coins',
     back: 'Back',
   },
 
@@ -222,6 +220,7 @@ export const copy = {
   },
 
   stampBlurb: {
+    'TAPE LOST': 'More than half of them are gone. Something came to look at you.',
     'KEPT STILL': 'You held it together. Mostly.',
     'THE MAW AWOKE': 'Your mouth opened. They noticed.',
     'LIGHTS OUT': 'Every flame went out.',

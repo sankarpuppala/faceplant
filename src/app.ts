@@ -32,6 +32,7 @@ import { ClipRecorder, downloadBlob } from './share/recorder.ts';
 import { cardFilename, downloadCanvas, drawResultCard } from './share/resultCard.ts';
 import { copyToClipboard, shareText } from './share/shareText.ts';
 import {
+  addCoins,
   buyRite,
   completedLevelIds,
   hasProgress,
@@ -60,7 +61,7 @@ import {
   ossuaryScreen,
   pauseScreen,
   resultsScreen,
-  ritesScreen,
+  shopScreen,
   settingsScreen,
   shelfScreen,
   titleScreen,
@@ -110,6 +111,12 @@ export class App {
   private lastFaceAtMs = 0;
   /** Timestamp of the last face frame actually pushed into the world. */
   private lastConsumedFrameT = -1;
+  /**
+   * When THE WATCHER was summoned, on the render clock, or -1. Set by the
+   * world's `watcher` event and cleared when the animation is done. Stays -1
+   * with Scares off, so the fail still happens - just quietly.
+   */
+  private watcherStartedMs = -1;
   private practiceRun = false;
   private frameTimes: number[] = [];
 
@@ -210,7 +217,7 @@ export class App {
           shelf: () => this.showShelf(),
           settings: () => this.showSettings(() => this.showTitle()),
           ossuary: () => this.setScreen(ossuaryScreen(this.progress, () => this.showTitle()), 'menu', () => this.showTitle()),
-          rites: () => this.showRites(),
+          shop: () => this.showShop(),
           howToPlay: () => this.showHowToPlay(() => this.showTitle()),
         },
         {
@@ -218,6 +225,7 @@ export class App {
           reducedEffects: this.settings.reducedEffects,
           returning,
           candles: totalCandles(this.progress),
+          coins: this.progress.coins,
           canSave: storageAvailable(),
         },
       ),
@@ -246,15 +254,20 @@ export class App {
     await this.playStory(next);
   }
 
-  private showRites(): void {
+  private showShop(): void {
     const render = (): void => {
       this.setScreen(
-        ritesScreen(
+        shopScreen(
           this.progress,
-          (rite: RiteName) => {
-            this.progress = buyRite(this.progress, rite);
-            saveProgress(this.progress);
-            sound.play('uiPick');
+          (item: RiteName) => {
+            const before = this.progress.coins;
+            this.progress = buyRite(this.progress, item);
+            // Only treat it as a purchase if coins actually moved, so a
+            // double-click or an unaffordable item cannot bank a free item.
+            if (this.progress.coins !== before) {
+              saveProgress(this.progress);
+              sound.play('gateChime');
+            }
             render();
           },
           () => this.showTitle(),
@@ -395,6 +408,7 @@ export class App {
 
   private async switchControls(mode: 'face' | 'assist', onDone?: () => void): Promise<void> {
     this.lastConsumedFrameT = -1;
+    this.watcherStartedMs = -1;
     if (mode === 'assist') {
       this.ensureSynthetic();
       this.source = this.synthetic;
@@ -531,6 +545,15 @@ export class App {
     if (r.includes('slowSpawn')) t.spawnIntervalMultiple = config.rites.slowSpawnMultiple;
     if (r.includes('wideGate')) t.gateBonusFh = config.rites.wideGateBonusFh;
     if (r.includes('secondChance')) t.secondChanceCount = config.rites.secondChanceCount;
+    // The three newer items. These were briefly purchasable and inert, which
+    // is worse than not selling them at all - `tests/game/game.test.ts` now
+    // asserts every shop item changes at least one tunable.
+    if (r.includes('lanternOil')) t.lightRadiusMultiple = config.rites.lanternOilMultiple;
+    if (r.includes('ironNerve')) t.composureDrainMultiple = config.rites.ironNerveMultiple;
+    if (r.includes('wardingSalt')) {
+      t.crawlerSpeedMultiple = config.rites.wardingSaltSpeedMultiple;
+      t.crawlerTouchMultiple = config.rites.wardingSaltTouchMultiple;
+    }
     return t;
   }
 
@@ -675,6 +698,7 @@ export class App {
     }
 
     this.hudView?.update(world.composureState.fraction, world.composureState.mood);
+    this.hudView?.setLossBudget(world.snapshot().lossesRemaining);
     this.hudView?.setHint(this.hintText(world, now));
 
     this.renderFrame(now, dtMs);
@@ -706,6 +730,17 @@ export class App {
       now,
       config.quake.speedFhPerS,
     );
+  }
+
+  /** ms since the Watcher arrived, or null once it has finished. */
+  private watcherElapsed(now: number): number | null {
+    if (this.watcherStartedMs < 0) return null;
+    const elapsed = now - this.watcherStartedMs;
+    if (elapsed > this.stage.watcherDurationMs(this.settings.reducedEffects)) {
+      this.watcherStartedMs = -1;
+      return null;
+    }
+    return elapsed;
   }
 
   private hintText(world: World, now: number): string | null {
@@ -768,6 +803,18 @@ export class App {
           break;
         case 'turn':
           this.lines.request({ trigger: 'turn', at: { x: e.x, y: e.y } }, now);
+          break;
+        case 'crawlerSated':
+          sound.play('skitter');
+          break;
+        case 'watcher':
+          // Earned, not scheduled: more than half the roster is gone. Honours
+          // Scares off completely - no sound, no face, the tape just ends.
+          if (this.settings.scares) {
+            this.watcherStartedMs = now;
+            sound.play('watcherShout');
+            this.lines.request({ trigger: 'watcher', priority: 120 }, now);
+          }
           break;
         case 'wave':
           sound.play('processionStep', 0.8);
@@ -849,6 +896,7 @@ export class App {
       timeMs: now,
       dtMs,
       gateBonusFh: this.tunables.gateBonusFh,
+      watcherElapsedMs: this.watcherElapsed(now),
       showNoFaceHint: !world.faceSeen,
     });
   }
@@ -876,7 +924,10 @@ export class App {
     if (world === null || level === null) return;
 
     const snap = world.snapshot();
-    const result = buildResult(level, snap, world.finalScore());
+    // Replaying an already-cleared level pays reduced coins, so grinding the
+    // easiest level is not the most efficient way to earn.
+    const alreadyCleared = (this.progress.levels[level.id]?.candles ?? 0) > 0;
+    const result = buildResult(level, snap, world.finalScore(), alreadyCleared);
 
     const beforeBest = this.progress.endlessBest.score;
     this.progress = recordRun(
@@ -893,6 +944,10 @@ export class App {
     if (level.mode === 'daily' && !this.practiceRun) {
       this.progress = recordDaily(this.progress, dayNumber(), result);
     }
+    // Coins are banked here, which is also the only place they are created.
+    // A failed tape pays nothing (`coinsFor` returns 0), so there is no need
+    // to special-case failure.
+    if (result.coins > 0) this.progress = addCoins(this.progress, result.coins);
     saveProgress(this.progress);
 
     const newBest = level.mode === 'endless' && result.score > beforeBest;
@@ -903,12 +958,14 @@ export class App {
 
     this.clearPlayUi();
 
-    const next = level.mode === 'story' ? nextLevelId(level.id) : null;
+    // A lost tape offers no way forward at all - retry or leave. That is the
+    // entire point of there now being a way to lose.
+    const next = result.failed ? null : level.mode === 'story' ? nextLevelId(level.id) : null;
     // The ending card belongs to the narrative finale, not to whatever happens
     // to be last on disk. Adding Tape 05 as post-game content moved the credits
     // onto a bonus level until this was made explicit: finish 04-2 and the
     // story ends, then Tape 05 is waiting on the shelf.
-    const endsStory = level.mode === 'story' && isStoryFinale(level.id);
+    const endsStory = !result.failed && level.mode === 'story' && isStoryFinale(level.id);
 
     this.setScreen(
       resultsScreen(

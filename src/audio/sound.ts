@@ -34,6 +34,7 @@ export type SoundName =
   | 'stinger'
   | 'uiMove'
   | 'uiPick'
+  | 'watcherShout'
   | 'tapeStop';
 
 /** dBFS to linear gain. */
@@ -264,6 +265,25 @@ export class SoundManager {
         this.blip(t, 320, 120, 0.7, db(-12), 'sawtooth', config.audio.scareMinAttackMs / 1000);
         this.noise(t, 0.5, 1800, db(-18), 'bandpass', config.audio.scareMinAttackMs / 1000);
         break;
+      case 'watcherShout': {
+        // THE WATCHER's shout. The loudest thing in the game, and still bound
+        // by invariant 6: it peaks at -8 dBFS into a -6 dBFS limiter, and every
+        // layer has a 40 ms attack, comfortably past the 30 ms minimum. No
+        // layer starts instantaneously, so there is no click and no spike.
+        const attack = Math.max(config.audio.scareMinAttackMs, 40) / 1000;
+
+        // A throat: two detuned saws falling from a shriek to a growl.
+        this.blip(t, 880, 70, 1.5, db(-10), 'sawtooth', attack);
+        this.blip(t + 0.01, 660, 58, 1.5, db(-12), 'sawtooth', attack);
+        // The body of it, an octave down.
+        this.blip(t, 220, 34, 1.7, db(-9), 'square', attack);
+        // Breath and grit over the top.
+        this.noise(t, 1.5, 1100, db(-13), 'bandpass', attack);
+        this.noise(t + 0.05, 1.2, 320, db(-11), 'lowpass', attack);
+        // A sub-bass thump so it lands in the chest rather than the ears.
+        this.blip(t, 70, 28, 1.3, db(-8), 'sine', attack);
+        break;
+      }
       case 'uiMove':
         this.blip(t, 440, 440, 0.04, db(-30), 'square');
         break;

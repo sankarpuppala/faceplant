@@ -5,13 +5,15 @@
  * this file is the entire save game.
  */
 
-import { config } from '../config.ts';
+import { SHOP_ITEM_IDS, shopItem, type ShopItemId } from '../game/shop.ts';
 import type { LostCause } from '../physics/wick.ts';
 import type { RunResult } from '../game/rules.ts';
 
-export type RiteName = 'steadyWicks' | 'slowSpawn' | 'wideGate' | 'secondChance';
-
-export const RITE_NAMES: readonly RiteName[] = ['steadyWicks', 'slowSpawn', 'wideGate', 'secondChance'];
+/**
+ * Kept as an alias so older saves and existing call sites keep working after
+ * Rites became the coin shop. `ShopItemId` is the real name now.
+ */
+export type RiteName = ShopItemId;
 
 /** U7 - one entry per lost Wick, kept forever. */
 export interface BoneRecord {
@@ -50,9 +52,16 @@ export interface Progress {
   /** U7 - name to runs survived, so veterans return with titles. */
   survivors: Record<string, number>;
   ossuary: BoneRecord[];
-  rites: RiteName[];
-  /** Candles already spent on Rites. */
+  /** Shop items owned. Stored under the old key so existing saves carry over. */
+  rites: ShopItemId[];
+  /**
+   * Candles spent back when the shop charged candles. Kept only so an old save
+   * still loads; nothing spends candles any more.
+   */
   candlesSpent: number;
+  /** Coins in hand, and the lifetime total for the shop's header. */
+  coins: number;
+  coinsEarned: number;
   /** U4 - the Long Tape. */
   endlessBest: { score: number; waves: number; saved: number };
   daily: DailyRecord | null;
@@ -65,6 +74,8 @@ export const EMPTY_PROGRESS: Progress = {
   ossuary: [],
   rites: [],
   candlesSpent: 0,
+  coins: 0,
+  coinsEarned: 0,
   endlessBest: { score: 0, waves: 0, saved: 0 },
   daily: null,
   endingSeen: false,
@@ -98,8 +109,10 @@ export function loadProgress(): Progress {
       levels: typeof o.levels === 'object' && o.levels !== null ? o.levels : {},
       survivors: typeof o.survivors === 'object' && o.survivors !== null ? o.survivors : {},
       ossuary: Array.isArray(o.ossuary) ? o.ossuary.slice(-MAX_BONES) : [],
-      rites: Array.isArray(o.rites) ? o.rites.filter((r): r is RiteName => RITE_NAMES.includes(r as RiteName)) : [],
+      rites: Array.isArray(o.rites) ? o.rites.filter((r): r is ShopItemId => SHOP_ITEM_IDS.includes(r as ShopItemId)) : [],
       candlesSpent: typeof o.candlesSpent === 'number' ? o.candlesSpent : 0,
+      coins: typeof o.coins === 'number' && Number.isFinite(o.coins) ? Math.max(0, o.coins) : 0,
+      coinsEarned: typeof o.coinsEarned === 'number' && Number.isFinite(o.coinsEarned) ? Math.max(0, o.coinsEarned) : 0,
       endlessBest:
         typeof o.endlessBest === 'object' && o.endlessBest !== null
           ? o.endlessBest
@@ -158,17 +171,27 @@ export function spendableCandles(p: Progress): number {
   return Math.max(0, totalCandles(p) - p.candlesSpent);
 }
 
-export function riteCost(rite: RiteName): number {
-  return config.rites.costCandles[rite];
+export function riteCost(rite: ShopItemId): number {
+  return shopItem(rite)?.costCoins ?? Number.POSITIVE_INFINITY;
 }
 
-export function canBuyRite(p: Progress, rite: RiteName): boolean {
-  return !p.rites.includes(rite) && spendableCandles(p) >= riteCost(rite);
+export function owns(p: Progress, item: ShopItemId): boolean {
+  return p.rites.includes(item);
 }
 
-export function buyRite(p: Progress, rite: RiteName): Progress {
+export function canBuyRite(p: Progress, rite: ShopItemId): boolean {
+  return !owns(p, rite) && p.coins >= riteCost(rite);
+}
+
+export function buyRite(p: Progress, rite: ShopItemId): Progress {
   if (!canBuyRite(p, rite)) return p;
-  return { ...p, rites: [...p.rites, rite], candlesSpent: p.candlesSpent + riteCost(rite) };
+  return { ...p, rites: [...p.rites, rite], coins: p.coins - riteCost(rite) };
+}
+
+/** Pays out a finished run. */
+export function addCoins(p: Progress, coins: number): Progress {
+  if (coins <= 0) return p;
+  return { ...p, coins: p.coins + coins, coinsEarned: p.coinsEarned + coins };
 }
 
 /** Folds a finished run into the save: candles, bests, survivors and bones. */
