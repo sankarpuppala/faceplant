@@ -24,7 +24,7 @@ import { LineDirector } from './game/lineDirector.ts';
 import { displayName } from './game/names.ts';
 import { buildResult, type RunResult } from './game/rules.ts';
 import { FaceLooksBack, finaleBlendOverride, ScareDirector, type ActiveScare } from './game/scares.ts';
-import { World } from './physics/world.ts';
+import { World, type WorldSnapshot } from './physics/world.ts';
 import { Stage } from './render/stage.ts';
 import { sound } from './audio/sound.ts';
 import { PortraitCanvas } from './share/portraitCanvas.ts';
@@ -47,6 +47,14 @@ import {
   type RiteName,
 } from './storage/progress.ts';
 import { applySystemPreferences, loadSettings, saveSettings, storageAvailable, type Settings } from './storage/settings.ts';
+import {
+  applySaveFile,
+  currentDurability,
+  exportSave,
+  pickSaveFile,
+  requestPersistent,
+  type Durability,
+} from './storage/durability.ts';
 import { copy } from './ui/copy.ts';
 import { el, focusFirst, toast, trapFocus } from './ui/dom.ts';
 import {
@@ -117,6 +125,8 @@ export class App {
    * with Scares off, so the fail still happens - just quietly.
    */
   private watcherStartedMs = -1;
+  /** What the browser promises about the save. Resolved once, on boot. */
+  private durability: Durability = 'best-effort';
   private practiceRun = false;
   private frameTimes: number[] = [];
 
@@ -143,6 +153,20 @@ export class App {
     }
 
     window.addEventListener('keydown', this.onGlobalKey);
+
+    // Ask the browser not to evict the save when the device runs low on disk.
+    // Chrome grants this silently based on engagement - there is no prompt -
+    // and where it is unsupported the save is simply best-effort, which is
+    // what Settings then says. Deliberately not awaited: it must never delay
+    // the title screen.
+    void (storageAvailable()
+      ? requestPersistent().then((d) => {
+          this.durability = d;
+        })
+      : currentDurability(false).then((d) => {
+          this.durability = d;
+        }));
+
     this.running = true;
     this.lastFrameMs = performance.now();
     requestAnimationFrame(this.loop);
@@ -299,6 +323,18 @@ export class App {
               render();
             },
             recalibrate: () => void this.runCalibration(() => onClose()),
+            exportSave: () => exportSave(this.progress),
+            importSave: () => {
+              void pickSaveFile()
+                .then((imported) => {
+                  if (imported === null) return;
+                  this.progress = applySaveFile(imported);
+                  toast(this.uiHost, copy.settings.importDone);
+                  sound.play('gateChime');
+                  render();
+                })
+                .catch(() => toast(this.uiHost, copy.settings.importFailed));
+            },
             resetProgress: () => {
               this.progress = resetProgress();
               toast(this.uiHost, copy.settings.resetDone);
@@ -309,6 +345,7 @@ export class App {
           },
           totalCandles(this.progress),
           this.recorder.available,
+          this.durability,
         ),
         'menu',
         onClose,
@@ -327,6 +364,7 @@ export class App {
           playLevel: (id) => void this.playStory(id),
           playDaily: () => void this.playDaily(),
           playEndless: () => void this.playEndless(),
+          shop: () => this.showShop(),
           back: () => this.showTitle(),
         },
         dayNumber(),
@@ -697,14 +735,20 @@ export class App {
       this.crashAtMs = now;
     }
 
+    // One snapshot per frame, passed down. It was being rebuilt four times a
+    // frame - for the HUD, the end check, the renderer and the clip capture -
+    // and each rebuild filters the Wick list and maps the whole roster, so at
+    // 60 fps that was a lot of garbage for no new information.
+    const snap = world.snapshot();
+
     this.hudView?.update(world.composureState.fraction, world.composureState.mood);
-    this.hudView?.setLossBudget(world.snapshot().lossesRemaining);
+    this.hudView?.setLossBudget(snap.lossesRemaining);
     this.hudView?.setHint(this.hintText(world, now));
 
-    this.renderFrame(now, dtMs);
-    if (this.recordingThisRun) this.capturePortrait(now);
+    this.renderFrame(now, dtMs, snap);
+    if (this.recordingThisRun) this.capturePortrait(now, snap);
 
-    if (world.snapshot().over) this.finishRun();
+    if (snap.over) this.finishRun();
   };
 
   /** Pushes a face frame into the world, applying the finale override if due. */
@@ -879,14 +923,14 @@ export class App {
     }
   }
 
-  private renderFrame(now: number, dtMs: number): void {
+  private renderFrame(now: number, dtMs: number, snapshot?: WorldSnapshot): void {
     const world = this.world;
     const level = this.level;
     if (world === null || level === null) return;
 
     this.stage.render({
       world,
-      snapshot: world.snapshot(),
+      snapshot: snapshot ?? world.snapshot(),
       level,
       cal: this.cal,
       settings: this.settings,
@@ -901,7 +945,7 @@ export class App {
     });
   }
 
-  private capturePortrait(now: number): void {
+  private capturePortrait(now: number, snapshot?: WorldSnapshot): void {
     const world = this.world;
     if (world === null) return;
     const centre = worldToScreen({ x: 0, y: 0 }, this.cal, this.stage.viewport);
@@ -910,7 +954,7 @@ export class App {
       source: this.stage.canvas,
       faceScreenX: centre.x * dpr,
       faceScreenY: centre.y * dpr,
-      snapshot: world.snapshot(),
+      snapshot: snapshot ?? world.snapshot(),
       label: this.level?.label ?? '',
       timeMs: now,
     });
@@ -978,6 +1022,7 @@ export class App {
               : null,
           retry: () => this.startLevel(level, level.mode === 'endless'),
           shelf: () => this.showShelf(),
+          shop: () => this.showShop(),
           copyResult: () => {
             void copyToClipboard(shareText(result)).then((ok) => {
               if (ok) toast(this.uiHost, copy.results.copied);
@@ -1040,6 +1085,7 @@ export class App {
               : null,
           retry: () => this.startLevel(level, level.mode === 'endless'),
           shelf: () => this.showShelf(),
+          shop: () => this.showShop(),
           copyResult: () => void copyToClipboard(shareText(result)),
           saveCard: () => downloadCanvas(drawResultCard({ result, frame: this.stage.canvas }), cardFilename(result)),
           saveClip: null,

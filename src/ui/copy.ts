@@ -15,7 +15,7 @@ export const copy = {
     footer: 'The camera never leaves this device.',
     settings: 'Settings',
     ossuary: 'The Ossuary',
-    shop: 'The Pedlar',
+    shop: 'Shop',
     howToPlay: 'How to Play',
     /** Shown instead of "INSERT FACE" once there is something to come back to. */
     continueLabel: '▶ CONTINUE',
@@ -177,6 +177,17 @@ export const copy = {
       'Requests a smaller camera frame, applied next time the camera starts. Pair it with reduced effects on a slow machine.',
     close: 'Close',
     thermalLocked: 'THERMAL unlocks at 12 candles.',
+    saveTitle: 'Your save',
+    exportSave: 'Export save to a file',
+    importSave: 'Import a save file',
+    exportHint:
+      'Your progress lives in this browser on this device only - nothing is uploaded. Export a file if you want to keep it somewhere safe or move it to another browser.',
+    durabilityPersistent: 'Storage is marked persistent: this browser will not clear your save to free up space.',
+    durabilityBestEffort:
+      'Storage is best-effort: your save survives closing the tab, but a browser low on disk space may clear it. Safari also deletes it after 7 days without a visit. Export a file if you want it guaranteed.',
+    durabilityUnavailable: 'This browser is blocking site data, so nothing will be saved at all.',
+    importDone: 'Save imported.',
+    importFailed: 'That file could not be read as a FACEPLANT save.',
     resetProgress: 'Reset progress',
     resetHint:
       'Deletes your candles, Rites, the Ossuary and your Long Tape best. This is the only copy - it lives on this device and nowhere else.',
@@ -202,13 +213,14 @@ export const copy = {
   },
 
   shop: {
-    heading: 'The Pedlar',
+    /** The flavour name stays as the screen's own title, where it cannot hide anything. */
+    heading: 'Shop · The Pedlar',
     blurb: 'Coins come from finishing levels. The Pedlar takes coins, never candles - your ratings are yours to keep.',
     owned: 'Owned',
     buy: 'Buy',
     cost: (n: number): string => `${n} coins`,
     coinsHeld: (n: number): string => `${n} coins`,
-    empty: 'Nothing here yet. Finish a level to earn your first coins.',
+    empty: 'Finish a level to earn your first coins. A lost tape pays nothing.',
     cantAfford: 'Not enough coins',
     back: 'Back',
   },

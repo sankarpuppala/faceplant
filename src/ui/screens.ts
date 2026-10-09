@@ -87,11 +87,14 @@ export function titleScreen(actions: TitleActions, state: TitleState): HTMLEleme
   const secondary = el('div', { class: 'title-secondary' }, [
     state.returning ? button(copy.title.shelf, actions.shelf, 'btn') : null,
     button(copy.title.howToPlay, actions.howToPlay, 'btn'),
+    state.returning ? button(copy.title.shop, actions.shop, 'btn') : null,
     state.returning ? null : button(copy.title.playNoCamera, actions.playNoCamera, 'btn'),
   ]);
 
+  // Shop sits with the other real buttons rather than in the quiet tray. As a
+  // dim underlined link labelled "The Pedlar" it was effectively invisible -
+  // a player who asked for a shop could not find it.
   const tray = el('div', { class: 'title-tray' }, [
-    button(copy.title.shop, actions.shop, 'btn quiet'),
     button(copy.title.ossuary, actions.ossuary, 'btn quiet'),
     button(copy.title.settings, actions.settings, 'btn quiet'),
   ]);
@@ -274,6 +277,7 @@ export interface ShelfActions {
   playLevel: (id: string) => void;
   playDaily: () => void;
   playEndless: () => void;
+  shop: () => void;
   back: () => void;
 }
 
@@ -366,7 +370,12 @@ export function shelfScreen(progress: Progress, actions: ShelfActions, dayNumber
     rack,
     blurb,
     levelHost,
-    el('div', { class: 'row' }, [button(copy.shelf.back, actions.back, 'btn quiet')]),
+    el('div', { class: 'row' }, [
+      // The shelf is where you are between runs with coins in hand, so the
+      // shop belongs here too, not only on the title screen.
+      button(copy.title.shop, actions.shop, 'btn'),
+      button(copy.shelf.back, actions.back, 'btn quiet'),
+    ]),
   ]);
 
   select(selected);
@@ -443,6 +452,7 @@ export interface ResultsActions {
   next: (() => void) | null;
   retry: () => void;
   shelf: () => void;
+  shop: () => void;
   copyResult: () => void;
   saveCard: () => void;
   saveClip: (() => void) | null;
@@ -510,6 +520,8 @@ export function resultsScreen(
         result.failed ? 'btn primary' : 'btn',
       ),
       button(copy.results.shelf, actions.shelf, 'btn'),
+      // Straight after a payout is the moment someone most wants to spend.
+      result.coins > 0 ? button(copy.title.shop, actions.shop, 'btn') : null,
     ]),
     el('div', { class: 'row' }, [
       button(copy.results.copy, actions.copyResult, 'btn quiet'),
@@ -542,10 +554,21 @@ export interface SettingsActions {
   change: (next: Partial<Settings>) => void;
   recalibrate: () => void;
   resetProgress: () => void;
+  exportSave: () => void;
+  importSave: () => void;
   close: () => void;
 }
 
-export function settingsScreen(settings: Settings, actions: SettingsActions, totalCandles: number, canRecord: boolean): HTMLElement {
+/** What the browser is actually promising about the save, in plain words. */
+export type DurabilityLabel = 'persistent' | 'best-effort' | 'unavailable';
+
+export function settingsScreen(
+  settings: Settings,
+  actions: SettingsActions,
+  totalCandles: number,
+  canRecord: boolean,
+  durability: DurabilityLabel = 'best-effort',
+): HTMLElement {
   const thermalOk = filterUnlocked('thermal', totalCandles);
 
   const filterSeg = segmented<FilterName>(
@@ -595,6 +618,27 @@ export function settingsScreen(settings: Settings, actions: SettingsActions, tot
       el('p', { class: 'small dim', text: copy.settings.lowPowerHint }),
       slider(copy.settings.volume, settings.volume, (volume) => actions.change({ volume })),
     ]),
+
+    // "Will my progress still be there in a month?" deserves a real answer
+    // rather than a reassuring sentence, so the actual storage guarantee is
+    // stated here - including the Safari caveat that no API can fix - and an
+    // export gives the player a copy that outlives any eviction policy.
+    el('h3', { text: copy.settings.saveTitle }),
+    el('p', {
+      class: 'small dim',
+      style: durability === 'unavailable' ? 'color:var(--rec)' : undefined,
+      text:
+        durability === 'persistent'
+          ? copy.settings.durabilityPersistent
+          : durability === 'unavailable'
+            ? copy.settings.durabilityUnavailable
+            : copy.settings.durabilityBestEffort,
+    }),
+    el('div', { class: 'row' }, [
+      button(copy.settings.exportSave, actions.exportSave, 'btn'),
+      button(copy.settings.importSave, actions.importSave, 'btn'),
+    ]),
+    el('p', { class: 'small dim', text: copy.settings.exportHint }),
 
     // The save lives in one localStorage key on this device and nowhere else,
     // so "start over" and "delete what you hold about me" are the same button.
@@ -767,14 +811,36 @@ export function hud(): HudView {
     hint,
   ]);
 
+  // Every setter below is called once per rendered frame, so each one only
+  // touches the DOM when its value has actually changed. Writing `textContent`
+  // and toggling classes 60 times a second invalidates layout 60 times a
+  // second, and the whole picture - including the face contour - gets choppy
+  // for the sake of text that changes once every few seconds.
+  let lastWidth = -1;
+  let lastMood = '';
+  let lastBudget: number | null | undefined;
+  let lastHint: string | null | undefined;
+
   return {
     node,
     update(fraction, mood) {
-      fill.style.width = `${Math.round(Math.max(0, Math.min(1, fraction)) * 100)}%`;
-      bar.classList.toggle('cracking', mood === 'cracking');
-      bar.classList.toggle('panic', mood === 'panic');
+      // Rounded to whole percent: sub-pixel width changes are invisible and
+      // only cost a relayout.
+      const pct = Math.round(Math.max(0, Math.min(1, fraction)) * 100);
+      if (pct !== lastWidth) {
+        fill.style.width = `${pct}%`;
+        lastWidth = pct;
+      }
+      if (mood !== lastMood) {
+        bar.classList.toggle('cracking', mood === 'cracking');
+        bar.classList.toggle('panic', mood === 'panic');
+        lastMood = mood;
+      }
     },
     setLossBudget(remaining) {
+      if (remaining === lastBudget) return;
+      lastBudget = remaining;
+
       if (remaining === null) {
         budget.style.display = 'none';
         return;
@@ -786,6 +852,8 @@ export function hud(): HudView {
       budget.classList.toggle('critical', remaining === 0);
     },
     setHint(text) {
+      if (text === lastHint) return;
+      lastHint = text;
       hint.style.display = text === null ? 'none' : '';
       hint.textContent = text ?? '';
     },

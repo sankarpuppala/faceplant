@@ -129,9 +129,31 @@ export class Osd extends Container {
     this.procText.position.set(left, bottom - size * 3.6);
 
     this.lastSize = size;
+
+    // Everything memoised in `update` was drawn at the old size, so a resize
+    // has to invalidate it or the candle row and Maw icon keep the old scale.
+    this.lastCandleKey = '';
+    this.lastMawOpen = null;
   }
 
   private lastSize = 16;
+
+  /**
+   * Memos for the per-frame work that used to be unconditional. The OSD is
+   * updated every rendered frame, but almost nothing on it changes that often:
+   * the score changes on a save, the candle row changes on an outcome, the
+   * Maw icon changes on a state flip. Rebuilding all of it 60 times a second -
+   * including an Intl `toLocaleString` call and two full Graphics rebuilds -
+   * was spending frame budget that the face contour needed.
+   */
+  private lastScore = -1;
+  private lastTimecode = '';
+  private lastLabel = '';
+  private lastCandleKey = '';
+  private lastCountText = '';
+  private lastMawOpen: boolean | null = null;
+  private lastWaveText = '';
+  private lastProcText = '';
 
   update(snap: WorldSnapshot, label: string, timeMs: number, reducedEffects: boolean, endless: boolean): void {
     const size = this.lastSize;
@@ -140,47 +162,82 @@ export class Osd extends Container {
     const hz = config.render.effects.recDot.maxFlashHz;
     this.recDot.alpha = reducedEffects ? 1 : (Math.floor((timeMs / 1000) * hz * 2) % 2 === 0 ? 1 : 0.18);
 
-    this.timecode.text = formatTimecode(snap.elapsedMs);
-    this.tapeLabel.text = label;
+    const tc = formatTimecode(snap.elapsedMs);
+    if (tc !== this.lastTimecode) {
+      this.timecode.text = tc;
+      this.lastTimecode = tc;
+    }
+    if (label !== this.lastLabel) {
+      this.tapeLabel.text = label;
+      this.lastLabel = label;
+    }
 
     // Candle counter: lit for each saved Wick, unlit for each lost one.
-    this.candleBar.clear();
-    const iconW = size * 0.42;
-    const gap = size * 0.2;
-    const shown = Math.min(14, snap.spawned);
-    for (let i = 0; i < shown; i++) {
-      const outcome = snap.outcomes[i];
-      const x = i * (iconW + gap);
-      const lit = outcome === 'saved';
-      const pending = outcome === 'alive';
-      this.candleBar
-        .rect(x, size * 0.5, iconW, size * 0.95)
-        .fill({ color: tokens.wax, alpha: lit ? 0.95 : pending ? 0.4 : 0.14 });
-      if (lit) {
-        this.candleBar.circle(x + iconW / 2, size * 0.32, iconW * 0.42).fill({ color: tokens.candle, alpha: 0.95 });
+    // Rebuilt only when an outcome actually changes.
+    const candleKey = `${snap.spawned}:${snap.saved}:${snap.lost}`;
+    if (candleKey !== this.lastCandleKey) {
+      this.lastCandleKey = candleKey;
+      this.candleBar.clear();
+      const iconW = size * 0.42;
+      const gap = size * 0.2;
+      const shown = Math.min(14, snap.spawned);
+      for (let i = 0; i < shown; i++) {
+        const outcome = snap.outcomes[i];
+        const x = i * (iconW + gap);
+        const lit = outcome === 'saved';
+        const pending = outcome === 'alive';
+        this.candleBar
+          .rect(x, size * 0.5, iconW, size * 0.95)
+          .fill({ color: tokens.wax, alpha: lit ? 0.95 : pending ? 0.4 : 0.14 });
+        if (lit) {
+          this.candleBar.circle(x + iconW / 2, size * 0.32, iconW * 0.42).fill({ color: tokens.candle, alpha: 0.95 });
+        }
       }
     }
-    this.candleCount.text = endless
+
+    const countText = endless
       ? `SAVED ${snap.saved}  LOST ${snap.lost}/${config.endless.lossesAllowed}`
       : `${snap.saved}/${snap.spawned} SAVED`;
+    if (countText !== this.lastCountText) {
+      this.candleCount.text = countText;
+      this.lastCountText = countText;
+    }
 
     // The Maw indicator: lips that glow `rec` while open (SPEC section 12.4).
+    // Only two shapes exist, so it is redrawn on the flip, not every frame.
     const open = snap.maw.open;
-    const w = size * 1.5;
-    const h = size * (open ? 0.72 : 0.2);
-    this.mawIcon.clear();
-    this.mawIcon
-      .moveTo(-w / 2, 0)
-      .quadraticCurveTo(0, -h, w / 2, 0)
-      .quadraticCurveTo(0, h, -w / 2, 0)
-      .fill({ color: open ? tokens.rec : tokens.ink, alpha: open ? 0.85 : 0.6 })
-      .stroke({ width: 1.5, color: open ? tokens.rec : tokens.boneDim, alpha: open ? 1 : 0.6 });
-    this.mawLabel.style.fill = open ? tokens.rec : tokens.boneDim;
+    if (open !== this.lastMawOpen) {
+      this.lastMawOpen = open;
+      const w = size * 1.5;
+      const h = size * (open ? 0.72 : 0.2);
+      this.mawIcon.clear();
+      this.mawIcon
+        .moveTo(-w / 2, 0)
+        .quadraticCurveTo(0, -h, w / 2, 0)
+        .quadraticCurveTo(0, h, -w / 2, 0)
+        .fill({ color: open ? tokens.rec : tokens.ink, alpha: open ? 0.85 : 0.6 })
+        .stroke({ width: 1.5, color: open ? tokens.rec : tokens.boneDim, alpha: open ? 1 : 0.6 });
+      this.mawLabel.style.fill = open ? tokens.rec : tokens.boneDim;
+    }
 
-    this.scoreText.text = snap.score.toLocaleString('en-US');
-    this.waveText.text = endless ? `WAVE ${snap.wave}` : `${Math.ceil(snap.timeLeftS)}s`;
+    // `toLocaleString` is an Intl call; it has no business running 60 times a
+    // second for a number that changes when a Wick reaches the Gate.
+    if (snap.score !== this.lastScore) {
+      this.lastScore = snap.score;
+      this.scoreText.text = snap.score.toLocaleString('en-US');
+    }
+
+    const waveText = endless ? `WAVE ${snap.wave}` : `${Math.ceil(snap.timeLeftS)}s`;
+    if (waveText !== this.lastWaveText) {
+      this.waveText.text = waveText;
+      this.lastWaveText = waveText;
+    }
 
     // U3 - the Procession multiplier. Hidden at x1 so it only appears when it means something.
-    this.procText.text = snap.procession.multiple > 1 ? `PROCESSION x${snap.procession.multiple}` : '';
+    const procText = snap.procession.multiple > 1 ? `PROCESSION x${snap.procession.multiple}` : '';
+    if (procText !== this.lastProcText) {
+      this.procText.text = procText;
+      this.lastProcText = procText;
+    }
   }
 }
