@@ -9,7 +9,18 @@ import { describe, expect, it } from 'vitest';
 import { config, defaultTunables } from '../../src/config.ts';
 import { Composure, moodFor } from '../../src/game/composure.ts';
 import { dayNumber, generateDaily, generateEndless, TEMPLATES } from '../../src/game/daily.ts';
-import { ALL_LEVEL_IDS, isDailyUnlocked, isLevelUnlocked, isTapeUnlocked, nextLevelId, TAPES, tapeFor } from '../../src/game/levelLoader.ts';
+import {
+  ALL_LEVEL_IDS,
+  isDailyUnlocked,
+  isLevelUnlocked,
+  isStoryFinale,
+  isTapeUnlocked,
+  nextLevelId,
+  nextUnplayedLevelId,
+  STORY_FINALE_ID,
+  TAPES,
+  tapeFor,
+} from '../../src/game/levelLoader.ts';
 import { LevelError, parseLevel, validateLevel, type Level } from '../../src/game/levelSchema.ts';
 import { LINES, RUIN_LORE, fillLine, type LineTrigger } from '../../src/game/lines.ts';
 import { LineDirector } from '../../src/game/lineDirector.ts';
@@ -24,7 +35,9 @@ import { outcomeRow, shareHeader, shareText } from '../../src/share/shareText.ts
 import {
   buyRite,
   canBuyRite,
+  completedLevelIds,
   EMPTY_PROGRESS,
+  hasProgress,
   recordDaily,
   recordRun,
   riteCost,
@@ -52,8 +65,8 @@ describe('level schema (SPEC 9.1)', () => {
   const levels = loadAll();
 
   it('every shipped level validates', () => {
-    expect(levels).toHaveLength(12);
-    for (const l of levels) expect(l.id).toMatch(/^0[1-4]-[1-4]$/);
+    expect(levels).toHaveLength(15);
+    for (const l of levels) expect(l.id).toMatch(/^0[1-5]-[1-4]$/);
   });
 
   it('every level id matches its filename and its tape', () => {
@@ -67,7 +80,7 @@ describe('level schema (SPEC 9.1)', () => {
 
   it('the tapes declare exactly the levels on disk', () => {
     expect(TAPES.flatMap((t) => t.levelIds).sort()).toEqual(levels.map((l) => l.id).sort());
-    expect(TAPES.map((t) => t.levelIds.length)).toEqual([4, 3, 3, 2]);
+    expect(TAPES.map((t) => t.levelIds.length)).toEqual([4, 3, 3, 2, 3]);
   });
 
   it('rejects coordinates outside the visible region', () => {
@@ -761,6 +774,78 @@ describe('progress, the Ossuary and Rites (U7, U9)', () => {
     expect(config.rites.slowSpawnMultiple).toBeGreaterThan(1);
     expect(config.rites.wideGateBonusFh).toBeGreaterThan(0);
     expect(config.rites.secondChanceCount).toBeGreaterThan(0);
+  });
+});
+
+// ------------------------------------------- resuming, exiting, the ending ---
+
+describe('picking up where you left off', () => {
+  it('a fresh save is not "returning", so the title offers INSERT FACE', () => {
+    expect(hasProgress(structuredClone(EMPTY_PROGRESS))).toBe(false);
+  });
+
+  it('any finished level, daily or endless run counts as progress', () => {
+    const withLevel: Progress = {
+      ...structuredClone(EMPTY_PROGRESS),
+      levels: { '01-1': { candles: 1, bestScore: 10, bestSaved: 1, attempts: 1 } },
+    };
+    expect(hasProgress(withLevel)).toBe(true);
+
+    const withEndless: Progress = {
+      ...structuredClone(EMPTY_PROGRESS),
+      endlessBest: { score: 500, waves: 3, saved: 4 },
+    };
+    expect(hasProgress(withEndless)).toBe(true);
+  });
+
+  it('CONTINUE resumes the first unfinished level, not the first level', () => {
+    // The bug this covers: the title button always started 01-1, so a player
+    // who had finished ten levels was dropped back into the tutorial.
+    const done = new Set(['01-1', '01-2', '01-3']);
+    expect(nextUnplayedLevelId(done)).toBe('01-4');
+
+    expect(nextUnplayedLevelId(new Set())).toBe(ALL_LEVEL_IDS[0]);
+    // Everything finished: nothing to resume, so the shelf is the destination.
+    expect(nextUnplayedLevelId(new Set(ALL_LEVEL_IDS))).toBeNull();
+  });
+
+  it('only counts a level as completed once it has earned a candle', () => {
+    const p: Progress = {
+      ...structuredClone(EMPTY_PROGRESS),
+      levels: {
+        '01-1': { candles: 2, bestScore: 10, bestSaved: 2, attempts: 1 },
+        // Attempted and failed: no candles, so it is still the next thing to play.
+        '01-2': { candles: 0, bestScore: 0, bestSaved: 0, attempts: 4 },
+      },
+    };
+    const done = completedLevelIds(p);
+    expect(done.has('01-1')).toBe(true);
+    expect(done.has('01-2')).toBe(false);
+    expect(nextUnplayedLevelId(done)).toBe('01-2');
+  });
+
+  it('the ending card belongs to the narrative finale, not the last level on disk', () => {
+    // Tape 05 is post-game content that unlocks after the story. Walking the
+    // level list to find "the end" moved the credits onto a bonus level.
+    expect(isStoryFinale(STORY_FINALE_ID)).toBe(true);
+    expect(isStoryFinale('04-2')).toBe(true);
+
+    const last = ALL_LEVEL_IDS[ALL_LEVEL_IDS.length - 1];
+    expect(last).not.toBe(STORY_FINALE_ID);
+    expect(isStoryFinale(last ?? '')).toBe(false);
+
+    // And the finale is genuinely mid-list now, with a tape after it.
+    expect(nextLevelId(STORY_FINALE_ID)).not.toBeNull();
+  });
+
+  it('the bonus tape unlocks exactly when the story ends', () => {
+    const throughTape4 = new Set(
+      TAPES.filter((t) => t.number <= 4).flatMap((t) => t.levelIds),
+    );
+    expect(isTapeUnlocked(5, throughTape4)).toBe(true);
+
+    const missingFinale = new Set([...throughTape4].filter((id) => id !== STORY_FINALE_ID));
+    expect(isTapeUnlocked(5, missingFinale)).toBe(false);
   });
 });
 

@@ -1,6 +1,6 @@
 ﻿// Smoke test: fetch the built page and walk its module graph, so a broken
 // import or a missing asset fails here rather than in front of a player.
-const BASE = 'http://localhost:4174';
+const BASE = 'http://localhost:4173';
 const seen = new Set();
 const problems = [];
 

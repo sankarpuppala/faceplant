@@ -113,7 +113,10 @@ const SPECS: Spec[] = [
     count: 3,
     intervalMs: 5000,
     // SPEC 3.2 - the first ten seconds. One Wick at a time, no hazards, and the
-    // Maw nowhere near the route.
+    // Maw nowhere near the route. Even the tutorial gets one small scare near
+    // the end, so dread is established from level one rather than arriving
+    // without warning in Tape 04.
+    scares: [{ type: 'whisper', atMs: 42_000 }],
     lines: [
       { atMs: 1400, text: '…warm.' },
       { atMs: 6000, text: 'do not wake the maw.' },
@@ -136,6 +139,7 @@ const SPECS: Spec[] = [
     // Crossing the jaw, right under the nose rail, so anything that lands high
     // on the face slides down and arrives beside the crossing.
     ruins: [seg(-0.55, -0.62, 0.55, -0.62)],
+    scares: [{ type: 'whisper', atMs: 24_000 }, { type: 'flicker', atMs: 50_000 }],
     lines: [
       { atMs: 2000, text: 'big nose. good slide.' },
       { atMs: 14_000, text: 'the slide ends near the hunger. mind that.' },
@@ -156,6 +160,7 @@ const SPECS: Spec[] = [
     // Ruins resting at brow height, so raising your eyebrows flings whoever is
     // standing there.
     ruins: [seg(-0.34, -0.2, -0.05, -0.2), seg(0.05, -0.2, 0.34, -0.2)],
+    scares: [{ type: 'figure', atMs: 28_000 }, { type: 'whisper', atMs: 55_000 }],
     lines: [
       { atMs: 2000, text: 'the cliffs are the ledges. the ledges are your brows.' },
       { atMs: 16_000, text: 'raise them and we fly. we would rather not fly.' },
@@ -174,6 +179,7 @@ const SPECS: Spec[] = [
     count: 7,
     intervalMs: 2600,
     hazards: [{ type: 'crawler', x: 1.2, y: -0.36, atMs: 24_000 }],
+    scares: [{ type: 'whisper', atMs: 18_000 }, { type: 'figure', atMs: 46_000 }, { type: 'flicker', atMs: 68_000 }],
     lines: [
       { atMs: 2000, text: 'it comes closer…' },
       { atMs: 12_000, text: 'lean in, mountain. be larger.' },
@@ -194,6 +200,7 @@ const SPECS: Spec[] = [
     count: 7,
     intervalMs: 2600,
     // The whole crossing is the upper lip. Open your mouth and the road is gone.
+    scares: [{ type: 'whisper', atMs: 20_000 }, { type: 'figure', atMs: 48_000 }, { type: 'flicker', atMs: 66_000 }],
     lines: [
       { atMs: 2000, text: 'the lip is a bridge and a promise.' },
       { atMs: 11_000, text: 'keep it shut. keep it shut. keep it shut.' },
@@ -223,6 +230,7 @@ const SPECS: Spec[] = [
       { type: 'crawler', x: 1.3, y: 0.24, atMs: 26_000 },
       { type: 'crawler', x: -1.3, y: 0.24, atMs: 48_000 },
     ],
+    scares: [{ type: 'whisper', atMs: 16_000 }, { type: 'figure', atMs: 40_000 }, { type: 'stinger', atMs: 62_000 }],
     lines: [
       { atMs: 1800, text: 'supper time. not ours.' },
       { atMs: 10_000, text: 'feed it to the maw. use the mouth. the MOUTH.' },
@@ -246,6 +254,7 @@ const SPECS: Spec[] = [
       { type: 'crawler', x: 1.3, y: 0.24, atMs: 28_000 },
       { type: 'moth', x: 0.9, y: CEILING_Y, atMs: 46_000 },
     ],
+    scares: [{ type: 'figure', atMs: 24_000 }, { type: 'whisper', atMs: 52_000 }, { type: 'stinger', atMs: 74_000 }],
     lines: [
       { atMs: 2000, text: 'a moth. it wants my head.' },
       { atMs: 16_000, text: 'blow it away! open the maw and BLOW!' },
@@ -266,6 +275,7 @@ const SPECS: Spec[] = [
     count: 11,
     intervalMs: 1100,
     // Fast spawns, so the Procession climbs and the screen visibly brightens (U3).
+    scares: [{ type: 'whisper', atMs: 14_000 }, { type: 'figure', atMs: 36_000 }, { type: 'flicker', atMs: 58_000 }],
     lines: [
       { atMs: 1500, text: 'form a line. a dignified line.' },
       { atMs: 9000, text: 'this is not a dignified line.' },
@@ -289,6 +299,7 @@ const SPECS: Spec[] = [
     // The joke lands while someone is standing on the lip bridge. Laughing
     // drains composure (U1) *and* opens the mouth, which removes the bridge.
     hazards: [{ type: 'crawler', x: -1.3, y: 0.24, atMs: 40_000 }],
+    scares: [{ type: 'whisper', atMs: 22_000 }, { type: 'figure', atMs: 44_000 }, { type: 'stinger', atMs: 66_000 }],
     lines: [
       { atMs: 3000, text: 'while i cross, a joke. to steady us.' },
       { atMs: 10_000, text: 'why did the pilgrim cross the lip.' },
@@ -314,6 +325,12 @@ const SPECS: Spec[] = [
       { type: 'crawler', x: -1.3, y: 0.46, atMs: 30_000 },
       { type: 'moth', x: -1.1, y: CEILING_Y, atMs: 46_000 },
       { type: 'crawler', x: 1.3, y: 0.46, atMs: 62_000 },
+    ],
+    scares: [
+      { type: 'figure', atMs: 18_000 },
+      { type: 'whisper', atMs: 38_000 },
+      { type: 'stinger', atMs: 56_000 },
+      { type: 'flicker', atMs: 76_000 },
     ],
     lines: [
       { atMs: 2000, text: 'the festival of standing extremely still.' },
@@ -343,9 +360,11 @@ const SPECS: Spec[] = [
     ],
     dark: { startRadiusFh: 2.5, shrinkFhPerS: 0.009 },
     scares: [
+      { type: 'figure', atMs: 10_000 },
       { type: 'flicker', atMs: 22_000 },
       { type: 'whisper', atMs: 40_000 },
       { type: 'flicker', atMs: 58_000 },
+      { type: 'stinger', atMs: 78_000 },
     ],
     lines: [
       { atMs: 2000, text: 'the dark was here first.' },
@@ -376,10 +395,13 @@ const SPECS: Spec[] = [
     ],
     dark: { startRadiusFh: 2.8, shrinkFhPerS: 0.013 },
     scares: [
+      { type: 'figure', atMs: 7000 },
       { type: 'whisper', atMs: 15_000 },
+      { type: 'stinger', atMs: 30_000 },
       { type: 'faceLooksBack', atMs: 45_000 },
       { type: 'behindYou', atMs: 68_000 },
       { type: 'flicker', atMs: 82_000 },
+      { type: 'stinger', atMs: 90_000 },
     ],
     lines: [
       { atMs: 2000, text: 'the last tape. it knows it is the last tape.' },
@@ -392,6 +414,127 @@ const SPECS: Spec[] = [
     // hardest tape, not an unwinnable one.
     candles: { 3: 9, 2: 6, 1: 3 },
     hint: 'midway through, your face stops being yours for two seconds.',
+  },
+
+  // ---- TAPE 05 — NO MERCY --------------------------------------------------
+  // Added after the first playtest pass: the game needed harder content past
+  // the finale, for players who found Tape 04 straightforward. Nothing new
+  // mechanically - every hazard, route and scare type here already exists -
+  // but stacked tighter: shorter spawn intervals, more hazards running at
+  // once, faster timers, and unforgiving candle thresholds. A calm player can
+  // still finish each one (tests/levels/solvable.test.ts proves it), but
+  // three-candling them takes real control of the face.
+  {
+    id: '05-1',
+    tape: 5,
+    index: 1,
+    title: 'The Narrows',
+    timeLimitS: 75,
+    route: 'mouth',
+    fromLeft: true,
+    count: 10,
+    intervalMs: 1500,
+    hazards: [
+      { type: 'crawler', x: -1.3, y: 0.24, atMs: 6000 },
+      { type: 'moth', x: 0.9, y: CEILING_Y, atMs: 14_000 },
+      { type: 'crawler', x: 1.3, y: 0.24, atMs: 24_000 },
+      { type: 'moth', x: -0.9, y: CEILING_Y, atMs: 36_000 },
+      { type: 'crawler', x: -1.3, y: 0.24, atMs: 48_000 },
+      { type: 'moth', x: 0.9, y: CEILING_Y, atMs: 58_000 },
+    ],
+    scares: [
+      { type: 'figure', atMs: 9000 },
+      { type: 'whisper', atMs: 22_000 },
+      { type: 'stinger', atMs: 34_000 },
+      { type: 'flicker', atMs: 50_000 },
+      { type: 'figure', atMs: 64_000 },
+    ],
+    lines: [
+      { atMs: 1800, text: 'the road is thin here. the mountain gives nothing.' },
+      { atMs: 16_000, text: 'two of them want your head. one wants your mouth. choose fast.' },
+      { atMs: 40_000, text: 'we are almost out of road.' },
+      { atMs: 60_000, text: 'it is not slowing down. neither should you.' },
+    ],
+    candles: { 3: 9, 2: 6, 1: 3 },
+    hint: 'crawlers and moths at once, on the thinnest road yet.',
+  },
+  {
+    id: '05-2',
+    tape: 5,
+    index: 2,
+    title: 'Too Many Flames',
+    timeLimitS: 80,
+    route: 'chin',
+    fromLeft: false,
+    count: 11,
+    intervalMs: 1600,
+    hazards: [
+      { type: 'drip', x: -0.5, y: CEILING_Y, atMs: 4000, intervalMs: 1900 },
+      { type: 'drip', x: 0.5, y: CEILING_Y, atMs: 5000, intervalMs: 2000 },
+      { type: 'drip', x: 0, y: CEILING_Y, atMs: 14_000, intervalMs: 1700 },
+      { type: 'crawler', x: -1.3, y: 0.46, atMs: 20_000 },
+      { type: 'crawler', x: 1.3, y: 0.46, atMs: 36_000 },
+      { type: 'drip', x: -0.25, y: CEILING_Y, atMs: 44_000, intervalMs: 1800 },
+      { type: 'crawler', x: -1.3, y: 0.46, atMs: 58_000 },
+    ],
+    dark: { startRadiusFh: 2.2, shrinkFhPerS: 0.016 },
+    scares: [
+      { type: 'flicker', atMs: 8000 },
+      { type: 'figure', atMs: 20_000 },
+      { type: 'stinger', atMs: 34_000 },
+      { type: 'whisper', atMs: 50_000 },
+      { type: 'flicker', atMs: 66_000 },
+    ],
+    lines: [
+      { atMs: 1800, text: 'every candle we have is burning at once. so is the wax.' },
+      { atMs: 18_000, text: 'the dark is already closer than yesterday.' },
+      { atMs: 42_000, text: 'stop counting the ones we have lost. there is no time.' },
+      { atMs: 62_000, text: 'nearly home. do not look at the dark.' },
+    ],
+    candles: { 3: 9, 2: 6, 1: 3 },
+    hint: 'wax from three directions, a shrinking dark, and crawlers underfoot.',
+  },
+  {
+    id: '05-3',
+    tape: 5,
+    index: 3,
+    title: 'Nowhere Left to Stand',
+    timeLimitS: 85,
+    route: 'mouth',
+    fromLeft: true,
+    count: 13,
+    intervalMs: 1400,
+    // Everything the tape has taught, running together: the lip bridge, two
+    // Crawlers, two Moths, falling wax, a shrinking Dark and the heaviest
+    // scare load in the story mode. This is the hardest story level; the
+    // finale (04-2) stays reserved for the narrative moment.
+    hazards: [
+      { type: 'crawler', x: 1.3, y: 0.24, atMs: 5000 },
+      { type: 'drip', x: -0.2, y: CEILING_Y, atMs: 10_000, intervalMs: 2100 },
+      { type: 'moth', x: -1.0, y: CEILING_Y, atMs: 16_000 },
+      { type: 'crawler', x: -1.3, y: 0.24, atMs: 28_000 },
+      { type: 'drip', x: 0.2, y: CEILING_Y, atMs: 32_000, intervalMs: 2000 },
+      { type: 'moth', x: 1.0, y: CEILING_Y, atMs: 42_000 },
+      { type: 'crawler', x: 1.3, y: 0.24, atMs: 54_000 },
+      { type: 'moth', x: -0.9, y: CEILING_Y, atMs: 66_000 },
+    ],
+    dark: { startRadiusFh: 2.6, shrinkFhPerS: 0.012 },
+    scares: [
+      { type: 'figure', atMs: 8000 },
+      { type: 'stinger', atMs: 20_000 },
+      { type: 'whisper', atMs: 33_000 },
+      { type: 'flicker', atMs: 47_000 },
+      { type: 'figure', atMs: 61_000 },
+      { type: 'stinger', atMs: 76_000 },
+    ],
+    lines: [
+      { atMs: 1800, text: 'this is everything we know, at once.' },
+      { atMs: 24_000, text: 'the lip, the wax, the dark, the wings. pick your fear.' },
+      { atMs: 50_000, text: 'we are not going to pretend this is going well.' },
+      { atMs: 70_000, text: 'nearly there. do not open your mouth now. not now.' },
+    ],
+    candles: { 3: 10, 2: 7, 1: 4 },
+    hint: 'everything the tape has taught you, running at once.',
   },
 ];
 

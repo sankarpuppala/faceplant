@@ -78,8 +78,16 @@
   },
   "scares": [
     {
+      "type": "figure",
+      "atMs": 7000
+    },
+    {
       "type": "whisper",
       "atMs": 15000
+    },
+    {
+      "type": "stinger",
+      "atMs": 30000
     },
     {
       "type": "faceLooksBack",
@@ -92,6 +100,10 @@
     {
       "type": "flicker",
       "atMs": 82000
+    },
+    {
+      "type": "stinger",
+      "atMs": 90000
     }
   ],
   "lines": [

@@ -50,7 +50,12 @@
     "startRadiusFh": 99,
     "shrinkFhPerS": 0
   },
-  "scares": [],
+  "scares": [
+    {
+      "type": "whisper",
+      "atMs": 42000
+    }
+  ],
   "lines": [
     {
       "atMs": 1400,

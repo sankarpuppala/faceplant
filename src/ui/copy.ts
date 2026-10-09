@@ -16,6 +16,49 @@ export const copy = {
     settings: 'Settings',
     ossuary: 'The Ossuary',
     rites: 'Rites',
+    howToPlay: 'How to Play',
+    /** Shown instead of "INSERT FACE" once there is something to come back to. */
+    continueLabel: '▶ CONTINUE',
+    shelf: 'Tape shelf',
+    saved: 'Progress saves itself. You can close the tab whenever you like.',
+    /** Shown instead when localStorage is unavailable - private windows, blocked site data. */
+    notSaved: 'This browser is blocking site data, so progress will not be kept after you close the tab.',
+    candles: (n: number): string => `${n} candle${n === 1 ? '' : 's'} earned`,
+  },
+
+  howTo: {
+    heading: 'How to Play',
+    intro:
+      'Tiny candle creatures - Wicks - walk out of a lantern and cross your face to reach a glowing Gate. ' +
+      'Your own expressions are the terrain. Here is what each part of your face does, and where everything in the menus fits.',
+    faceMapTitle: 'Your face is the level',
+    flowTitle: 'The loop',
+    goalTitle: 'The goal',
+    goal:
+      'Get as many Wicks to the Gate as you can before time runs out. Candles (1-3) are awarded per level by how ' +
+      'many you saved. The more composed you stay, the better you do - and the game is built to make that hard.',
+    mawTitle: 'The Maw: your biggest risk and your only weapon',
+    maw:
+      'Opening your mouth removes the lip bridge and can swallow any Wick standing on it - but it also lets you ' +
+      "swallow Crawlers and Moths on purpose for bonus score and composure back (an Offering). Holding it open costs " +
+      'composure the whole time it is open, so it is never a free move.',
+    composureTitle: 'Composure: the real enemy',
+    composure:
+      'The bar at the top of the screen. Laughing, gasping, flinching and holding the Maw open all drain it. ' +
+      'At zero your mouth opens on its own for a moment, whatever your real jaw is doing - the game punishes losing ' +
+      'control, not having a mouth.',
+    ossuaryTitle: 'The Ossuary',
+    ossuaryExplain:
+      'A memorial, not a level. Every Wick you lose is recorded here by name, with what killed it and its last ' +
+      'words. Nothing to do here but look - it exists so losing one means something.',
+    ritesTitle: 'Rites',
+    ritesExplain:
+      'A shop, not a level. Spend candles you have already earned on small permanent help for every future run: ' +
+      'steadier footing, slower spawns, a wider Gate, or one lost Wick returned per run. Visit it from the title ' +
+      'screen whenever you have candles to spend.',
+    controlsTitle: 'Controls (Assist mode)',
+    close: 'Got it',
+    again: 'You can reopen this anytime from the title screen.',
   },
 
   notice: {
@@ -74,7 +117,8 @@ export const copy = {
   hud: {
     composure: 'COMPOSURE',
     noFace: 'No face yet — press P for Assist, or move into the light.',
-    assistHint: 'Mouse moves your face · Space opens the Maw · Shift raises brows · B blinks · ↑↓ lean · wheel tilts',
+    assistHint:
+      'Mouse moves your face · Space opens the Maw · Shift raises brows · B blinks · ↑↓ lean · wheel tilts · P or Esc pauses',
   },
 
   pause: {
@@ -83,12 +127,15 @@ export const copy = {
     restart: 'Restart',
     settings: 'Settings',
     shelf: 'Tape shelf',
+    exit: 'Exit to title',
+    /** Leaving mid-run scores nothing, so say so rather than letting it surprise anyone. */
+    exitHint: 'Leaving mid-tape: this run will not be scored. Everything you have already earned is saved.',
     lostTracking: 'Your face went out of frame. Carry on, or switch to Assist.',
     switchAssist: 'Switch to Assist',
   },
 
   results: {
-    next: 'Next tape',
+    next: 'Next level',
     retry: 'Retry',
     shelf: 'Shelf',
     copy: 'Copy result',
@@ -118,9 +165,17 @@ export const copy = {
     recordingHint: 'Off by default. Kept in memory, previewed, saved only if you choose.',
     volume: 'Volume',
     lowPower: 'Low power',
-    lowPowerHint: 'Smaller camera frame and reduced effects, for slower machines.',
+    lowPowerHint:
+      'Requests a smaller camera frame, applied next time the camera starts. Pair it with reduced effects on a slow machine.',
     close: 'Close',
     thermalLocked: 'THERMAL unlocks at 12 candles.',
+    resetProgress: 'Reset progress',
+    resetHint:
+      'Deletes your candles, Rites, the Ossuary and your Long Tape best. This is the only copy - it lives on this device and nowhere else.',
+    resetConfirm: 'Delete everything?',
+    resetConfirmYes: 'Yes, delete it',
+    resetConfirmNo: 'Keep my progress',
+    resetDone: 'Progress deleted.',
   },
 
   ossuary: {

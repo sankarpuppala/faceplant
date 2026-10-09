@@ -43,9 +43,40 @@ export const TAPES: readonly Tape[] = [
     teaches: 'the Dark, Drips under flicker, and the finale',
     levelIds: ['04-1', '04-2'],
   },
+  {
+    number: 5,
+    name: 'no mercy',
+    teaches: 'everything at once, with no slack left in the timing',
+    levelIds: ['05-1', '05-2', '05-3'],
+  },
 ];
 
 export const ALL_LEVEL_IDS: readonly string[] = TAPES.flatMap((t) => t.levelIds);
+
+/**
+ * The narrative finale (SPEC section 10.3) - the level the ending card belongs
+ * to. **Not** the last level on disk: Tape 05 is post-game content that
+ * unlocks after the story ends, so walking `ALL_LEVEL_IDS` to find the end
+ * would move the ending credits onto a bonus level, which is exactly what
+ * happened when Tape 05 was added.
+ */
+export const STORY_FINALE_ID = '04-2';
+
+export function isStoryFinale(levelId: string): boolean {
+  return levelId === STORY_FINALE_ID;
+}
+
+/**
+ * Where CONTINUE should take a returning player: the first level they have not
+ * finished. Null once everything is done, in which case the shelf is the right
+ * destination instead.
+ */
+export function nextUnplayedLevelId(completed: ReadonlySet<string>): string | null {
+  for (const id of ALL_LEVEL_IDS) {
+    if (!completed.has(id)) return id;
+  }
+  return null;
+}
 
 const cache = new Map<string, Level>();
 

@@ -1,0 +1,147 @@
+{
+  "id": "05-2",
+  "tape": 5,
+  "index": 2,
+  "label": "T05/2",
+  "title": "Too Many Flames",
+  "timeLimitS": 80,
+  "spawn": {
+    "x": 1.42,
+    "y": 0.2,
+    "count": 11,
+    "intervalMs": 1600,
+    "dir": -1
+  },
+  "gate": {
+    "x": -1.64,
+    "y": 0.16000000000000003,
+    "w": 0.22,
+    "h": 0.3
+  },
+  "ruins": [
+    {
+      "points": [
+        [
+          -1.72,
+          0.46
+        ],
+        [
+          -0.24,
+          0.46
+        ]
+      ]
+    },
+    {
+      "points": [
+        [
+          0.24,
+          0.46
+        ],
+        [
+          1.72,
+          0.46
+        ]
+      ]
+    }
+  ],
+  "walls": [],
+  "hazards": [
+    {
+      "type": "drip",
+      "x": -0.5,
+      "y": -1.14,
+      "atMs": 4000,
+      "intervalMs": 1900
+    },
+    {
+      "type": "drip",
+      "x": 0.5,
+      "y": -1.14,
+      "atMs": 5000,
+      "intervalMs": 2000
+    },
+    {
+      "type": "drip",
+      "x": 0,
+      "y": -1.14,
+      "atMs": 14000,
+      "intervalMs": 1700
+    },
+    {
+      "type": "crawler",
+      "x": -1.3,
+      "y": 0.46,
+      "atMs": 20000
+    },
+    {
+      "type": "crawler",
+      "x": 1.3,
+      "y": 0.46,
+      "atMs": 36000
+    },
+    {
+      "type": "drip",
+      "x": -0.25,
+      "y": -1.14,
+      "atMs": 44000,
+      "intervalMs": 1800
+    },
+    {
+      "type": "crawler",
+      "x": -1.3,
+      "y": 0.46,
+      "atMs": 58000
+    }
+  ],
+  "dark": {
+    "startRadiusFh": 2.2,
+    "shrinkFhPerS": 0.016
+  },
+  "scares": [
+    {
+      "type": "flicker",
+      "atMs": 8000
+    },
+    {
+      "type": "figure",
+      "atMs": 20000
+    },
+    {
+      "type": "stinger",
+      "atMs": 34000
+    },
+    {
+      "type": "whisper",
+      "atMs": 50000
+    },
+    {
+      "type": "flicker",
+      "atMs": 66000
+    }
+  ],
+  "lines": [
+    {
+      "atMs": 1800,
+      "text": "every candle we have is burning at once. so is the wax."
+    },
+    {
+      "atMs": 18000,
+      "text": "the dark is already closer than yesterday."
+    },
+    {
+      "atMs": 42000,
+      "text": "stop counting the ones we have lost. there is no time."
+    },
+    {
+      "atMs": 62000,
+      "text": "nearly home. do not look at the dark."
+    }
+  ],
+  "candles": {
+    "1": 3,
+    "2": 6,
+    "3": 9
+  },
+  "mode": "story",
+  "hint": "wax from three directions, a shrinking dark, and crawlers underfoot."
+}

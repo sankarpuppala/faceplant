@@ -74,6 +74,10 @@
   },
   "scares": [
     {
+      "type": "figure",
+      "atMs": 10000
+    },
+    {
       "type": "flicker",
       "atMs": 22000
     },
@@ -84,6 +88,10 @@
     {
       "type": "flicker",
       "atMs": 58000
+    },
+    {
+      "type": "stinger",
+      "atMs": 78000
     }
   ],
   "lines": [

@@ -175,13 +175,13 @@ function play(
 describe('AC-8 story levels are completable in Assist mode', () => {
   const ids = [...ALL_LEVEL_IDS];
 
-  it('ships exactly the 12 levels the tapes declare', () => {
+  it('ships exactly the levels the tapes declare', () => {
     const onDisk = readdirSync(LEVEL_DIR)
       .filter((n) => n.endsWith('.json'))
       .map((n) => n.replace(/\.json$/, ''))
       .sort();
     expect(onDisk).toEqual([...ids].sort());
-    expect(ids).toHaveLength(12);
+    expect(ids).toHaveLength(15);
   });
 
   for (const id of ids) {

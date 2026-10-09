@@ -24,6 +24,12 @@ export interface Settings {
   /** Set once the first-launch notice has been acknowledged. */
   noticeSeen: boolean;
   lowPower: boolean;
+  /**
+   * Set once the How to Play screen has been shown. It is shown automatically
+   * the first time this is false, right after the notice - because a title
+   * screen with no instructions is not a title screen a new player can use.
+   */
+  howToPlaySeen: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -36,6 +42,7 @@ export const DEFAULT_SETTINGS: Settings = {
   volume: 0.7,
   noticeSeen: false,
   lowPower: false,
+  howToPlaySeen: false,
 };
 
 const KEY = 'faceplant.settings.v1';
@@ -51,6 +58,16 @@ function storage(): Storage | null {
     // Private browsing, blocked site data, or an embedded frame with no access.
     return null;
   }
+}
+
+/**
+ * Whether anything can actually be persisted. False in a private window, with
+ * site data blocked, or in an embedded frame without storage access - all of
+ * which are survivable (the game runs on defaults), but the UI should not
+ * promise a save it cannot make.
+ */
+export function storageAvailable(): boolean {
+  return storage() !== null;
 }
 
 function bool(v: unknown, fallback: boolean): boolean {
@@ -81,6 +98,7 @@ export function loadSettings(): Settings {
       volume,
       noticeSeen: bool(o.noticeSeen, DEFAULT_SETTINGS.noticeSeen),
       lowPower: bool(o.lowPower, DEFAULT_SETTINGS.lowPower),
+      howToPlaySeen: bool(o.howToPlaySeen, DEFAULT_SETTINGS.howToPlaySeen),
     };
   } catch {
     return { ...DEFAULT_SETTINGS };

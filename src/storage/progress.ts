@@ -122,10 +122,36 @@ export function saveProgress(p: Progress): void {
   }
 }
 
+/**
+ * Wipes the save. Offered in Settings because this game's entire save file is
+ * one localStorage key on one device - so "start again" and "delete the data
+ * you hold about me" are the same action, and the player should be able to do
+ * both without clearing their whole browser.
+ */
+export function resetProgress(): Progress {
+  const s = storage();
+  try {
+    s?.removeItem(KEY);
+  } catch {
+    /* a save we cannot clear is not worth a crash */
+  }
+  return structuredClone(EMPTY_PROGRESS);
+}
+
 export function totalCandles(p: Progress): number {
   let n = 0;
   for (const key of Object.keys(p.levels)) n += p.levels[key]?.candles ?? 0;
   return n;
+}
+
+/** Level ids the player has finished with at least one candle. */
+export function completedLevelIds(p: Progress): Set<string> {
+  return new Set(Object.keys(p.levels).filter((id) => (p.levels[id]?.candles ?? 0) > 0));
+}
+
+/** True once anything at all has been played, which decides CONTINUE vs INSERT FACE. */
+export function hasProgress(p: Progress): boolean {
+  return Object.keys(p.levels).length > 0 || p.endlessBest.score > 0 || p.daily !== null;
 }
 
 export function spendableCandles(p: Progress): number {

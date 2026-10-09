@@ -18,7 +18,7 @@ import { AssistInput, SyntheticFaceSource } from './face/syntheticSource.ts';
 import type { FaceFrame, FaceSource, RawFrame } from './face/types.ts';
 import { CameraError, WebcamFaceSource } from './face/webcamSource.ts';
 import { dayNumber, generateDaily, generateEndless } from './game/daily.ts';
-import { loadLevel, nextLevelId, TAPES } from './game/levelLoader.ts';
+import { isStoryFinale, loadLevel, nextLevelId, nextUnplayedLevelId, TAPES } from './game/levelLoader.ts';
 import type { Level } from './game/levelSchema.ts';
 import { LineDirector } from './game/lineDirector.ts';
 import { displayName } from './game/names.ts';
@@ -33,16 +33,19 @@ import { cardFilename, downloadCanvas, drawResultCard } from './share/resultCard
 import { copyToClipboard, shareText } from './share/shareText.ts';
 import {
   buyRite,
+  completedLevelIds,
+  hasProgress,
   loadProgress,
   recordDaily,
   recordRun,
+  resetProgress,
   saveProgress,
   survivorMap,
   totalCandles,
   type Progress,
   type RiteName,
 } from './storage/progress.ts';
-import { applySystemPreferences, loadSettings, saveSettings, type Settings } from './storage/settings.ts';
+import { applySystemPreferences, loadSettings, saveSettings, storageAvailable, type Settings } from './storage/settings.ts';
 import { copy } from './ui/copy.ts';
 import { el, focusFirst, toast, trapFocus } from './ui/dom.ts';
 import {
@@ -50,6 +53,7 @@ import {
   cameraScreen,
   clipPreviewScreen,
   endingScreen,
+  howToPlayScreen,
   hud,
   levelIntro,
   noticeScreen,
@@ -164,10 +168,20 @@ export class App {
         this.settings = { ...this.settings, scares, noticeSeen: true };
         saveSettings(this.settings);
         void sound.resume().then(() => sound.setVolume(this.settings.volume));
-        this.showTitle();
+        // The very first thing a brand-new player sees after the safety notice
+        // is How to Play, not the title screen - a title screen with no
+        // instructions on it is not usable by someone who has never played.
+        if (!this.settings.howToPlaySeen) this.showHowToPlay(() => this.showTitle());
+        else this.showTitle();
       }),
       'notice',
     );
+  }
+
+  private showHowToPlay(onClose: () => void): void {
+    this.settings = { ...this.settings, howToPlaySeen: true };
+    saveSettings(this.settings);
+    this.setScreen(howToPlayScreen(onClose), 'menu', onClose);
   }
 
   /** Removes the in-game overlay. The HUD lives outside `currentScreen`. */
@@ -181,22 +195,55 @@ export class App {
   private showTitle(): void {
     this.clearPlayUi();
     this.stage.setOsdVisible(false);
+
+    const returning = hasProgress(this.progress);
+
     this.setScreen(
       titleScreen(
         {
-          // U10 - the primary button plays immediately. No permission prompt
-          // stands between a stranger and the first Wick landing on a face.
-          play: () => void this.beginFirstRun(true),
+          // U10 - for a new player the primary button plays immediately, with
+          // no permission prompt between a stranger and the first Wick landing
+          // on a face. For a returning player it resumes instead: it used to
+          // restart 01-1 and silently discard their place in the story.
+          play: () => (returning ? void this.continueStory() : void this.beginFirstRun(true)),
           playNoCamera: () => void this.beginFirstRun(false),
+          shelf: () => this.showShelf(),
           settings: () => this.showSettings(() => this.showTitle()),
           ossuary: () => this.setScreen(ossuaryScreen(this.progress, () => this.showTitle()), 'menu', () => this.showTitle()),
           rites: () => this.showRites(),
+          howToPlay: () => this.showHowToPlay(() => this.showTitle()),
         },
-        this.webcam !== null,
-        this.settings.reducedEffects,
+        {
+          hasCamera: this.webcam !== null,
+          reducedEffects: this.settings.reducedEffects,
+          returning,
+          candles: totalCandles(this.progress),
+          canSave: storageAvailable(),
+        },
       ),
       'title',
     );
+  }
+
+  /**
+   * CONTINUE: pick up at the first level the player has not finished. Once the
+   * whole story is done there is nothing to resume, so the shelf - with the
+   * Daily Tape, the Long Tape and anything left to three-candle - is the right
+   * destination instead.
+   */
+  private async continueStory(): Promise<void> {
+    void sound.resume().then(() => {
+      sound.setVolume(this.settings.volume);
+      sound.startBed();
+    });
+    this.ensureSynthetic();
+
+    const next = nextUnplayedLevelId(completedLevelIds(this.progress));
+    if (next === null) {
+      this.showShelf();
+      return;
+    }
+    await this.playStory(next);
   }
 
   private showRites(): void {
@@ -239,6 +286,12 @@ export class App {
               render();
             },
             recalibrate: () => void this.runCalibration(() => onClose()),
+            resetProgress: () => {
+              this.progress = resetProgress();
+              toast(this.uiHost, copy.settings.resetDone);
+              sound.play('tapeStop');
+              render();
+            },
             close: onClose,
           },
           totalCandles(this.progress),
@@ -503,6 +556,16 @@ export class App {
   private startLevel(level: Level, endless: boolean): void {
     this.ensureSynthetic();
     this.clearPlayUi();
+
+    // Every route into a level has to start the audio, not just the title
+    // button. A returning player who went title -> shelf -> level got a
+    // completely silent game, because the only `resume()` calls were on the
+    // paths through the notice and the play button. Both calls are idempotent.
+    void sound.resume().then(() => {
+      sound.setVolume(this.settings.volume);
+      sound.startBed();
+    });
+
     this.level = level;
     // Decision D12: the first daily attempt is the one that counts, so a replay
     // is practice. Derived here rather than set by the caller, because setting
@@ -757,7 +820,13 @@ export class App {
 
   private onScare(scare: ActiveScare): void {
     if (!this.settings.scares) return;
-    if (scare.type === 'stinger' || scare.type === 'figure' || scare.type === 'behindYou') sound.play('stinger');
+    if (scare.type === 'stinger' || scare.type === 'figure' || scare.type === 'behindYou') {
+      sound.play('stinger');
+      // A small physical jolt alongside the sting - `TapeFx` clamps this to
+      // `config.render.maxShakeFh` and "Reduce effects" disables it outright,
+      // so it never becomes disorienting.
+      this.stage.addShake(0.045, this.cal);
+    }
     if (scare.type === 'whisper') {
       this.lines.request({ trigger: 'idle', text: 'it can see us.', priority: 75 }, performance.now());
     }
@@ -835,18 +904,21 @@ export class App {
     this.clearPlayUi();
 
     const next = level.mode === 'story' ? nextLevelId(level.id) : null;
-    const isFinalLevel = level.mode === 'story' && next === null;
+    // The ending card belongs to the narrative finale, not to whatever happens
+    // to be last on disk. Adding Tape 05 as post-game content moved the credits
+    // onto a bonus level until this was made explicit: finish 04-2 and the
+    // story ends, then Tape 05 is waiting on the shelf.
+    const endsStory = level.mode === 'story' && isStoryFinale(level.id);
 
     this.setScreen(
       resultsScreen(
         result,
         {
-          next:
-            next !== null
+          next: endsStory
+            ? () => this.showEnding()
+            : next !== null
               ? () => void this.playStory(next)
-              : isFinalLevel
-                ? () => this.showEnding()
-                : null,
+              : null,
           retry: () => this.startLevel(level, level.mode === 'endless'),
           shelf: () => this.showShelf(),
           copyResult: () => {
@@ -899,11 +971,16 @@ export class App {
     const level = this.level;
     if (level === null) return;
     const next = level.mode === 'story' ? nextLevelId(level.id) : null;
+    const endsStory = level.mode === 'story' && isStoryFinale(level.id);
     this.setScreen(
       resultsScreen(
         result,
         {
-          next: next !== null ? () => void this.playStory(next) : null,
+          next: endsStory
+            ? () => this.showEnding()
+            : next !== null
+              ? () => void this.playStory(next)
+              : null,
           retry: () => this.startLevel(level, level.mode === 'endless'),
           shelf: () => this.showShelf(),
           copyResult: () => void copyToClipboard(shareText(result)),
@@ -950,6 +1027,14 @@ export class App {
           },
           settings: () => this.showSettings(() => this.pause()),
           shelf: () => this.showShelf(),
+          // An explicit way out. The abandoned run is simply not scored;
+          // everything already earned was written to storage when it was
+          // earned, so there is nothing to lose by leaving.
+          exit: () => {
+            sound.play('tapeStop');
+            this.showTitle();
+          },
+          howToPlay: () => this.showHowToPlay(() => this.pause()),
           switchAssist: () => {
             void this.switchControls('assist');
             this.settings = { ...this.settings, controls: 'assist' };

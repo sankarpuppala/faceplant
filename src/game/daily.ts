@@ -133,7 +133,10 @@ export function generateEndless(): Level {
   const route = ROUTES.forehead;
   const level: Level = {
     id: 'endless',
-    tape: 5,
+    // 6, not 5: story Tape 05 "NO MERCY" exists now, and this field is purely
+    // informational (the Long Tape is never looked up through TAPES), but
+    // sharing a number with a real tape would be a confusing coincidence.
+    tape: 6,
     index: 1,
     label: 'LONG',
     title: 'The Long Tape',

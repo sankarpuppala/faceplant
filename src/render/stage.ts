@@ -334,7 +334,18 @@ export class Stage {
     }
   }
 
-  /** The visual half of a scare. `whisper` is handled by the line director. */
+  /**
+   * The visual half of a scare. `whisper` is handled by the line director.
+   *
+   * The original version filled the silhouette with pure black (0x000000) at
+   * alpha 0.82 over a background that is itself near-black (`tokens.void`,
+   * 0x07060A). The two were close enough in practice to be indistinguishable,
+   * so the single most important scare in the game was effectively invisible.
+   * The fix leans into the fiction instead of fighting it: you are not meant to
+   * see the figure clearly in the dark - you are meant to see its eyes. A thin
+   * warm rim light (the same trick the ruins use) keeps the silhouette's edge
+   * legible against the void, and two small ember dots do the rest.
+   */
   private drawScare(input: RenderInput): void {
     const g = this.figureG;
     g.clear();
@@ -342,20 +353,43 @@ export class Stage {
     if (scare === null || !input.settings.scares) return;
     if (scare.type !== 'figure' && scare.type !== 'behindYou') return;
 
-    // A dark silhouette at the edge of the frame, eased in and out so it never
-    // flashes (SPEC section 10.1: <= 1.5 s, no sudden full-screen change).
+    // Eased in and out so it never flashes (SPEC section 10.1: <= 1.5 s, no
+    // sudden full-screen change).
     const total = Math.max(1, scare.endsMs - scare.startedMs);
-    const t = (input.timeMs % total) / total;
-    const alpha = Math.sin(Math.min(1, Math.max(0, (input.snapshot.elapsedMs - scare.startedMs) / total)) * Math.PI);
-    void t;
+    const progress = Math.min(1, Math.max(0, (input.snapshot.elapsedMs - scare.startedMs) / total));
+    const alpha = Math.sin(progress * Math.PI);
 
-    const h = this.vp.height * 0.52;
-    const w = h * 0.34;
-    const x = this.vp.offsetX + this.vp.width * 0.84;
+    // A slow, deliberate step closer over the scare's lifetime - not a jolt,
+    // a presence.
+    const h = this.vp.height * (0.5 + progress * 0.08);
+    const w = h * 0.36;
+    const x = this.vp.offsetX + this.vp.width * (0.86 - progress * 0.05);
     const y = this.vp.offsetY + this.vp.height;
 
-    g.ellipse(x, y - h, w * 0.42, w * 0.46).fill({ color: 0x000000, alpha: alpha * 0.82 });
-    g.roundRect(x - w / 2, y - h + w * 0.34, w, h, w * 0.3).fill({ color: 0x000000, alpha: alpha * 0.82 });
+    const headCx = x;
+    const headCy = y - h;
+    const headRx = w * 0.42;
+    const headRy = w * 0.46;
+
+    g.ellipse(headCx, headCy, headRx, headRy).fill({ color: 0x000000, alpha: alpha * 0.88 });
+    g.roundRect(x - w / 2, y - h + w * 0.34, w, h, w * 0.3).fill({ color: 0x000000, alpha: alpha * 0.88 });
+
+    // The rim: the only reason the shape reads as a shape at all.
+    g.ellipse(headCx, headCy, headRx, headRy).stroke({ width: 1.5, color: tokens.boneDim, alpha: alpha * 0.22 });
+    g.roundRect(x - w / 2, y - h + w * 0.34, w, h, w * 0.3).stroke({
+      width: 1.5,
+      color: tokens.boneDim,
+      alpha: alpha * 0.16,
+    });
+
+    // The eyes. Two embers, close together, at head height - the one thing you
+    // are meant to actually see.
+    const eyeDx = headRx * 0.32;
+    const eyeY = headCy + headRy * 0.05;
+    const eyeR = Math.max(1.4, headRx * 0.07);
+    const eyeAlpha = alpha * (0.55 + 0.25 * Math.sin(input.timeMs / 90));
+    g.circle(headCx - eyeDx, eyeY, eyeR).fill({ color: tokens.ember, alpha: eyeAlpha });
+    g.circle(headCx + eyeDx, eyeY, eyeR).fill({ color: tokens.ember, alpha: eyeAlpha });
   }
 
   /** U2 - called when an offering lands, for the light flare. */

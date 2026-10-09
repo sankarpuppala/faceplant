@@ -117,8 +117,8 @@ export const config = {
     /** Darkness overlay opacity; 0..1 fraction. */
     darknessAlpha: 0.86,
     flickerHz: 2,
-    /** Flicker depth as a fraction of radius; 0..1. */
-    flickerDepth: 0.08,
+    /** Flicker depth as a fraction of radius; 0..1. Raised from 0.08 - the old value was barely perceptible. */
+    flickerDepth: 0.18,
   },
 
   dark: {
@@ -134,19 +134,30 @@ export const config = {
   },
 
   crawler: {
-    radiusFh: 0.04,
-    walkSpeedFhPerS: 0.26,
+    /**
+     * Raised from 0.04/0.26 after playtest feedback: at the old size and speed
+     * a Crawler was smaller and slower than the Wicks it was hunting, so it
+     * read as background furniture rather than a threat. Now it is visibly
+     * bigger than a Wick and faster than one, so it can actually catch up.
+     */
+    radiusFh: 0.056,
+    walkSpeedFhPerS: 0.44,
     /** A Crawler keeps hunting the same Wick for at least this long. */
     retargetMs: 900,
   },
 
   /** U6 - Moths fly at the brightest flame; an open Maw blows them away. */
   moth: {
-    radiusFh: 0.03,
-    flySpeedFhPerS: 0.5,
+    /**
+     * Raised from 0.03/0.5 for the same reason as the Crawler: a moth barely
+     * bigger than a Wick and only a third faster read as decoration. It is now
+     * unmistakably larger and noticeably quicker than anything it is hunting.
+     */
+    radiusFh: 0.05,
+    flySpeedFhPerS: 0.9,
     /** Wander added to the beeline. */
-    wanderFhPerS: 0.22,
-    wanderHz: 1.3,
+    wanderFhPerS: 0.34,
+    wanderHz: 1.6,
     /** An open Maw repels moths within this radius. */
     draftRadiusFh: 0.9,
     draftFhPerS2: 7,
@@ -247,12 +258,18 @@ export const config = {
   },
 
   scares: {
-    flickerMs: 900,
-    figureMs: 1400,
+    flickerMs: 1100,
+    figureMs: 1500,
     whisperMs: 2200,
     segmentWindowMs: 1200,
-    /** Scares never fire within this long of each other. */
-    minGapMs: 8000,
+    /**
+     * Lowered from 8000. At 8s between scares a level under 90s could only
+     * ever fire a handful, and ten of the twelve levels shipped with none
+     * scheduled at all - which is the entire reason the game read as "not
+     * scary". Levels now schedule scares throughout (see make-levels.ts); this
+     * is just the floor that stops two from landing on top of each other.
+     */
+    minGapMs: 5000,
   },
 
   render: {

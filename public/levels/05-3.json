@@ -1,0 +1,155 @@
+{
+  "id": "05-3",
+  "tape": 5,
+  "index": 3,
+  "label": "T05/3",
+  "title": "Nowhere Left to Stand",
+  "timeLimitS": 85,
+  "spawn": {
+    "x": -1.42,
+    "y": -0.020000000000000018,
+    "count": 13,
+    "intervalMs": 1400,
+    "dir": 1
+  },
+  "gate": {
+    "x": 1.42,
+    "y": -0.06,
+    "w": 0.22,
+    "h": 0.3
+  },
+  "ruins": [
+    {
+      "points": [
+        [
+          -1.72,
+          0.24
+        ],
+        [
+          -0.22,
+          0.24
+        ]
+      ]
+    },
+    {
+      "points": [
+        [
+          0.22,
+          0.24
+        ],
+        [
+          1.72,
+          0.24
+        ]
+      ]
+    }
+  ],
+  "walls": [],
+  "hazards": [
+    {
+      "type": "crawler",
+      "x": 1.3,
+      "y": 0.24,
+      "atMs": 5000
+    },
+    {
+      "type": "drip",
+      "x": -0.2,
+      "y": -1.14,
+      "atMs": 10000,
+      "intervalMs": 2100
+    },
+    {
+      "type": "moth",
+      "x": -1,
+      "y": -1.14,
+      "atMs": 16000
+    },
+    {
+      "type": "crawler",
+      "x": -1.3,
+      "y": 0.24,
+      "atMs": 28000
+    },
+    {
+      "type": "drip",
+      "x": 0.2,
+      "y": -1.14,
+      "atMs": 32000,
+      "intervalMs": 2000
+    },
+    {
+      "type": "moth",
+      "x": 1,
+      "y": -1.14,
+      "atMs": 42000
+    },
+    {
+      "type": "crawler",
+      "x": 1.3,
+      "y": 0.24,
+      "atMs": 54000
+    },
+    {
+      "type": "moth",
+      "x": -0.9,
+      "y": -1.14,
+      "atMs": 66000
+    }
+  ],
+  "dark": {
+    "startRadiusFh": 2.6,
+    "shrinkFhPerS": 0.012
+  },
+  "scares": [
+    {
+      "type": "figure",
+      "atMs": 8000
+    },
+    {
+      "type": "stinger",
+      "atMs": 20000
+    },
+    {
+      "type": "whisper",
+      "atMs": 33000
+    },
+    {
+      "type": "flicker",
+      "atMs": 47000
+    },
+    {
+      "type": "figure",
+      "atMs": 61000
+    },
+    {
+      "type": "stinger",
+      "atMs": 76000
+    }
+  ],
+  "lines": [
+    {
+      "atMs": 1800,
+      "text": "this is everything we know, at once."
+    },
+    {
+      "atMs": 24000,
+      "text": "the lip, the wax, the dark, the wings. pick your fear."
+    },
+    {
+      "atMs": 50000,
+      "text": "we are not going to pretend this is going well."
+    },
+    {
+      "atMs": 70000,
+      "text": "nearly there. do not open your mouth now. not now."
+    }
+  ],
+  "candles": {
+    "1": 4,
+    "2": 7,
+    "3": 10
+  },
+  "mode": "story",
+  "hint": "everything the tape has taught you, running at once."
+}

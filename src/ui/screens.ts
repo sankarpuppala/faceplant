@@ -21,6 +21,7 @@ import type { FilterName, Settings } from '../storage/settings.ts';
 import { shareText } from '../share/shareText.ts';
 import { copy } from './copy.ts';
 import { button, candleIcon, candleRow, el, field, screen, segmented, slider, toggle } from './dom.ts';
+import { faceMapSvg, flowChartSvg } from './diagrams.ts';
 
 // ------------------------------------------------------------------- notice --
 
@@ -40,30 +41,114 @@ export function noticeScreen(onContinue: (scares: boolean) => void): HTMLElement
 export interface TitleActions {
   play: () => void;
   playNoCamera: () => void;
+  shelf: () => void;
   settings: () => void;
   ossuary: () => void;
   rites: () => void;
+  howToPlay: () => void;
 }
 
-export function titleScreen(actions: TitleActions, hasCamera: boolean, reducedEffects: boolean): HTMLElement {
-  const wordmark = el('h1', { class: reducedEffects ? 'wordmark' : 'wordmark jitter', text: copy.title.wordmark });
+export interface TitleState {
+  hasCamera: boolean;
+  reducedEffects: boolean;
+  /** True once anything has been played - switches the primary button to CONTINUE. */
+  returning: boolean;
+  candles: number;
+  /** False in a private window or with site data blocked; the notice changes. */
+  canSave: boolean;
+}
 
-  // U10 - play first, camera later. The primary button starts a level
-  // immediately in Assist; the camera is offered afterwards as an upgrade,
+export function titleScreen(actions: TitleActions, state: TitleState): HTMLElement {
+  const wordmark = el('h1', {
+    class: state.reducedEffects ? 'wordmark' : 'wordmark jitter',
+    text: copy.title.wordmark,
+  });
+
+  // U10 - play first, camera later. For a brand-new player the primary button
+  // starts a level immediately in Assist, with the camera offered afterwards,
   // because nobody grants a webcam to a game they have not played.
-  const primaryLabel = hasCamera ? copy.title.play : copy.title.play;
+  //
+  // For a returning player that same button used to restart level 01-1, which
+  // threw away their place in the story. Now it says CONTINUE and resumes the
+  // first level they have not finished, with the shelf one click away.
+  const primaryLabel = state.returning ? copy.title.continueLabel : copy.title.play;
 
   return screen('FACEPLANT', [
     wordmark,
     el('p', { class: 'tagline', text: copy.title.tagline }),
     el('div', { class: 'row' }, [button(primaryLabel, actions.play, 'btn primary')]),
-    el('div', { class: 'row' }, [button(copy.title.playNoCamera, actions.playNoCamera, 'btn quiet')]),
+    el('div', { class: 'row' }, [
+      state.returning ? button(copy.title.shelf, actions.shelf, 'btn') : null,
+      button(copy.title.howToPlay, actions.howToPlay, 'btn'),
+      state.returning ? null : button(copy.title.playNoCamera, actions.playNoCamera, 'btn quiet'),
+    ]),
     el('div', { class: 'row' }, [
       button(copy.title.settings, actions.settings, 'btn quiet'),
       button(copy.title.ossuary, actions.ossuary, 'btn quiet'),
       button(copy.title.rites, actions.rites, 'btn quiet'),
     ]),
+    state.returning
+      ? el('p', { class: 'small dim osd-text', text: copy.title.candles(state.candles) })
+      : null,
+    el('p', {
+      class: 'small dim',
+      style: state.canSave ? undefined : 'color:var(--rec)',
+      text: state.canSave ? copy.title.saved : copy.title.notSaved,
+    }),
     el('p', { class: 'small dim', text: copy.title.footer }),
+  ]);
+}
+
+// ---------------------------------------------------------------- how to play --
+
+/**
+ * The instructions screen, added after feedback that the game had none at
+ * all. Reachable from the title screen at any time, and shown automatically
+ * the first time a player ever sees the title (see app.ts).
+ *
+ * Covers, in order: what each part of your face does (a diagram, because
+ * "your eyebrow is a ledge" is a strange sentence without a picture), the
+ * loop from title to results (a flow chart, because the Ossuary and Rites
+ * buttons on the title screen were confusing people - they are not steps in
+ * that loop, and the chart says so directly), the Maw and Composure since
+ * those are the two systems the whole game is about, and the Assist controls.
+ */
+export function howToPlayScreen(onClose: () => void): HTMLElement {
+  return screen(copy.howTo.heading, [
+    el('h2', { text: copy.howTo.heading }),
+    el('p', { class: 'small', text: copy.howTo.intro }),
+
+    el('h3', { text: copy.howTo.faceMapTitle }),
+    el('div', { class: 'diagram-wrap' }, [faceMapSvg()]),
+
+    el('h3', { text: copy.howTo.mawTitle }),
+    el('p', { class: 'small dim', text: copy.howTo.maw }),
+
+    el('h3', { text: copy.howTo.composureTitle }),
+    el('p', { class: 'small dim', text: copy.howTo.composure }),
+
+    el('h3', { text: copy.howTo.goalTitle }),
+    el('p', { class: 'small dim', text: copy.howTo.goal }),
+
+    el('h3', { text: copy.howTo.flowTitle }),
+    el('div', { class: 'diagram-wrap' }, [flowChartSvg()]),
+
+    el('div', { class: 'row', style: 'align-items:stretch' }, [
+      el('div', { class: 'howto-card' }, [
+        el('div', { class: 'howto-card-title', text: copy.howTo.ossuaryTitle }),
+        el('p', { class: 'small dim', text: copy.howTo.ossuaryExplain }),
+      ]),
+      el('div', { class: 'howto-card' }, [
+        el('div', { class: 'howto-card-title', text: copy.howTo.ritesTitle }),
+        el('p', { class: 'small dim', text: copy.howTo.ritesExplain }),
+      ]),
+    ]),
+
+    el('h3', { text: copy.howTo.controlsTitle }),
+    el('p', { class: 'small dim osd-text', text: copy.hud.assistHint }),
+
+    el('p', { class: 'small dim', text: copy.howTo.again }),
+    el('div', { class: 'row' }, [button(copy.howTo.close, onClose, 'btn primary')]),
   ]);
 }
 
@@ -259,6 +344,8 @@ export interface PauseActions {
   restart: () => void;
   settings: () => void;
   shelf: () => void;
+  exit: () => void;
+  howToPlay: () => void;
   switchAssist?: () => void;
 }
 
@@ -273,9 +360,14 @@ export function pauseScreen(actions: PauseActions, lostTracking: boolean): HTMLE
         ? button(copy.pause.switchAssist, actions.switchAssist, 'btn')
         : null,
       button(copy.pause.restart, actions.restart, 'btn'),
+      button(copy.title.howToPlay, actions.howToPlay, 'btn'),
       button(copy.pause.settings, actions.settings, 'btn'),
-      button(copy.pause.shelf, actions.shelf, 'btn'),
     ]),
+    el('div', { class: 'row' }, [
+      button(copy.pause.shelf, actions.shelf, 'btn'),
+      button(copy.pause.exit, actions.exit, 'btn'),
+    ]),
+    el('p', { class: 'small dim', text: copy.pause.exitHint }),
     el('p', { class: 'small dim', text: copy.hud.assistHint }),
   ], 'transparent');
 }
@@ -366,6 +458,7 @@ export function clipPreviewScreen(url: string, onSave: () => void, onDiscard: ()
 export interface SettingsActions {
   change: (next: Partial<Settings>) => void;
   recalibrate: () => void;
+  resetProgress: () => void;
   close: () => void;
 }
 
@@ -419,8 +512,43 @@ export function settingsScreen(settings: Settings, actions: SettingsActions, tot
       el('p', { class: 'small dim', text: copy.settings.lowPowerHint }),
       slider(copy.settings.volume, settings.volume, (volume) => actions.change({ volume })),
     ]),
+
+    // The save lives in one localStorage key on this device and nowhere else,
+    // so "start over" and "delete what you hold about me" are the same button.
+    el('h3', { text: copy.settings.resetProgress }),
+    el('p', { class: 'small dim', text: copy.settings.resetHint }),
+    el('div', { class: 'row' }, [resetControl(actions.resetProgress)]),
+
     el('div', { class: 'row' }, [button(copy.settings.close, actions.close, 'btn primary')]),
   ]);
+}
+
+/**
+ * Reset is two taps, not one, and the confirmation is inline rather than a
+ * second dialog - it is destructive and irreversible, but it is also not worth
+ * a whole screen.
+ */
+function resetControl(onConfirm: () => void): HTMLElement {
+  const host = el('div', { class: 'row' });
+
+  const render = (confirming: boolean): void => {
+    host.replaceChildren();
+    if (!confirming) {
+      host.appendChild(button(copy.settings.resetProgress, () => render(true), 'btn'));
+      return;
+    }
+    host.appendChild(el('span', { class: 'small', style: 'color:var(--rec)', text: copy.settings.resetConfirm }));
+    host.appendChild(
+      button(copy.settings.resetConfirmYes, () => {
+        onConfirm();
+        render(false);
+      }, 'btn'),
+    );
+    host.appendChild(button(copy.settings.resetConfirmNo, () => render(false), 'btn quiet'));
+  };
+
+  render(false);
+  return host;
 }
 
 // ------------------------------------------------------------------ ossuary --

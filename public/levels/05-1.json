@@ -1,0 +1,137 @@
+{
+  "id": "05-1",
+  "tape": 5,
+  "index": 1,
+  "label": "T05/1",
+  "title": "The Narrows",
+  "timeLimitS": 75,
+  "spawn": {
+    "x": -1.42,
+    "y": -0.020000000000000018,
+    "count": 10,
+    "intervalMs": 1500,
+    "dir": 1
+  },
+  "gate": {
+    "x": 1.42,
+    "y": -0.06,
+    "w": 0.22,
+    "h": 0.3
+  },
+  "ruins": [
+    {
+      "points": [
+        [
+          -1.72,
+          0.24
+        ],
+        [
+          -0.22,
+          0.24
+        ]
+      ]
+    },
+    {
+      "points": [
+        [
+          0.22,
+          0.24
+        ],
+        [
+          1.72,
+          0.24
+        ]
+      ]
+    }
+  ],
+  "walls": [],
+  "hazards": [
+    {
+      "type": "crawler",
+      "x": -1.3,
+      "y": 0.24,
+      "atMs": 6000
+    },
+    {
+      "type": "moth",
+      "x": 0.9,
+      "y": -1.14,
+      "atMs": 14000
+    },
+    {
+      "type": "crawler",
+      "x": 1.3,
+      "y": 0.24,
+      "atMs": 24000
+    },
+    {
+      "type": "moth",
+      "x": -0.9,
+      "y": -1.14,
+      "atMs": 36000
+    },
+    {
+      "type": "crawler",
+      "x": -1.3,
+      "y": 0.24,
+      "atMs": 48000
+    },
+    {
+      "type": "moth",
+      "x": 0.9,
+      "y": -1.14,
+      "atMs": 58000
+    }
+  ],
+  "dark": {
+    "startRadiusFh": 99,
+    "shrinkFhPerS": 0
+  },
+  "scares": [
+    {
+      "type": "figure",
+      "atMs": 9000
+    },
+    {
+      "type": "whisper",
+      "atMs": 22000
+    },
+    {
+      "type": "stinger",
+      "atMs": 34000
+    },
+    {
+      "type": "flicker",
+      "atMs": 50000
+    },
+    {
+      "type": "figure",
+      "atMs": 64000
+    }
+  ],
+  "lines": [
+    {
+      "atMs": 1800,
+      "text": "the road is thin here. the mountain gives nothing."
+    },
+    {
+      "atMs": 16000,
+      "text": "two of them want your head. one wants your mouth. choose fast."
+    },
+    {
+      "atMs": 40000,
+      "text": "we are almost out of road."
+    },
+    {
+      "atMs": 60000,
+      "text": "it is not slowing down. neither should you."
+    }
+  ],
+  "candles": {
+    "1": 3,
+    "2": 6,
+    "3": 9
+  },
+  "mode": "story",
+  "hint": "crawlers and moths at once, on the thinnest road yet."
+}

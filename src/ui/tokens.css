@@ -423,3 +423,35 @@ body.reduced-effects .jitter { animation: none; }
   .rack { height: 34vh; }
   .hud-top { width: 64%; }
 }
+
+/* ---- How to Play ---- */
+
+.panel:has(.diagram-wrap) {
+  width: min(900px, 100%);
+  text-align: left;
+}
+.diagram-wrap {
+  width: 100%;
+  max-width: 560px;
+  margin: 0 auto;
+  overflow-x: auto;
+}
+.diagram-wrap svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+.howto-card {
+  flex: 1 1 0;
+  background: var(--ink);
+  border: 1px solid var(--dusk);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  text-align: left;
+}
+.howto-card-title {
+  font-family: var(--label);
+  font-size: 15px;
+  color: var(--candle);
+  margin-bottom: 4px;
+}

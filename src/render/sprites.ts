@@ -241,9 +241,13 @@ export function drawCrawler(g: Graphics, c: Crawler, ctx: DrawContext): void {
   }
   g.stroke({ width: Math.max(1, r * 0.17), color: tokens.mold, alpha: 0.9 });
 
+  // A dull body alone was hard to pick out against the dark terrain it walks
+  // on. A thin warm rim - the same trick the ruins use - keeps its outline
+  // legible without making the Crawler itself look lit.
+  g.ellipse(p.x, p.y, r * 1.08, r * 0.8).stroke({ width: Math.max(1, r * 0.1), color: tokens.candle, alpha: 0.35 });
   g.ellipse(p.x, p.y, r, r * 0.72).fill({ color: tokens.mold, alpha: 0.98 });
-  g.circle(p.x - r * 0.3, p.y - r * 0.18, r * 0.12).fill({ color: tokens.rec, alpha: 0.8 });
-  g.circle(p.x + r * 0.3, p.y - r * 0.18, r * 0.12).fill({ color: tokens.rec, alpha: 0.8 });
+  g.circle(p.x - r * 0.3, p.y - r * 0.18, r * 0.16).fill({ color: tokens.rec, alpha: 0.95 });
+  g.circle(p.x + r * 0.3, p.y - r * 0.18, r * 0.16).fill({ color: tokens.rec, alpha: 0.95 });
 }
 
 export function drawDrip(g: Graphics, d: Drip, ctx: DrawContext): void {
@@ -263,13 +267,25 @@ export function drawMoth(g: Graphics, m: Moth, ctx: DrawContext): void {
   const r = config.moth.radiusFh * ctx.fhPx;
   const flap = Math.abs(Math.sin(ctx.timeMs / 45));
 
+  // A soft warm halo first: a moth hunting a flame should read as carrying a
+  // little of that light with it, and the glow is what keeps it visible
+  // against the dark terrain rather than disappearing into it.
+  g.circle(p.x, p.y, r * 1.9).fill({ color: tokens.ember, alpha: 0.14 });
+
   for (const side of [-1, 1] as const) {
     g.ellipse(p.x + side * r * 0.8, p.y - r * 0.2, r * (0.45 + flap * 0.5), r * 0.9).fill({
-      color: tokens.boneDim,
-      alpha: 0.7,
+      color: tokens.bone,
+      alpha: 0.85,
+    });
+    g.ellipse(p.x + side * r * 0.8, p.y - r * 0.2, r * (0.45 + flap * 0.5), r * 0.9).stroke({
+      width: 1,
+      color: tokens.ember,
+      alpha: 0.4,
     });
   }
   g.ellipse(p.x, p.y, r * 0.34, r * 0.85).fill({ color: tokens.dusk, alpha: 0.95 });
+  g.circle(p.x - r * 0.1, p.y - r * 0.45, r * 0.1).fill({ color: tokens.ember, alpha: 0.9 });
+  g.circle(p.x + r * 0.1, p.y - r * 0.45, r * 0.1).fill({ color: tokens.ember, alpha: 0.9 });
 }
 
 /** Reusable speech bubble (SPEC section 12.7 - one at a time). */
