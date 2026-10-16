@@ -93,10 +93,55 @@ export const config = {
     airborneMs: 120,
   },
 
+  /**
+   * Getting out of a dead end.
+   *
+   * A Wick turns around timidly at any edge it cannot step off (decision D5),
+   * which is right almost everywhere and catastrophic in a concave one. The
+   * jaw is a U: anything knocked into it walks up one side, turns, slides
+   * back, walks up the other, turns, forever. A player swaying their head by
+   * a couple of centimetres put six of seven Wicks in there, where they
+   * turned back 306 times and finished the level still walking - scoring
+   * nothing, dying of nothing, and never explaining themselves.
+   *
+   * So timidity now runs out. A Wick that has genuinely gone nowhere for this
+   * long stops refusing the edge and takes the step, which either lands it
+   * somewhere new or drops it into the void. Both are outcomes the player can
+   * see and understand; being quietly stuck is not.
+   */
+  trapped: {
+    /**
+     * Turn-backs in a row before a Wick stops refusing the edge.
+     *
+     * Counted rather than measuring displacement: pacing a jaw end to end
+     * covers plenty of distance and arrives nowhere, so a displacement test
+     * misses exactly the case it is for. Turning round is itself the symptom
+     * - a Wick making progress does it once or twice, a trapped one did it
+     * 306 times in a single level.
+     */
+    turnsAllowed: 6,
+    /** Turns more than this far apart are not the same trap, ms. */
+    turnWindowMs: 6000,
+    /** Turn-backs before the Wick says so, which is the cue to tilt. */
+    sayAfterTurnCount: 3,
+  },
+
   quake: {
     speedFhPerS: 2.5,
     stumbleMs: 300,
     lateralImpulseFhPerS: 0.3,
+    /**
+     * Minimum gap between quake *events*, ms.
+     *
+     * A quake is one thing happening to the whole level, but it was reported
+     * once per stumbling Wick per physics step: a sustained head movement
+     * fired it 2,453 times across three levels, roughly thirteen times a
+     * second. Each one adds screen shake and asks for a line of dialogue, so
+     * the screen juddered continuously and the Wicks talked over themselves.
+     * 450 ms also keeps the shake under the 3 Hz ceiling the rest of the
+     * game's effects are held to.
+     */
+    eventCooldownMs: 450,
   },
 
   physics: {
@@ -164,15 +209,67 @@ export const config = {
      * unmistakably larger and noticeably quicker than anything it is hunting.
      */
     radiusFh: 0.05,
+    /**
+     * This is the moth's actual cruising speed, now that `stepMoth` steers
+     * toward a velocity instead of accelerating into damping. It must stay
+     * clearly above `wick.walkSpeedFhPerS` or a moth can never close on a Wick
+     * that is walking away from it.
+     */
     flySpeedFhPerS: 0.9,
+    /** How quickly it swings onto its chosen heading. Higher is more darting. */
+    steerHz: 7,
+    /** Ceiling as a multiple of flySpeedFhPerS, so a Maw gust can overshoot. */
+    maxSpeedMultiple: 2.4,
     /** Wander added to the beeline. */
     wanderFhPerS: 0.34,
     wanderHz: 1.6,
-    /** An open Maw repels moths within this radius. */
-    draftRadiusFh: 0.9,
-    draftFhPerS2: 7,
-    /** Contact time before a moth snuffs a flame. */
-    snuffMs: 260,
+    /**
+     * Inside this distance the moth has found the flame and stops wandering so
+     * much - otherwise the wobble is wider than the contact circle and it
+     * shakes itself out of range before `snuffMs` elapses.
+     */
+    settleRadiusFh: 0.22,
+    settleWanderMultiple: 0.25,
+    /**
+     * An open Maw repels moths within this radius. The face is only about
+     * 0.6 FH from mouth to forehead, so this covers all of it - U6 only works
+     * as a counter if the gust can reach a moth that is on a brow Wick.
+     */
+    draftRadiusFh: 1.1,
+    /**
+     * Outward wind speed at full blast. This must exceed `flySpeedFhPerS` or
+     * the moth simply flies back in and opening your mouth achieves nothing.
+     */
+    draftFhPerS: 1.8,
+    /** Mouth area, FH^2, counted as a full-strength "haaah". */
+    draftFullAreaFh2: 0.022,
+    /** How much the wind spoils its aim. 1 means a full blast blinds it. */
+    draftBlindMultiple: 1,
+    /** Draft strength (0..1) above which a moth can no longer hold an attack. */
+    draftBreaksContactThreshold: 0.35,
+    /**
+     * A moth only hunts flames this close to the nose, so every attack happens
+     * somewhere the Maw's draft can reach. Must stay below `draftRadiusFh`
+     * plus roughly half a face, or moths go back to picking off Wicks out on
+     * the ruins where the player has no counter.
+     */
+    huntRadiusFh: 0.8,
+    /** Where it waits when nothing on the face is lit. */
+    loiterRadiusFh: 0.75,
+    loiterTurnMultiple: 0.35,
+    /**
+     * Contact time before a moth snuffs a flame.
+     *
+     * 260 ms was unanswerable. The counter to a moth is to open your mouth,
+     * and a quarter of a second is less time than it takes a person to see
+     * the moth land, decide, and move their jaw - so the hazard read as an
+     * arbitrary death rather than one the player had failed to prevent. At
+     * three quarters of a second the moth visibly settles on the flame and
+     * worries at it, and there is time to answer.
+     */
+    snuffMs: 700,
+    /** How fast held contact bleeds away once broken, per ms of no contact. */
+    contactDecayMultiple: 1.5,
   },
 
   /** U1 - COMPOSURE: the hook as a system. Drains are per second. */
@@ -271,8 +368,29 @@ export const config = {
     holdMs: 1100,
     /** Fade out. */
     leaveMs: 500,
-    /** How much of the frame height the face fills at its closest; 0..1+ fraction. */
-    finalHeightFraction: 2.1,
+    /**
+     * How much of the frame the head fills at its closest, as fractions of the
+     * frame's height and width. Both are applied and the smaller wins, so a
+     * narrow viewport gets a smaller head rather than one whose mouth is off
+     * the bottom of the screen.
+     *
+     * This used to be a single 2.1 of the frame height, which made the head
+     * taller than the screen *and* wider than it - so the crown, the horns,
+     * the jaw, the chin and the screaming mouth were all outside the frame and
+     * the climax of the scare was two glowing dots on black. Just over 1 is
+     * right: the crown and chin crop, which reads as being too close, and
+     * everything that carries the scare stays in shot. `watcherComposition`
+     * does the arithmetic and a test holds it to this.
+     */
+    finalHeightFraction: 1.15,
+    finalWidthFraction: 1.2,
+    /**
+     * How far above the frame's centre the face sits, as a fraction of head
+     * height. Pushes the eyes into the upper third and brings the whole open
+     * mouth into the lower half, which is the normal composition for a face
+     * this close to a camera.
+     */
+    faceLiftFraction: 0.08,
     /** How far past its final size it lunges before settling; 0..1 fraction. */
     overshootFraction: 0.12,
     /** Screen shake while it is in your face, FH. Clamped by render.maxShakeFh. */
@@ -282,7 +400,7 @@ export const config = {
     /** Jaw judder while screaming, Hz. Motion, not luminance, and still under 3. */
     jawJudderHz: 2.5,
     /** Wax tears: how many run from each eye. */
-    tearCount: 3,
+    tearCount: 2,
   },
 
   /** U4 - THE LONG TAPE (endless). */
@@ -329,23 +447,55 @@ export const config = {
   },
 
   /** U9 - RITES: candles spent on small permanent help. */
+  /**
+   * What the shop sells.
+   *
+   * These were measured, and six of the seven items changed *nothing*: a
+   * headless sweep of fifteen levels found that over a whole playthrough,
+   * owning any of Steady Feet, Lantern Oil, Warding Salt, The Wider Door or
+   * Iron Nerve saved exactly zero extra Wicks. They were insurance against
+   * failures that do not happen - falling in a gap, going out in the dark,
+   * missing the Gate by a hair - while 94% of real deaths were Crawlers and
+   * Drips, which only one item touched and that one imperceptibly.
+   *
+   * Every item now counters something that actually kills, and does so
+   * visibly: `world.riteSaves` counts the flames each one saved, and the
+   * results screen reports it, because a permanent passive buff you cannot
+   * see is indistinguishable from an item that does nothing.
+   */
   rites: {
-    costCandles: { steadyWicks: 6, slowSpawn: 10, wideGate: 14, secondChance: 20 },
-    /** steadyWicks multiplies maxStepDownFh and maxGapFh. */
-    steadyWicksMultiple: 1.3,
-    /** slowSpawn multiplies the level spawn interval. */
-    slowSpawnMultiple: 1.2,
-    /** wideGate adds this to gate width and height, in FH. */
-    wideGateBonusFh: 0.06,
+    costCandles: { steadyWicks: 6, mawSense: 10, tallowShell: 14, secondChance: 20 },
+    /** steadyWicks multiplies maxStepDownFh and maxGapFh... */
+    steadyWicksMultiple: 1.45,
+    /** ...and how fast they walk, which is the part the player can see. */
+    steadyWicksSpeedMultiple: 1.18,
+    /**
+     * mawSense multiplies how far out a Wick notices an open Maw.
+     *
+     * This replaces "Rite of Patience", which spaced out the spawns. Measured,
+     * that item was not merely useless but actively harmful: spreading the
+     * roster out left each Wick alone with the hazards for longer, and owning
+     * it cost four extra Wicks over a playthrough. Selling the player a
+     * downgrade is worse than selling them nothing.
+     */
+    mawSenseRadiusMultiple: 1.7,
+    /** tallowShell: how many Drips each Wick survives. */
+    tallowShellCount: 1,
     /** secondChance returns this many lost Wicks per run to the lantern. */
     secondChanceCount: 1,
-    /** lanternOil: multiplies every light radius. */
+    /** lanternOil: multiplies every light radius... */
     lanternOilMultiple: 1.25,
+    /** ...and how long a Moth or the Dark needs to put that flame out. */
+    lanternOilSnuffMultiple: 2,
     /** ironNerve: multiplies composure drain; below 1 is a benefit. */
-    ironNerveMultiple: 0.75,
-    /** wardingSalt: slows Crawlers and lengthens their time-to-kill. */
-    wardingSaltSpeedMultiple: 0.8,
-    wardingSaltTouchMultiple: 1.5,
+    ironNerveMultiple: 0.45,
+    /** wardingSalt: slows Crawlers and lengthens their time-to-kill... */
+    wardingSaltSpeedMultiple: 0.7,
+    wardingSaltTouchMultiple: 1.8,
+    /** ...and turns each one back this many times before it can feed... */
+    wardingSaltWardCount: 1,
+    /** ...sending it back across the face for this long when it does. */
+    wardingSaltRetreatMs: 7000,
   },
 
   lines: {
@@ -424,14 +574,26 @@ export const config = {
   },
 
   daily: {
-    /** The Daily Tape epoch (SPEC Q5). Day number = whole days since this date, UTC. */
-    epochDate: '2026-10-07',
+    /**
+     * The Daily Tape epoch (SPEC Q5). Day number = whole days since this
+     * date, UTC, so this is the launch date and Day 1 is the day it ships.
+     */
+    epochDate: '2026-10-16',
     templates: 4,
   },
 
   share: {
-    /** Appended to share text (SPEC 16, Q2). */
-    canonicalUrl: 'https://faceplant.game',
+    /**
+     * Appended to share text (SPEC 16, Q2) when the game cannot work out
+     * where it is - see `gameUrl()` in `src/share/shareText.ts`, which reads
+     * the real address at runtime and only falls back to this.
+     *
+     * It is empty on purpose. This used to be `https://faceplant.game`, a
+     * domain nobody owns, and every result anyone shared would have pointed
+     * at a dead site. A placeholder URL is worse than no URL: it is wrong
+     * silently, and only in other people's hands.
+     */
+    fallbackUrl: '',
   },
 } as const;
 
@@ -441,28 +603,42 @@ export type Config = typeof config;
 export interface Tunables {
   wickMaxStepDownFh: number;
   wickMaxGapFh: number;
-  spawnIntervalMultiple: number;
-  gateBonusFh: number;
+  /** Steady Feet: multiplies walking speed, so they are exposed for less time. */
+  wickSpeedMultiple: number;
+  /** The Warning: multiplies how far out a Wick notices an open Maw. */
+  mawFearRadiusMultiple: number;
   secondChanceCount: number;
   /** Lantern Oil: multiplies every light radius. */
   lightRadiusMultiple: number;
+  /** Lantern Oil: multiplies how long it takes to put a flame out. */
+  snuffTimeMultiple: number;
   /** Iron Nerve: multiplies every composure drain. Below 1 is a benefit. */
   composureDrainMultiple: number;
+  /** Iron Nerve: THE YAWN never takes your mouth. */
+  blocksYawn: boolean;
   /** Warding Salt: multiplies Crawler speed and their time-to-kill. */
   crawlerSpeedMultiple: number;
   crawlerTouchMultiple: number;
+  /** Warding Salt: how many times each Crawler is turned back before it feeds. */
+  crawlerWardCount: number;
+  /** Tallow Shell: how many falling drips each Wick shrugs off. */
+  dripShieldCount: number;
 }
 
 export function defaultTunables(): Tunables {
   return {
     wickMaxStepDownFh: config.wick.maxStepDownFh,
     wickMaxGapFh: config.wick.maxGapFh,
-    spawnIntervalMultiple: 1,
-    gateBonusFh: 0,
+    wickSpeedMultiple: 1,
+    mawFearRadiusMultiple: 1,
     secondChanceCount: 0,
     lightRadiusMultiple: 1,
+    snuffTimeMultiple: 1,
     composureDrainMultiple: 1,
+    blocksYawn: false,
     crawlerSpeedMultiple: 1,
     crawlerTouchMultiple: 1,
+    crawlerWardCount: 0,
+    dripShieldCount: 0,
   };
 }

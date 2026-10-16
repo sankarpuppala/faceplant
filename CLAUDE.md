@@ -66,7 +66,7 @@ faceplant/
 │   └── storage/          # progress + settings in localStorage
 ├── tests/                # vitest: unit + headless fixture simulations
 ├── fixtures/faces/       # recorded landmark streams (developer's own face, landmarks only)
-├── scripts/              # copy-mediapipe.ts, check-privacy.ts, check-flash.ts, record-fixture helpers
+├── scripts/              # copy-mediapipe.ts, check-privacy.ts, check-flash.ts, soak.ts, ui-check.ts, record-fixture helpers
 └── docs/                 # design-reference.html, CREDITS.md, PLAYTEST.md, DAY5_GATE.md
 ```
 
@@ -83,6 +83,9 @@ npm run dev                 # Vite dev server (https not needed on localhost)
 npm test                    # vitest: unit + fixture simulations
 npm run check:privacy       # scans the built bundle for external URLs / network calls
 npm run check:flash         # verifies every flicker/flash effect is ≤ 3 flashes per second
+npm run soak                # plays the whole game headlessly, 4 playstyles, and reports oddities
+npm run check:ui            # screenshots every DOM screen and fails on horizontal overflow
+                            #   (needs `npm run dev` running in another terminal)
 npm run build               # static build into dist/
 npm run preview             # serve dist/ locally
 npm run package:itch        # zips dist/ for itch.io upload
@@ -160,6 +163,22 @@ and in `SPEC.md` in the same change.
   streams are replayed through the real terrain + physics headlessly for
   their full length, asserting zero tunnelling and conservation of Wicks
   (`SPEC.md` §18 AC-4).
+- **`npm run check:ui` finds what no test looks at.** The DOM screens are
+  only ever assembled at runtime, deep inside a camera flow, so nobody had
+  seen most of them. Four layout faults had shipped: a shop grid declaring
+  two columns for three children, so every buy button wrapped under the icon;
+  a results screen centred inside a scrolling layer, which put the verdict
+  stamp above the top edge and the Next / Retry / Shelf row below the bottom
+  one with no way to scroll to either; settings hints floating outside the
+  rows they described; and a calibration candle scaled by transform on a
+  full-width flex row. All four are obvious in a screenshot and invisible to
+  every other check. **Look at a screen before saying it is finished.**
+- **`npm run soak` finds what the tests cannot.** The suite holds the face
+  still or moves it gently; a real player sways, flinches and laughs. Three
+  bugs lived in that gap and none of them failed an assertion - moths that
+  killed nothing for the whole project's life, a quake event firing thirteen
+  times a second, and Wicks pacing a dead end under the chin for an entire
+  level. Run it after touching physics, hazards or terrain.
 - Never weaken, skip or delete a test to make it pass. If the test encodes the
   wrong behaviour, that is a spec problem (§8 rule 3).
 - **Game feel cannot be unit-tested.** Tests prove the game is correct; only

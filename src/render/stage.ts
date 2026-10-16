@@ -55,7 +55,6 @@ export interface RenderInput {
   /** Monotonic ms, for animation. */
   timeMs: number;
   dtMs: number;
-  gateBonusFh: number;
   /**
    * ms since THE WATCHER was summoned, or null when it is not here. Null
    * whenever Scares are off, so the app does not have to special-case it.
@@ -209,7 +208,7 @@ export class Stage {
     drawContours(this.contourG, world.segments, ctx);
 
     // --- static geometry (redrawn only when it can have changed) ----------
-    const key = `${level.id}:${this.vp.width}x${this.vp.height}:${input.cal.fhUV.toFixed(4)}:${input.gateBonusFh}`;
+    const key = `${level.id}:${this.vp.width}x${this.vp.height}:${input.cal.fhUV.toFixed(4)}`;
     if (key !== this.staticKey) {
       drawStatic(this.staticG, level, ctx);
       drawLantern(this.lanternG, level, ctx);
@@ -219,7 +218,7 @@ export class Stage {
       this.flares.length = 0;
       this.lastLevelId = level.id;
     }
-    drawGate(this.gateG, level, ctx, input.gateBonusFh);
+    drawGate(this.gateG, level, ctx);
 
     // --- bodies -----------------------------------------------------------
     const g = this.bodiesG;

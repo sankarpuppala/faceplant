@@ -10,7 +10,9 @@
 
 import { describe, expect, it } from 'vitest';
 import { config, defaultTunables } from '../../src/config.ts';
-import { watcherStateAt, watcherTotalMs } from '../../src/render/watcher.ts';
+import { FACE, watcherComposition, watcherStateAt, watcherTotalMs } from '../../src/render/watcher.ts';
+import { watcherTokens } from '../../src/render/tokens.ts';
+import type { Viewport } from '../../src/terrain/mapping.ts';
 import { parseLevel, type Level } from '../../src/game/levelSchema.ts';
 import { World } from '../../src/physics/world.ts';
 import { readFileSync } from 'node:fs';
@@ -174,9 +176,92 @@ describe('the Watcher animation', () => {
     expect(st.scream).toBeLessThan(0.7);
   });
 
-  it('gets close enough to fill the frame', () => {
-    // A scare that stays politely inside the viewport is a portrait.
-    expect(config.watcher.finalHeightFraction).toBeGreaterThan(1.5);
+  /**
+   * This replaces an earlier test that asserted `finalHeightFraction > 1.5`.
+   * That test was passing - the value was 2.1 - and the scare was still broken,
+   * because "big" is not the property that matters. A head scaled to 2.1x the
+   * frame height, centred on the skull's middle, puts the mouth 33px *below*
+   * the bottom edge of a 1280x720 viewport: the player watched the climax of
+   * the scare as two glowing dots on a black screen. Filling the frame and
+   * being *in* the frame are different claims, and only one of them was being
+   * checked. So this checks the composition instead, on every shape of screen
+   * the game can be opened on.
+   */
+  describe('the framing', () => {
+    const SHAPES: readonly (readonly [string, number, number])[] = [
+      ['1920x1080 desktop', 1920, 1080],
+      ['1280x720', 1280, 720],
+      ['1366x768 laptop', 1366, 768],
+      ['2560x1080 ultrawide', 2560, 1080],
+      ['820x1180 tablet', 820, 1180],
+      ['390x844 phone', 390, 844],
+      ['a letterboxed viewport inside a larger canvas', 900, 500],
+    ];
+
+    function vpOf(w: number, h: number, offX = 0, offY = 0): Viewport {
+      return { offsetX: offX, offsetY: offY, width: w, height: h, aspect: w / h };
+    }
+
+    for (const [name, w, h] of SHAPES) {
+      it(`keeps the eyes and the whole mouth on screen at ${name}`, () => {
+        const c = watcherComposition(vpOf(w, h));
+
+        expect(c.eyesY, 'eyes above the top edge').toBeGreaterThan(0);
+        expect(c.eyesY, 'eyes below the bottom edge').toBeLessThan(h);
+        expect(c.eyeLeftX).toBeGreaterThan(0);
+        expect(c.eyeRightX).toBeLessThan(w);
+
+        // The mouth is the scare. All of it has to be visible, including the
+        // bottom row of teeth.
+        expect(c.mouthTopY, 'top of the mouth off screen').toBeGreaterThan(0);
+        expect(c.mouthBottomY, 'the open jaw hangs off the bottom edge').toBeLessThan(h);
+      });
+    }
+
+    it('honours a viewport that is offset inside the canvas', () => {
+      const c = watcherComposition(vpOf(800, 600, 240, 120));
+      expect(c.originX).toBeCloseTo(240 + 400, 6);
+      expect(c.mouthBottomY).toBeLessThan(120 + 600);
+      expect(c.eyesY).toBeGreaterThan(120);
+    });
+
+    it('composes the face the way a close-up is composed', () => {
+      const h = 1080;
+      const c = watcherComposition(vpOf(1920, h));
+      // Eyes in the upper third, mouth in the lower third. This is the shape
+      // of every horror close-up ever framed, and it is what was lost.
+      expect(c.eyesY / h).toBeGreaterThan(0.1);
+      expect(c.eyesY / h).toBeLessThan(0.4);
+      expect(c.mouthTopY / h).toBeGreaterThan(0.55);
+      expect(c.mouthBottomY / h).toBeLessThan(0.99);
+      // Eyes above the mouth, which a sign error would quietly reverse.
+      expect(c.eyesY).toBeLessThan(c.mouthTopY);
+    });
+
+    it('still gets close enough to crop the head', () => {
+      // A scare that stays politely inside the viewport is a portrait. The
+      // crown and the chin should both be outside the frame on a normal
+      // desktop screen - you are too close to see the whole head.
+      const h = 1080;
+      const c = watcherComposition(vpOf(1920, h));
+      expect(c.headHeightPx).toBeGreaterThan(h);
+      expect(c.originY + FACE.crownV * c.headHeightPx, 'the crown is politely in frame').toBeLessThan(0);
+      expect(c.originY + FACE.chinV * c.headHeightPx, 'the chin is politely in frame').toBeGreaterThan(h);
+    });
+
+    it('is drawn as a lit face, not a black shape on black', () => {
+      // The other half of why it looked bad: the skull was filled near-black
+      // on a near-black veil, so it had no silhouette at all. The lit end of
+      // its ramp has to be genuinely bright against the veil behind it.
+      const lum = (c: number): number =>
+        (0.2126 * ((c >> 16) & 0xff) + 0.7152 * ((c >> 8) & 0xff) + 0.0722 * (c & 0xff)) / 255;
+      expect(lum(watcherTokens.litBone)).toBeGreaterThan(0.5);
+      expect(lum(watcherTokens.tooth)).toBeGreaterThan(0.75);
+      expect(lum(watcherTokens.cavity)).toBeLessThan(0.02);
+      // And the teeth have to be the brightest thing in it, because they are
+      // what sits against the throat.
+      expect(lum(watcherTokens.tooth)).toBeGreaterThan(lum(watcherTokens.litBone));
+    });
   });
 
   it('judders and pulses under the photosensitivity ceiling', () => {

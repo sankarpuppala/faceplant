@@ -57,6 +57,19 @@ export interface Wick {
   lastWords: string | null;
   /** Set while the Wick is actively fleeing an open Maw, for the render tint. */
   fleeing: boolean;
+  /**
+   * Trap detection: consecutive turn-backs, and when the last one was. Once
+   * timidity has demonstrably stopped working, `desperate` is set and the
+   * Wick takes the next edge instead of refusing it.
+   */
+  turnStreak: number;
+  lastTurnMs: number;
+  desperate: boolean;
+  /**
+   * Tallow Shell (shop): Drips this Wick can still shrug off. Drips were the
+   * second biggest killer in the game and nothing in the shop answered them.
+   */
+  dripShield: number;
 }
 
 let nextWickId = 1;
@@ -65,8 +78,16 @@ export function resetWickIds(): void {
   nextWickId = 1;
 }
 
-export function makeWick(x: number, y: number, name: string, title: string | null, dir: 1 | -1 = 1): Wick {
+export function makeWick(
+  x: number,
+  y: number,
+  name: string,
+  title: string | null,
+  dir: 1 | -1 = 1,
+  dripShield = 0,
+): Wick {
   return {
+    dripShield,
     id: nextWickId++,
     name,
     title,
@@ -81,12 +102,19 @@ export function makeWick(x: number, y: number, name: string, title: string | nul
     ageMs: 0,
     lastWords: null,
     fleeing: false,
+    turnStreak: 0,
+    lastTurnMs: -Infinity,
+    desperate: false,
   };
 }
 
 export interface WickTunables {
   maxStepDownFh: number;
   maxGapFh: number;
+  /** Steady Feet (shop): multiplies walking speed. 1 is unmodified. */
+  speedMultiple: number;
+  /** The Warning (shop): multiplies the Maw fear radius. 1 is unmodified. */
+  mawFearRadiusMultiple: number;
 }
 
 export interface WickContext {
@@ -107,6 +135,8 @@ export interface WickStepResult {
   stumbled: boolean;
   startedRail: boolean;
   turnedAtEdge: boolean;
+  /** Crossed into a visible dead-end state this step. */
+  becameStuck: boolean;
 }
 
 const EMPTY_RESULT: WickStepResult = {
@@ -115,6 +145,7 @@ const EMPTY_RESULT: WickStepResult = {
   stumbled: false,
   startedRail: false,
   turnedAtEdge: false,
+  becameStuck: false,
 };
 
 /**
@@ -126,6 +157,12 @@ export function stepWick(w: Wick, ctx: WickContext): WickStepResult {
 
   const result: WickStepResult = { ...EMPTY_RESULT };
   w.ageMs += ctx.dtS * 1000;
+
+  // A streak of turn-backs that has gone quiet was not a trap after all.
+  if (w.turnStreak > 0 && ctx.nowMs - w.lastTurnMs > config.trapped.turnWindowMs) {
+    w.turnStreak = 0;
+    w.desperate = false;
+  }
 
   // --- Quake (SPEC 6.6): a flinch shakes everyone off balance. -------------
   if (ctx.faceSpeedFhPerS > config.quake.speedFhPerS && w.stumbleUntilMs < ctx.nowMs) {
@@ -219,10 +256,10 @@ export function stepWick(w: Wick, ctx: WickContext): WickStepResult {
   // Maw fear (SPEC 6.4): turn away from an open mouth - but a slope or a quake
   // can still deliver you into it, which is what keeps the Maw fair.
   w.fleeing = false;
-  let speed = config.wick.walkSpeedFhPerS;
+  let speed = config.wick.walkSpeedFhPerS * ctx.tunables.speedMultiple;
   if (ctx.mawCentre !== null) {
     const d = Math.hypot(w.body.x - ctx.mawCentre.x, w.body.y - ctx.mawCentre.y);
-    if (d < config.wick.mawFearRadiusFh) {
+    if (d < config.wick.mawFearRadiusFh * ctx.tunables.mawFearRadiusMultiple) {
       const awayIsB = ground.bx - ground.ax > 0 === w.body.x - ctx.mawCentre.x > 0;
       w.dir = awayIsB ? 1 : -1;
       speed *= config.wick.fleeSpeedMultiple;
@@ -277,7 +314,24 @@ function moveAlong(w: Wick, ground: Segment, signedSpeed: number, ctx: WickConte
     return result;
   }
 
-  // Timid: turn around (decision D5).
+  // Timid: turn around (decision D5) - unless it has been getting nowhere for
+  // long enough that turning around is demonstrably not working.
+  if (w.desperate) {
+    detach(w.body, ctx.nowMs);
+    w.body.vx = (moved.pastEnd === 'b' ? 1 : -1) * Math.abs(signedSpeed);
+    w.body.vy = 0;
+    w.state = 'falling';
+    // It has acted; give it a clean slate rather than leaving it permanently
+    // reckless in case it does land somewhere useful.
+    w.desperate = false;
+    w.turnStreak = 0;
+    return result;
+  }
+
+  w.turnStreak++;
+  w.lastTurnMs = ctx.nowMs;
+  if (w.turnStreak === config.trapped.sayAfterTurnCount) result.becameStuck = true;
+  if (w.turnStreak >= config.trapped.turnsAllowed) w.desperate = true;
   w.dir = w.dir === 1 ? -1 : 1;
   w.body.groundT = clamp(w.body.groundT, 0.02, 0.98);
   placeOnSegment(w.body, ground);

@@ -25,3 +25,6 @@ public/fonts/*
 .env.*
 .DS_Store
 *.log
+
+# UI screenshots from `npm run check:ui`
+.uishots/

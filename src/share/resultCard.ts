@@ -10,10 +10,9 @@
  * Nothing is uploaded. The PNG goes straight to a download.
  */
 
-import { config } from '../config.ts';
 import type { RunResult } from '../game/rules.ts';
 import { hex, tokens } from '../render/tokens.ts';
-import { outcomeRow } from './shareText.ts';
+import { gameUrl, outcomeRow } from './shareText.ts';
 
 export const CARD_WIDTH = 1080;
 export const CARD_HEIGHT = 1350;
@@ -37,7 +36,7 @@ function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
 
 export function drawResultCard(opts: CardOptions): HTMLCanvasElement {
   const { result } = opts;
-  const url = opts.url ?? config.share.canonicalUrl;
+  const url = opts.url ?? gameUrl();
 
   const canvas = document.createElement('canvas');
   canvas.width = CARD_WIDTH;

@@ -47,7 +47,7 @@ export const copy = {
     hazardMoth: 'Moth — flies at the brightest flame. Open your mouth and the draught blows it away.',
     hazardDrip: 'Falling wax — tilt so a brow shelters whoever is below.',
     elsewhereTitle: 'Everything else',
-    shopTitle: 'The Pedlar',
+    shopTitle: 'Shop',
     shopExplain: 'A shop. Finish levels to earn coins, spend them here on permanent help.',
     ossuaryTitle: 'The Ossuary',
     ossuaryExplain: 'A memorial. Every Wick you lose is listed here by name. Nothing to do but look.',
@@ -160,6 +160,24 @@ export const copy = {
     failed: 'Lose more than half and the tape is lost. Try again.',
     retryFailed: 'Try again',
     newBest: 'New best.',
+    /**
+     * What the things you bought actually did, this run.
+     *
+     * The shop's items are permanent and passive, which meant that even the
+     * ones that worked were invisible - you bought something and the game
+     * looked exactly the same afterwards. Naming the flames they saved is
+     * most of what makes them feel worth the coins.
+     */
+    ritesTitle: 'What you bought did this',
+    rosterTitle: 'The roster',
+    shareTitle: 'Share',
+    riteSaves: {
+      wardingSalt: (n: number): string => `Warding Salt drove a Crawler off ${n === 1 ? 'a flame' : `${n} flames`}`,
+      tallowShell: (n: number): string => `Tallow Shell took ${n === 1 ? 'a Drip' : `${n} Drips`} for them`,
+      lanternOil: (n: number): string => `Lantern Oil outlasted ${n === 1 ? 'a Moth' : `${n} Moths`}`,
+      ironNerve: (n: number): string => `Iron Nerve swallowed ${n === 1 ? 'a yawn' : `${n} yawns`}`,
+      secondChance: (n: number): string => `The Second Flame brought ${n} back`,
+    },
   },
 
   settings: {
@@ -218,8 +236,10 @@ export const copy = {
 
   shop: {
     /** The flavour name stays as the screen's own title, where it cannot hide anything. */
-    heading: 'Shop · The Pedlar',
-    blurb: 'Coins come from finishing levels. The Pedlar takes coins, never candles - your ratings are yours to keep.',
+    heading: 'Shop',
+    blurb:
+      'Coins come from finishing levels. Everything here is permanent, and the results screen tells you what it did. ' +
+      'Nothing costs candles - your ratings are yours to keep.',
     owned: 'Owned',
     buy: 'Buy',
     cost: (n: number): string => `${n} coins`,

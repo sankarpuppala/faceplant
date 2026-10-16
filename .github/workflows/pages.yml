@@ -1,0 +1,63 @@
+# Deploys the built game to GitHub Pages.
+#
+# The whole gate runs before anything is published: typecheck, the full test
+# suite, the build, and the two safety checks (no network calls, nothing
+# flashing faster than 3 Hz). A red gate means nothing deploys.
+#
+# `public/mediapipe/` and `public/fonts/` are deliberately not in the repo -
+# they are copied out of node_modules by `npm run setup` - so that step has to
+# run here or the build ships a game with no face tracker and no typefaces.
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Never let two deploys race; let a newer commit supersede an in-flight one.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # 22.6+ is the floor: every script in this repo is TypeScript run
+          # through --experimental-strip-types.
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+
+      # Copies the MediaPipe wasm + model and the self-hosted fonts in from
+      # node_modules. Without this the page loads and the camera never starts.
+      - run: npm run setup
+
+      # typecheck -> tests -> build -> privacy -> flash safety.
+      - run: npm run verify
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

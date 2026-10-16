@@ -579,18 +579,23 @@ export class App {
     if (r.includes('steadyWicks')) {
       t.wickMaxStepDownFh *= config.rites.steadyWicksMultiple;
       t.wickMaxGapFh *= config.rites.steadyWicksMultiple;
+      t.wickSpeedMultiple = config.rites.steadyWicksSpeedMultiple;
     }
-    if (r.includes('slowSpawn')) t.spawnIntervalMultiple = config.rites.slowSpawnMultiple;
-    if (r.includes('wideGate')) t.gateBonusFh = config.rites.wideGateBonusFh;
+    if (r.includes('mawSense')) t.mawFearRadiusMultiple = config.rites.mawSenseRadiusMultiple;
+    if (r.includes('tallowShell')) t.dripShieldCount = config.rites.tallowShellCount;
     if (r.includes('secondChance')) t.secondChanceCount = config.rites.secondChanceCount;
-    // The three newer items. These were briefly purchasable and inert, which
-    // is worse than not selling them at all - `tests/game/game.test.ts` now
-    // asserts every shop item changes at least one tunable.
-    if (r.includes('lanternOil')) t.lightRadiusMultiple = config.rites.lanternOilMultiple;
-    if (r.includes('ironNerve')) t.composureDrainMultiple = config.rites.ironNerveMultiple;
+    if (r.includes('lanternOil')) {
+      t.lightRadiusMultiple = config.rites.lanternOilMultiple;
+      t.snuffTimeMultiple = config.rites.lanternOilSnuffMultiple;
+    }
+    if (r.includes('ironNerve')) {
+      t.composureDrainMultiple = config.rites.ironNerveMultiple;
+      t.blocksYawn = true;
+    }
     if (r.includes('wardingSalt')) {
       t.crawlerSpeedMultiple = config.rites.wardingSaltSpeedMultiple;
       t.crawlerTouchMultiple = config.rites.wardingSaltTouchMultiple;
+      t.crawlerWardCount = config.rites.wardingSaltWardCount;
     }
     return t;
   }
@@ -848,6 +853,20 @@ export class App {
         case 'turn':
           this.lines.request({ trigger: 'turn', at: { x: e.x, y: e.y } }, now);
           break;
+        case 'stuck':
+          // The only line in the game that is really an instruction. A Wick
+          // pacing a dead end under the chin is otherwise invisible, and
+          // tilting the head - which frees them, and is the premise of the
+          // whole game - is not something a player thinks to try at a problem
+          // they cannot see.
+          this.lines.request({ trigger: 'stuck', at: { x: e.x, y: e.y } }, now);
+          break;
+        case 'warded':
+          sound.play('skitter');
+          break;
+        case 'shielded':
+          sound.play('thud');
+          break;
         case 'crawlerSated':
           sound.play('skitter');
           break;
@@ -939,7 +958,6 @@ export class App {
       video: this.webcam?.info().video ?? null,
       timeMs: now,
       dtMs,
-      gateBonusFh: this.tunables.gateBonusFh,
       watcherElapsedMs: this.watcherElapsed(now),
       showNoFaceHint: !world.faceSeen,
     });

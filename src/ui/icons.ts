@@ -194,12 +194,31 @@ export function iconWardingSalt(): SVGSVGElement {
   return s;
 }
 
-export function iconWiderDoor(): SVGSVGElement {
-  const s = svg('The Wider Door');
-  add(s, 'rect', { x: 7, y: 4, width: 10, height: 18, rx: 4, fill: C.candle, 'fill-opacity': '0.3' });
-  add(s, 'rect', { x: 7, y: 4, width: 10, height: 18, rx: 4, fill: 'none', stroke: C.candle, 'stroke-width': '1.5' });
-  add(s, 'path', { d: 'M4 13H1.5M22.5 13H20', stroke: C.candle, 'stroke-width': '1.6', 'stroke-linecap': 'round' });
-  add(s, 'path', { d: 'M3.2 10.6L1 13l2.2 2.4M20.8 10.6L23 13l-2.2 2.4', fill: 'none', stroke: C.candle, 'stroke-width': '1.4' });
+/** Tallow Shell: a drip breaking against a shell around the flame. */
+export function iconTallowShell(): SVGSVGElement {
+  const s = svg('Tallow Shell');
+  // The falling drip, and the splash where it stops.
+  add(s, 'path', { d: 'M12 1.5c0 0-2 2.6-2 4a2 2 0 1 0 4 0c0-1.4-2-4-2-4z', fill: C.bone, 'fill-opacity': '0.75' });
+  add(s, 'path', { d: 'M7.5 9.5l-1.6-1.4M16.5 9.5l1.6-1.4', stroke: C.bone, 'stroke-width': '1.3', 'stroke-linecap': 'round', 'stroke-opacity': '0.7' });
+  // The shell: a dome over the flame, which is what the drip hits.
+  add(s, 'path', { d: 'M4.5 16a7.5 7.5 0 0 1 15 0', fill: 'none', stroke: C.candle, 'stroke-width': '1.8', 'stroke-linecap': 'round' });
+  add(s, 'path', { d: 'M4.5 16a7.5 7.5 0 0 1 15 0z', fill: C.candle, 'fill-opacity': '0.16' });
+  // The flame, safe underneath it.
+  add(s, 'path', { d: 'M12 20.5c-1.5 0-2.6-1-2.6-2.3 0-1.4 1.6-2.2 2.6-4 1 1.8 2.6 2.6 2.6 4 0 1.3-1.1 2.3-2.6 2.3z', fill: C.candle });
+  return s;
+}
+
+/** The Warning: a Wick turning and running from the edge of a mouth. */
+export function iconTheWarning(): SVGSVGElement {
+  const s = svg('The Warning');
+  // The edge of the Maw, arriving from the right.
+  add(s, 'path', { d: 'M21 4c-4 3-4 13 0 16', fill: 'none', stroke: C.rec, 'stroke-width': '1.8', 'stroke-linecap': 'round' });
+  add(s, 'path', { d: 'M17.5 7.2c-2 2.6-2 7 0 9.6', fill: 'none', stroke: C.rec, 'stroke-width': '1.3', 'stroke-linecap': 'round', 'stroke-opacity': '0.5' });
+  // The Wick, already running the other way.
+  add(s, 'path', { d: 'M8 20.5c-1.7 0-3-1.2-3-2.7 0-1.6 1.8-2.6 3-4.6 1.2 2 3 3 3 4.6 0 1.5-1.3 2.7-3 2.7z', fill: C.candle });
+  add(s, 'path', { d: 'M8 10.8V7.5', stroke: C.bone, 'stroke-width': '1.4', 'stroke-linecap': 'round' });
+  // The draught it felt.
+  add(s, 'path', { d: 'M12.5 9.5h-2.2M13.5 12.5h-3', stroke: C.bone, 'stroke-width': '1.2', 'stroke-linecap': 'round', 'stroke-opacity': '0.65' });
   return s;
 }
 
@@ -327,12 +346,12 @@ export function iconForShopItem(id: string): SVGSVGElement {
       return iconSteadyFeet();
     case 'lanternOil':
       return iconLanternOil();
-    case 'slowSpawn':
-      return iconPatience();
+    case 'mawSense':
+      return iconTheWarning();
     case 'wardingSalt':
       return iconWardingSalt();
-    case 'wideGate':
-      return iconWiderDoor();
+    case 'tallowShell':
+      return iconTallowShell();
     case 'ironNerve':
       return iconIronNerve();
     case 'secondChance':

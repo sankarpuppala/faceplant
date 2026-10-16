@@ -16,8 +16,8 @@ import { config } from '../config.ts';
 
 export type ShopItemId =
   | 'steadyWicks'
-  | 'slowSpawn'
-  | 'wideGate'
+  | 'mawSense'
+  | 'tallowShell'
   | 'secondChance'
   | 'lanternOil'
   | 'ironNerve'
@@ -36,58 +36,89 @@ export interface ShopItem {
 }
 
 /**
- * Ordered cheapest first, which also happens to be roughly the order they
- * become useful: footing and spawn rate matter in Tape 01-02, nerve and salt
- * matter once the scares and Crawlers arrive.
+ * Ordered cheapest first, which is also roughly the order they become useful.
+ *
+ * Every item is checked against what actually kills Wicks. An earlier version
+ * of this list was not, and it showed: measured over fifteen levels, five of
+ * the seven items saved *zero* extra Wicks, because they insured against
+ * falling in gaps, going out in the dark, and missing the Gate - none of
+ * which happen - while Crawlers and Drips accounted for 94% of real deaths.
+ * `The Wider Door` is gone for that reason; `Tallow Shell` took its place
+ * because nothing in the shop answered a Drip at all.
+ *
+ * The other half of the fix is that each one now reports what it did:
+ * `riteSaves` on the run result, shown on the results screen. An invisible
+ * permanent buff feels identical to a broken one.
  */
 export const SHOP_ITEMS: readonly ShopItem[] = [
   {
     id: 'steadyWicks',
     icon: 'steadyWicks',
     name: 'Steady Feet',
-    blurb: 'They will risk a longer stride.',
-    effect: `Gaps and drops they will cross are ${Math.round((config.rites.steadyWicksMultiple - 1) * 100)}% wider.`,
+    blurb: 'They walk like they have somewhere to be.',
+    effect:
+      `They walk ${Math.round((config.rites.steadyWicksSpeedMultiple - 1) * 100)}% faster and cross gaps ` +
+      `${Math.round((config.rites.steadyWicksMultiple - 1) * 100)}% wider, so they are out in the open for less time.`,
     costCoins: 120,
+  },
+  {
+    id: 'tallowShell',
+    icon: 'tallowShell',
+    name: 'Tallow Shell',
+    blurb: 'A skin of cold wax. The first splash just hisses.',
+    effect:
+      `Every Wick survives ${config.rites.tallowShellCount} Drip before the flame goes out. ` +
+      `Drips are the second most common way you lose them.`,
+    costCoins: 180,
+  },
+  {
+    id: 'mawSense',
+    icon: 'mawSense',
+    name: 'The Warning',
+    blurb: 'They feel the draught before the mouth opens.',
+    effect:
+      `They notice an open Maw from ${Math.round((config.rites.mawSenseRadiusMultiple - 1) * 100)}% further away ` +
+      `and start running sooner. Buy this if you laugh.`,
+    costCoins: 220,
+  },
+  {
+    id: 'ironNerve',
+    icon: 'ironNerve',
+    name: 'Iron Nerve',
+    blurb: 'You do not gasp. Whatever it does.',
+    /**
+     * Priced lower than it was, and honestly. Measured across a whole
+     * playthrough this saves very few Wicks in any playstyle, because THE
+     * YAWN fires when you are already laughing with your mouth open - so it
+     * mostly buys you the composure bonus, which is coins rather than lives.
+     * Charging 400 for that was the shop's other credibility problem.
+     */
+    effect:
+      `Composure drains ${Math.round((1 - config.rites.ironNerveMultiple) * 100)}% more slowly and THE YAWN never ` +
+      `takes your mouth, so you keep the composure bonus on every tape.`,
+    costCoins: 240,
   },
   {
     id: 'lanternOil',
     icon: 'lanternOil',
     name: 'Lantern Oil',
-    blurb: 'A better flame sees further into the dark.',
-    effect: 'Every flame lights 25% further, and the Dark takes longer to find them.',
-    costCoins: 160,
-  },
-  {
-    id: 'slowSpawn',
-    icon: 'slowSpawn',
-    name: 'Rite of Patience',
-    blurb: 'They leave the lantern less often.',
-    effect: `Spawns are ${Math.round((config.rites.slowSpawnMultiple - 1) * 100)}% further apart, so fewer are exposed at once.`,
-    costCoins: 200,
+    blurb: 'A better flame is a harder flame to put out.',
+    effect:
+      `Flames light 25% further and take ${config.rites.lanternOilSnuffMultiple}x as long for a Moth or the ` +
+      `Dark to kill - long enough that you can answer.`,
+    costCoins: 280,
   },
   {
     id: 'wardingSalt',
     icon: 'wardingSalt',
     name: 'Warding Salt',
     blurb: 'Crawlers do not like the taste of the road.',
-    effect: 'Crawlers move 20% slower and take 50% longer to put a flame out.',
-    costCoins: 260,
-  },
-  {
-    id: 'wideGate',
-    icon: 'wideGate',
-    name: 'The Wider Door',
-    blurb: 'The Gate counts a near miss as an arrival.',
-    effect: `The Gate's reach grows by ${config.rites.wideGateBonusFh.toFixed(2)} face-heights on every side.`,
+    effect:
+      `Every Crawler is driven off the first flame it reaches and backs away for ` +
+      `${(config.rites.wardingSaltRetreatMs / 1000).toFixed(0)}s - straight across your mouth, if you want it. ` +
+      `They are also ${Math.round((1 - config.rites.wardingSaltSpeedMultiple) * 100)}% slower and need ` +
+      `${Math.round((config.rites.wardingSaltTouchMultiple - 1) * 100)}% longer to feed.`,
     costCoins: 320,
-  },
-  {
-    id: 'ironNerve',
-    icon: 'ironNerve',
-    name: 'Iron Nerve',
-    blurb: 'You will hold yourself together a little longer.',
-    effect: 'Composure drains 25% more slowly, so laughing costs less.',
-    costCoins: 400,
   },
   {
     id: 'secondChance',

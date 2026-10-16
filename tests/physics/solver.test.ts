@@ -305,7 +305,12 @@ describe('Wick behaviour', () => {
     nowMs: 1000,
     mawCentre: null,
     faceSpeedFhPerS: 0,
-    tunables: { maxStepDownFh: config.wick.maxStepDownFh, maxGapFh: config.wick.maxGapFh },
+    tunables: {
+      maxStepDownFh: config.wick.maxStepDownFh,
+      maxGapFh: config.wick.maxGapFh,
+      speedMultiple: 1,
+      mawFearRadiusMultiple: 1,
+    },
     rng: new Rng(1),
     ...extra,
   });

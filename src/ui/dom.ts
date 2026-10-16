@@ -39,8 +39,11 @@ export function button(label: string, onClick: () => void, cls = 'btn'): HTMLBut
 /** A labelled row with a control on the right, used throughout Settings. */
 export function field(label: string, control: Node, hint?: string): HTMLElement {
   return el('div', { class: 'field' }, [
-    el('span', {}, [label, hint === undefined ? null : el('div', { class: 'small dim', text: hint })]),
-    control,
+    el('span', { class: 'field-label' }, [
+      el('span', { class: 'field-name', text: label }),
+      hint === undefined ? null : el('span', { class: 'field-hint', text: hint }),
+    ]),
+    el('span', { class: 'field-control' }, [control]),
   ]);
 }
 
@@ -74,7 +77,18 @@ export function segmented<T extends string>(
   };
 }
 
-export function toggle(label: string, on: boolean, onChange: (next: boolean) => void): { node: HTMLElement; update: (on: boolean) => void } {
+/**
+ * `hint` belongs to the row, not after it. Settings used to emit a toggle and
+ * then a loose centred paragraph of explanation, so half the rows explained
+ * themselves inside the box and half floated the explanation outside it,
+ * centred, orphaned from the control it described.
+ */
+export function toggle(
+  label: string,
+  on: boolean,
+  onChange: (next: boolean) => void,
+  hint?: string,
+): { node: HTMLElement; update: (on: boolean) => void } {
   const seg = segmented(
     [
       { value: 'on' as const, label: 'On' },
@@ -83,7 +97,7 @@ export function toggle(label: string, on: boolean, onChange: (next: boolean) => 
     on ? 'on' : 'off',
     (v) => onChange(v === 'on'),
   );
-  return { node: field(label, seg.node), update: (v: boolean) => seg.update(v ? 'on' : 'off') };
+  return { node: field(label, seg.node, hint), update: (v: boolean) => seg.update(v ? 'on' : 'off') };
 }
 
 export function slider(label: string, value: number, onChange: (v: number) => void): HTMLElement {

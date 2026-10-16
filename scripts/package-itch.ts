@@ -33,6 +33,30 @@ if (!existsSync(join(dist, 'index.html'))) {
   process.exit(1);
 }
 
+/**
+ * Entry names inside a zip, read with .NET through PowerShell. Reading the
+ * archive back is the only way to catch the two faults that make an upload
+ * silently useless - see the checks below.
+ */
+function listZipEntries(path: string): string[] {
+  const out = execFileSync(
+    'powershell.exe',
+    [
+      '-NoProfile',
+      '-NonInteractive',
+      '-Command',
+      'Add-Type -AssemblyName System.IO.Compression.FileSystem; ' +
+        `$z = [IO.Compression.ZipFile]::OpenRead('${path}'); ` +
+        '$z.Entries | ForEach-Object { $_.FullName }; $z.Dispose()',
+    ],
+    { encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 },
+  );
+  return out
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter((l) => l !== '');
+}
+
 function totalBytes(dir: string): number {
   let n = 0;
   for (const name of readdirSync(dir)) {
@@ -46,18 +70,80 @@ function totalBytes(dir: string): number {
 mkdirSync(outDir, { recursive: true });
 rmSync(zip, { force: true });
 
-// `dist/*` rather than `dist` so index.html sits at the zip root, which is
-// what itch.io requires to find the entry point.
-execFileSync(
-  'powershell.exe',
-  [
-    '-NoProfile',
-    '-NonInteractive',
-    '-Command',
-    `Compress-Archive -Path '${join(dist, '*')}' -DestinationPath '${zip}' -CompressionLevel Optimal -Force`,
-  ],
-  { stdio: 'inherit' },
-);
+/*
+ * Built with `tar`, not PowerShell's `Compress-Archive`.
+ *
+ * Windows PowerShell 5.1 runs on .NET Framework, whose zip writer records
+ * entry names with the *platform* separator - so every path in the archive
+ * came out as `assets\app-xxxx.js`. The ZIP specification (APPNOTE 4.4.17.1)
+ * requires forward slashes, and a conforming extractor therefore treats that
+ * as a single file with backslashes in its name rather than a path. Uploaded
+ * to itch.io it unpacks as a flat pile of oddly-named files, index.html finds
+ * none of its assets, and the player gets a black page. It is silent: the zip
+ * is valid, it is the right size, and nothing complains until it is live.
+ *
+ * bsdtar has shipped in Windows since 10/1803, writes spec-correct names, and
+ * is a smaller ask than a dependency. `-C dist` with explicit children keeps
+ * index.html at the zip root, which is what itch.io needs to find the entry
+ * point.
+ */
+/*
+ * The absolute path matters. On any machine with Git for Windows installed -
+ * which is every machine this will ever run on - `tar.exe` on PATH resolves
+ * to Git's GNU tar first, and GNU tar has no `-a` and cannot write zip at
+ * all. It exits 128 with nothing on stderr.
+ */
+const bsdtar = join(process.env['SystemRoot'] ?? 'C:\\Windows', 'System32', 'tar.exe');
+if (!existsSync(bsdtar)) {
+  process.stdout.write(
+    `\nNo bsdtar at ${bsdtar}.\nIt ships with Windows 10 1803 and later; this needs it to write the zip.\n\n`,
+  );
+  process.exit(1);
+}
+
+const entries = readdirSync(dist);
+execFileSync(bsdtar, ['-a', '-c', '-f', zip, '-C', dist, ...entries], { stdio: 'inherit' });
+
+if (!existsSync(zip)) {
+  process.stdout.write(
+    [
+      '',
+      'tar did not produce a zip.',
+      '',
+      'The usual cause is something still holding dist/ open - a `npm run',
+      'preview` or `npm run check:ui` in another terminal. Stop it and try',
+      'again. Any real error from tar is printed above.',
+      '',
+    ].join('\n'),
+  );
+  process.exit(1);
+}
+
+/*
+ * Read the archive back and prove it is the shape itch.io needs, because both
+ * of the ways this can be wrong are invisible until the game is live: an
+ * index.html one directory down just 404s, and backslash separators unpack as
+ * a flat pile of strangely-named files. Neither makes the zip invalid.
+ */
+const names = listZipEntries(zip);
+const problems: string[] = [];
+if (!names.includes('index.html')) {
+  problems.push('index.html is not at the root of the zip - itch.io will not find the entry point');
+}
+const backslashed = names.filter((n) => n.includes('\\'));
+if (backslashed.length > 0) {
+  problems.push(
+    `${backslashed.length} entries use backslash separators, e.g. "${backslashed[0]}" ` +
+      '- the ZIP spec requires forward slashes and itch.io will unpack these as flat files',
+  );
+}
+if (!names.some((n) => n.startsWith('mediapipe/'))) {
+  problems.push('no mediapipe/ directory - run `npm run setup` and rebuild, or the camera will never start');
+}
+if (problems.length > 0) {
+  process.stdout.write('\nThe zip is not uploadable:\n' + problems.map((p) => `  - ${p}`).join('\n') + '\n\n');
+  process.exit(1);
+}
 
 const raw = totalBytes(dist);
 const zipped = statSync(zip).size;

@@ -55,7 +55,10 @@ function label(
  * brow and jaw when they see the real contour glowing on their video.
  */
 export function faceMapSvg(): SVGSVGElement {
-  const root = svg('0 0 420 460', 'diagram face-diagram');
+  // The box has to hold the callout text, not just the face. At 420 wide the
+  // labels ran off both edges and were clipped mid-word - "blink shut = a
+  // bridge" rendered as "link shut = a bridge".
+  const root = svg('-96 18 622 400', 'diagram face-diagram');
 
   const chalk = hex(tokens.candle);
   const dim = hex(tokens.boneDim);
@@ -86,34 +89,54 @@ export function faceMapSvg(): SVGSVGElement {
   root.appendChild(g);
 
   // --- leader lines and labels, one per region --------------------------
-  const leaders = node('g', { stroke: dim, 'stroke-width': 1, 'stroke-dasharray': '3 3', opacity: 0.6 });
-  const callouts: { from: [number, number]; to: [number, number]; text: string; sub: string; color?: number }[] = [
-    { from: [210, 65], to: [210, 24], text: 'FOREHEAD', sub: 'walk here - the main floor', color: tokens.candle },
-    { from: [168, 122], to: [70, 95], text: 'BROWS', sub: 'ledges - raise fast to flick', color: tokens.ember },
-    { from: [250, 122], to: [360, 95], text: 'BROWS', sub: '', color: tokens.ember },
-    { from: [172, 148], to: [70, 155], text: 'EYES', sub: 'blink shut = a bridge', color: 0x8fff9b },
-    { from: [208, 190], to: [360, 170], text: 'NOSE', sub: 'a slide, aimed at the mouth', color: 0x5fd0ff },
-    { from: [210, 254], to: [210, 400], text: 'THE MAW', sub: 'your mouth - open = danger', color: tokens.rec },
-    { from: [155, 250], to: [70, 230], text: 'CHEEKS', sub: 'rails to the jaw', color: tokens.boneDim },
-    { from: [210, 320], to: [210, 440], text: 'JAW', sub: 'the floor beneath the Maw', color: tokens.wax },
+  //
+  // Every colour here is a palette token (CLAUDE.md section 6). Two of them
+  // used to be raw literals - a mint green for EYES and a sky blue for NOSE -
+  // which were the only two cold colours anywhere in a game lit entirely by
+  // candles, and they looked exactly as out of place as that sounds.
+  //
+  // `side` decides which way a label is anchored and which end of the leader
+  // it hangs off. They were all centre-anchored on the end of their own
+  // leader line before, so the dashes ran straight through the words.
+  const leaders = node('g', { stroke: dim, 'stroke-width': 1, 'stroke-dasharray': '3 3', opacity: 0.55 });
+  const callouts: {
+    from: [number, number];
+    to: [number, number];
+    text: string;
+    sub: string;
+    color: number;
+    side: 'left' | 'right' | 'top' | 'bottom';
+  }[] = [
+    { from: [210, 68], to: [210, 40], text: 'FOREHEAD', sub: 'walk here - the main floor', color: tokens.candle, side: 'top' },
+    { from: [168, 124], to: [96, 100], text: 'BROWS', sub: 'ledges - raise fast to flick', color: tokens.ember, side: 'left' },
+    { from: [252, 124], to: [324, 100], text: 'BROWS', sub: '', color: tokens.ember, side: 'right' },
+    { from: [170, 150], to: [96, 164], text: 'EYES', sub: 'blink shut = a bridge', color: tokens.bone, side: 'left' },
+    { from: [208, 195], to: [324, 182], text: 'NOSE', sub: 'a slide, aimed at the mouth', color: tokens.wax, side: 'right' },
+    { from: [240, 262], to: [330, 268], text: 'THE MAW', sub: 'your mouth - open = danger', color: tokens.rec, side: 'right' },
+    { from: [152, 250], to: [96, 242], text: 'CHEEKS', sub: 'rails to the jaw', color: tokens.boneDim, side: 'left' },
+    { from: [210, 326], to: [210, 372], text: 'JAW', sub: 'the floor beneath the Maw', color: tokens.mold, side: 'bottom' },
   ];
 
+  // A dot at the face end, so a leader reads as pointing at something.
+  const dots = node('g', { fill: dim, 'fill-opacity': 0.8 });
   for (const c of callouts) {
     leaders.appendChild(node('line', { x1: c.from[0], y1: c.from[1], x2: c.to[0], y2: c.to[1] }));
+    dots.appendChild(node('circle', { cx: c.from[0], cy: c.from[1], r: 2.5 }));
   }
   root.appendChild(leaders);
+  root.appendChild(dots);
 
   for (const c of callouts) {
     if (c.text === 'BROWS' && c.sub === '') continue; // only label the pair once
-    const atTop = c.to[1] < 230;
-    root.appendChild(
-      label(c.to[0], c.to[1] + (atTop ? -6 : 14), c.text, { color: c.color, size: 15, weight: 'bold' }),
-    );
-    if (c.sub !== '') {
-      root.appendChild(
-        label(c.to[0], c.to[1] + (atTop ? 10 : 30), c.sub, { color: tokens.boneDim, size: 11 }),
-      );
-    }
+
+    // Hang the text clear of the line's end rather than on top of it.
+    const PAD = 8;
+    const anchor = c.side === 'left' ? 'end' : c.side === 'right' ? 'start' : 'middle';
+    const x = c.to[0] + (c.side === 'left' ? -PAD : c.side === 'right' ? PAD : 0);
+    const y = c.to[1] + (c.side === 'top' ? -10 : c.side === 'bottom' ? 18 : 0);
+
+    root.appendChild(label(x, y, c.text, { color: c.color, size: 15, weight: 'bold', anchor }));
+    if (c.sub !== '') root.appendChild(label(x, y + 15, c.sub, { color: tokens.boneDim, size: 11, anchor }));
   }
 
   return root;

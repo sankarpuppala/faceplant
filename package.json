@@ -17,6 +17,8 @@
     "test:watch": "vitest",
     "check:privacy": "node --experimental-strip-types scripts/check-privacy.ts",
     "check:flash": "node --experimental-strip-types scripts/check-flash.ts",
+    "check:ui": "node --experimental-strip-types scripts/ui-check.ts",
+    "soak": "node --experimental-strip-types scripts/soak.ts",
     "build": "tsc --noEmit && vite build",
     "verify": "npm run typecheck && npm test && npm run build && npm run check:privacy && npm run check:flash",
     "preview": "vite preview",
@@ -37,7 +39,7 @@
     "vitest": "5.0.3"
   },
   "engines": {
-    "node": ">=20.11"
+    "node": ">=22.6"
   },
   "allowScripts": {
     "esbuild@0.28.2": true

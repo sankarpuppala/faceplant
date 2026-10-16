@@ -52,6 +52,14 @@ export class Composure {
   private worstDrop = 0;
   private tells: ComposureTell[] = [];
   private justYawned = false;
+  /**
+   * Iron Nerve (shop): yawns it has held back. Counted because a slower drain
+   * on its own measured as worth almost nothing - a yawn forces the Maw open,
+   * but it fires when you are already laughing with your mouth open, so it
+   * changed four Wicks across a whole playthrough. Refusing the yawn is the
+   * effect worth selling, and it is something the results screen can report.
+   */
+  nerveHolds = 0;
 
   /**
    * @param drainMultiple Iron Nerve (shop) scales every drain. 1 is unmodified.
@@ -62,6 +70,8 @@ export class Composure {
     dtMs: number,
     nowMs: number,
     drainMultiple = 1,
+    /** Iron Nerve (shop): you do not gasp involuntarily. */
+    blocksYawn = false,
   ): ComposureState {
     const dtS = dtMs / 1000;
     const before = this.units;
@@ -112,11 +122,16 @@ export class Composure {
       nowMs >= this.yawnCooldownUntilMs &&
       nowMs >= this.yawnUntilMs
     ) {
-      this.yawnUntilMs = nowMs + config.composure.yawn.durationMs;
-      this.yawnCooldownUntilMs = this.yawnUntilMs + config.composure.yawn.cooldownMs;
       // Hand back a little, so a yawn is a setback rather than a death spiral.
       this.units = config.composure.yawn.refundUnits;
-      this.justYawned = true;
+      this.yawnCooldownUntilMs = nowMs + config.composure.yawn.cooldownMs;
+      if (blocksYawn) {
+        this.nerveHolds++;
+      } else {
+        this.yawnUntilMs = nowMs + config.composure.yawn.durationMs;
+        this.yawnCooldownUntilMs = this.yawnUntilMs + config.composure.yawn.cooldownMs;
+        this.justYawned = true;
+      }
     }
 
     const fraction = this.units / config.composure.maxUnits;
@@ -162,6 +177,7 @@ export class Composure {
     this.lastTellMs = -Infinity;
     this.yawnUntilMs = -Infinity;
     this.yawnCooldownUntilMs = -Infinity;
+    this.nerveHolds = 0;
     this.lowest = 1;
     this.worstMs = 0;
     this.worstDrop = 0;

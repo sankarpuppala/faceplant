@@ -155,7 +155,7 @@ describe('the result card (SPEC 16)', () => {
     spawned: 9, saved: 8, lost: 1, candles: 2, score: 1234, mawWokeCount: 2,
     offerings: 1, bestProcession: 3, composureLeft: 0.62, composureLow: 0.4,
     lossesByCause: { maw: 1, void: 0, drip: 0, dark: 0, crawler: 0, moth: 0 },
-    outcomes: ['saved', 'maw'], elapsedMs: 60_000, wave: 0, failed: false, coins: 0,
+    outcomes: ['saved', 'maw'], elapsedMs: 60_000, wave: 0, failed: false, coins: 0, riteSaves: { wardingSalt: 0, ironNerve: 0, tallowShell: 0, secondChance: 0, lanternOil: 0 },
   };
 
   it('is the portrait size short-video platforms want', () => {

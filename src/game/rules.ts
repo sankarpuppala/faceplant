@@ -4,7 +4,7 @@
 
 import { config } from '../config.ts';
 import type { Level } from './levelSchema.ts';
-import type { WorldSnapshot } from '../physics/world.ts';
+import type { RiteSaves, WorldSnapshot } from '../physics/world.ts';
 import type { LostCause } from '../physics/wick.ts';
 import { coinsFor } from './shop.ts';
 
@@ -36,6 +36,16 @@ export interface RunResult {
   failed: boolean;
   /** Coins earned, 0 on a failed or practice run. */
   coins: number;
+  /**
+   * How many flames each shop item saved this run.
+   *
+   * Reported on the results screen, and the reason is worth keeping: the shop
+   * did not feel worth buying from, and a measured sweep showed five of the
+   * seven items saved no Wicks at all. Those are fixed - but even the two
+   * that always worked were invisible, because a permanent passive effect
+   * that nobody tells you about is indistinguishable from a bug.
+   */
+  riteSaves: RiteSaves;
 }
 
 export function candlesFor(level: Level, saved: number): 0 | 1 | 2 | 3 {
@@ -91,6 +101,7 @@ export function buildResult(
     elapsedMs: snap.elapsedMs,
     wave: snap.wave,
     failed: snap.failed,
+    riteSaves: snap.riteSaves,
     coins: coinsFor({
       failed: snap.failed,
       saved: snap.saved,

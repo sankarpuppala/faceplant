@@ -504,7 +504,7 @@ describe('candles, stamps and score (SPEC 9.2, 12.5)', () => {
     spawned: 5, saved: 5, lost: 0, candles: 3, score: 100, mawWokeCount: 0,
     offerings: 0, bestProcession: 1, composureLeft: 1, composureLow: 1,
     lossesByCause: { maw: 0, void: 0, drip: 0, dark: 0, crawler: 0, moth: 0 },
-    outcomes: [], elapsedMs: 1000, wave: 0, failed: false, coins: 0,
+    outcomes: [], elapsedMs: 1000, wave: 0, failed: false, coins: 0, riteSaves: { wardingSalt: 0, ironNerve: 0, tallowShell: 0, secondChance: 0, lanternOil: 0 },
   };
 
   it('stamps LIGHTS OUT when nothing survived', () => {
@@ -648,7 +648,7 @@ describe('share text (SPEC 16)', () => {
     offerings: 1, bestProcession: 3, composureLeft: 0.62, composureLow: 0.4,
     lossesByCause: { maw: 1, void: 0, drip: 0, dark: 0, crawler: 0, moth: 0 },
     outcomes: ['saved', 'saved', 'saved', 'saved', 'saved', 'saved', 'saved', 'maw', 'saved'],
-    elapsedMs: 60_000, wave: 0, failed: false, coins: 0,
+    elapsedMs: 60_000, wave: 0, failed: false, coins: 0, riteSaves: { wardingSalt: 0, ironNerve: 0, tallowShell: 0, secondChance: 0, lanternOil: 0 },
   };
 
   it('writes one emoji per Wick in spawn order', () => {
@@ -677,10 +677,25 @@ describe('share text (SPEC 16)', () => {
     expect(text).toContain('54,321 pts');
   });
 
-  it('always carries the game name and a url', () => {
-    const text = shareText(result);
+  /*
+   * The URL is taken from `location` at runtime now, not from config. It used
+   * to be a hard-coded `https://faceplant.game` - a domain nobody owns - so
+   * this test passed while guaranteeing that every shared result pointed at a
+   * dead site. What matters is the two real behaviours: a deployed game puts
+   * its own address in the text, and a game with no address worth sharing
+   * leaves the line out rather than emitting a blank one.
+   */
+  it('carries the game name, and whatever address it was given', () => {
+    const text = shareText(result, 'https://example.test/faceplant/');
     expect(text.startsWith('FACEPLANT')).toBe(true);
-    expect(text).toContain(config.share.canonicalUrl);
+    expect(text).toContain('https://example.test/faceplant/');
+  });
+
+  it('omits the url line entirely when there is no address to share', () => {
+    const text = shareText(result, '');
+    expect(text.startsWith('FACEPLANT')).toBe(true);
+    expect(text.endsWith('\n')).toBe(false);
+    expect(text.split('\n').some((l) => l.trim() === '')).toBe(false);
   });
 });
 
@@ -693,7 +708,7 @@ describe('progress, the Ossuary and Rites (U7, U9)', () => {
     spawned: 3, saved: 2, lost: 1, candles: 2, score: 500, mawWokeCount: 1,
     offerings: 0, bestProcession: 1, composureLeft: 0.8, composureLow: 0.7,
     lossesByCause: { maw: 1, void: 0, drip: 0, dark: 0, crawler: 0, moth: 0 },
-    outcomes: ['saved', 'saved', 'maw'], elapsedMs: 30_000, wave: 0, failed: false, coins: 0,
+    outcomes: ['saved', 'saved', 'maw'], elapsedMs: 30_000, wave: 0, failed: false, coins: 0, riteSaves: { wardingSalt: 0, ironNerve: 0, tallowShell: 0, secondChance: 0, lanternOil: 0 },
   };
 
   const roster = [
@@ -809,10 +824,13 @@ describe('progress, the Ossuary and Rites (U7, U9)', () => {
     const base = defaultTunables();
     expect(base.wickMaxGapFh).toBe(config.wick.maxGapFh);
     expect(config.rites.steadyWicksMultiple).toBeGreaterThan(1);
-    expect(config.rites.slowSpawnMultiple).toBeGreaterThan(1);
-    expect(config.rites.wideGateBonusFh).toBeGreaterThan(0);
+    expect(config.rites.mawSenseRadiusMultiple).toBeGreaterThan(1);
+    expect(config.rites.tallowShellCount).toBeGreaterThan(0);
     expect(config.rites.secondChanceCount).toBeGreaterThan(0);
-    // The three newer ones, in the direction that helps.
+    // And in the direction that helps, never the other way.
+    expect(config.rites.steadyWicksSpeedMultiple).toBeGreaterThan(1);
+    expect(config.rites.lanternOilSnuffMultiple).toBeGreaterThan(1);
+    expect(config.rites.wardingSaltWardCount).toBeGreaterThan(0);
     expect(config.rites.lanternOilMultiple).toBeGreaterThan(1);
     expect(config.rites.ironNerveMultiple).toBeLessThan(1);
     expect(config.rites.wardingSaltSpeedMultiple).toBeLessThan(1);
@@ -892,7 +910,7 @@ describe('losing a tape (the fail condition)', () => {
       spawned: 10, saved: 4, lost: 6, candles: 1, score: 100, mawWokeCount: 0,
       offerings: 0, bestProcession: 1, composureLeft: 1, composureLow: 1,
       lossesByCause: { maw: 0, void: 6, drip: 0, dark: 0, crawler: 0, moth: 0 },
-      outcomes: [], elapsedMs: 1000, wave: 0, failed: true, coins: 0,
+      outcomes: [], elapsedMs: 1000, wave: 0, failed: true, coins: 0, riteSaves: { wardingSalt: 0, ironNerve: 0, tallowShell: 0, secondChance: 0, lanternOil: 0 },
     };
     expect(stampFor(r)).toBe('TAPE LOST');
     // Even a run that would otherwise have read as composed.
@@ -1000,7 +1018,7 @@ describe('config hygiene (AC-2) and flash safety (AC-6)', () => {
 
   /**
    * The unit may sit on the leaf (`walkSpeedFhPerS`) or on the group that owns
-   * it (`drainPerS.laughing`, `costCandles.wideGate`), so the whole path is
+   * it (`drainPerS.laughing`, `costCandles.tallowShell`), so the whole path is
    * searched, case-insensitively. A key like `wick.speed` still fails, which is
    * the point: CLAUDE.md section 6 requires a unit in the name or the comment.
    */

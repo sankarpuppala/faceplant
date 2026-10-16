@@ -62,6 +62,19 @@ export interface Crawler {
    * leaves instead, across the face, where it can still be swallowed.
    */
   leaveToX: number;
+  /**
+   * Warding Salt (shop) drives each Crawler off the first flame it reaches.
+   * This records that it has had its one refusal, so the item is a reprieve
+   * rather than immunity.
+   */
+  warded: boolean;
+  /**
+   * While this is in the future the Crawler is backing away from the salt and
+   * will not hunt. Flipping its direction for one retarget interval was not
+   * enough - it simply turned round again and ate the same Wick a second
+   * later, so the item reported a save the player then watched not happen.
+   */
+  retreatUntilMs: number;
 }
 
 let nextHazardId = 1;
@@ -82,6 +95,8 @@ export function makeCrawler(x: number, y: number): Crawler {
     touchMs: 0,
     sated: false,
     leaveToX: 0,
+    warded: false,
+    retreatUntilMs: -Infinity,
   };
 }
 
@@ -103,16 +118,18 @@ export function stepCrawler(
   }
   stepAttached(c.body, ground, dtS);
 
-  // A sated Crawler stops hunting and walks for the far side, which takes it
-  // across the face - and across the Maw - on its way out.
-  if (c.sated) {
+  // A sated Crawler - or one backing away from Warding Salt - stops hunting
+  // and walks for the far side, which takes it across the face, and across
+  // the Maw, on its way out.
+  const leaving = c.sated || nowMs < c.retreatUntilMs;
+  if (leaving) {
     const segPointsRight = ground.bx >= ground.ax;
     c.dir = c.leaveToX > c.body.x === segPointsRight ? 1 : -1;
   }
 
   // Re-target on a timer rather than every step, so it does not jitter between
   // two equidistant Wicks.
-  if (!c.sated && nowMs >= c.retargetAtMs) {
+  if (!leaving && nowMs >= c.retargetAtMs) {
     c.retargetAtMs = nowMs + config.crawler.retargetMs;
     let best: Wick | null = null;
     let bestD = Infinity;
@@ -127,7 +144,7 @@ export function stepCrawler(
     c.targetWickId = best?.id ?? null;
   }
 
-  const target = c.sated ? undefined : wicks.find((w) => w.id === c.targetWickId);
+  const target = leaving ? undefined : wicks.find((w) => w.id === c.targetWickId);
   if (target !== undefined) {
     const towardTarget = target.body.x > c.body.x;
     const segPointsRight = ground.bx >= ground.ax;
@@ -210,6 +227,12 @@ export interface Moth {
   targetWickId: number | null;
   /** Continuous contact time with its target, ms. */
   contactMs: number;
+  /**
+   * This attack has already lasted longer than an unprotected flame would
+   * have survived, so if the moth is driven off now it was Lantern Oil that
+   * made the difference. Used only to report what the shop item did.
+   */
+  pastBaseSnuff: boolean;
   phase: number;
   alive: boolean;
 }
@@ -220,6 +243,7 @@ export function makeMoth(x: number, y: number, rng: Rng): Moth {
     body: makeBody(x, y, config.moth.radiusFh),
     targetWickId: null,
     contactMs: 0,
+    pastBaseSnuff: false,
     phase: rng.next() * Math.PI * 2,
     alive: true,
   };
@@ -227,23 +251,49 @@ export function makeMoth(x: number, y: number, rng: Rng): Moth {
 
 export interface MothStepResult {
   snuffedWickId: number | null;
+  /** An attack that only failed because the flame was oiled. */
+  oiledSaveWickId: number | null;
+}
+
+/** A slow orbit of the face, for a moth with nothing to hunt. */
+function loiterPoint(faceCentre: { x: number; y: number }, phase: number): { x: number; y: number } {
+  const r = config.moth.loiterRadiusFh;
+  return {
+    x: faceCentre.x + Math.cos(phase * config.moth.loiterTurnMultiple) * r,
+    y: faceCentre.y + Math.sin(phase * config.moth.loiterTurnMultiple) * r * 0.6,
+  };
 }
 
 export function stepMoth(
   m: Moth,
   wicks: readonly Wick[],
+  /** Anchor for "on the face" - the nose, in world FH. */
+  faceCentre: { x: number; y: number },
   mawCentre: { x: number; y: number } | null,
   mawArea: number,
   dtS: number,
+  /** Lantern Oil (shop) makes a flame take longer to put out. 1 is unmodified. */
+  snuffTimeMultiple = 1,
 ): MothStepResult {
-  const out: MothStepResult = { snuffedWickId: null };
+  const out: MothStepResult = { snuffedWickId: null, oiledSaveWickId: null };
   if (!m.alive) return out;
 
-  // Hunt the brightest lit flame, which in practice is the nearest one.
+  // Hunt the brightest lit flame *on the face*, which in practice is the
+  // nearest one.
+  //
+  // The restriction to the face is the point. Left to hunt anything, a moth
+  // flew straight past the face to the stone ruins beside the head - where
+  // Wicks queue up after spawning - and picked them off at x ~ 1.2, a full
+  // face-width outside the Maw's draft. Those deaths were unpreventable: the
+  // player's only counter to a moth is to breathe on it, and you cannot
+  // breathe on something that far off your own cheek. A moth now only preys
+  // where it can be driven off, which is the same rule the Crawler follows by
+  // walking.
   let target: Wick | null = null;
   let bestD = Infinity;
   for (const w of wicks) {
     if (w.state === 'saved' || w.state === 'lost' || !w.lit) continue;
+    if (Math.hypot(w.body.x - faceCentre.x, w.body.y - faceCentre.y) > config.moth.huntRadiusFh) continue;
     const d = Math.hypot(w.body.x - m.body.x, w.body.y - m.body.y);
     if (d < bestD) {
       bestD = d;
@@ -254,57 +304,111 @@ export function stepMoth(
 
   m.phase += dtS * config.moth.wanderHz * Math.PI * 2;
 
-  let ax = 0;
-  let ay = 0;
-  if (target !== null) {
-    const dx = target.body.x - m.body.x;
-    const dy = target.body.y - m.body.y;
-    const len = Math.hypot(dx, dy) || 1;
-    ax = (dx / len) * config.moth.flySpeedFhPerS;
-    ay = (dy / len) * config.moth.flySpeedFhPerS;
-  }
-
-  // Wander, so a moth reads as an insect rather than a missile.
-  ax += Math.cos(m.phase) * config.moth.wanderFhPerS;
-  ay += Math.sin(m.phase * 1.7) * config.moth.wanderFhPerS;
-
-  // The draft from an open Maw (U6). Strength scales with how wide it is, so a
-  // real "haaah" clears the room and a half-open mouth barely helps.
+  // A moth *flies*: it picks a velocity and holds it. The first version of this
+  // treated `flySpeedFhPerS` as an acceleration and then damped the result by
+  // 0.96 every step - at 120 Hz that is a terminal speed of 0.19 FH/s, which is
+  // half a Wick's walking pace, so a moth could never actually reach a flame
+  // and the max-speed clamp was unreachable. Moths killed nothing at all.
+  // Now the speed in config is the speed on screen.
+  // The draft from an open Maw (U6), measured first because it does two things
+  // and the chase has to know about one of them.
+  //
+  // This is the counter the whole hazard is built around, and it did not work:
+  // the gust was a 7 FH/s^2 acceleration against a steering flight, so the
+  // moth's own course correction cancelled it within a frame and it kept
+  // closing on the flame regardless of how wide the mouth was open. A player
+  // doing exactly the right thing saw no effect at all.
+  //
+  // `draft` is now how hard the wind is hitting this moth, 0..1, and a moth in
+  // the wind is both pushed away *and* unable to aim.
+  let draft = 0;
+  let driftX = 0;
+  let driftY = 0;
   if (mawCentre !== null) {
     const dx = m.body.x - mawCentre.x;
     const dy = m.body.y - mawCentre.y;
     const d = Math.hypot(dx, dy);
     if (d < config.moth.draftRadiusFh && d > 1e-4) {
-      const falloff = 1 - d / config.moth.draftRadiusFh;
-      const strength = config.moth.draftFhPerS2 * falloff * clamp(mawArea / 0.02, 0.2, 1.5);
-      ax += (dx / d) * strength;
-      ay += (dy / d) * strength;
+      // Square-rooted so the falloff is gentle across the face rather than
+      // nearly spent by the brow - the face is only ~0.6 FH mouth-to-forehead.
+      const falloff = Math.sqrt(1 - d / config.moth.draftRadiusFh);
+      draft = falloff * clamp(mawArea / config.moth.draftFullAreaFh2, 0, 1.4);
+      driftX = dx / d;
+      driftY = dy / d;
     }
   }
 
+  // With no flame on the face to hunt, it circles the face waiting for one,
+  // which keeps it on screen and legible as a threat instead of parking
+  // off-frame where the player forgets it exists.
+  const aimAt = target !== null ? target.body : loiterPoint(faceCentre, m.phase);
+
+  const dx = aimAt.x - m.body.x;
+  const dy = aimAt.y - m.body.y;
+  const distToTarget = Math.hypot(dx, dy) || 1;
+  // Blown off course: it cannot hold a heading in a gale.
+  const aim = Math.max(0, 1 - draft * config.moth.draftBlindMultiple);
+  const dvx0 = (dx / distToTarget) * config.moth.flySpeedFhPerS * aim;
+  const dvy0 = (dy / distToTarget) * config.moth.flySpeedFhPerS * aim;
+  let dvx = dvx0;
+  let dvy = dvy0;
+
+  // And blown *away*, hard enough to beat its cruising speed - otherwise the
+  // moth simply flies back in and nothing the player did mattered.
+  dvx += driftX * draft * config.moth.draftFhPerS;
+  dvy += driftY * draft * config.moth.draftFhPerS;
+
+  // Wander, so a moth reads as an insect rather than a missile - but it settles
+  // once it is on the flame. At full strength the wobble is wider than the
+  // contact circle, so a wandering moth kept knocking itself out of range and
+  // resetting its own contact timer before it could ever snuff anything.
+  const settle =
+    target !== null && distToTarget < config.moth.settleRadiusFh ? config.moth.settleWanderMultiple : 1;
+  dvx += Math.cos(m.phase) * config.moth.wanderFhPerS * settle;
+  dvy += Math.sin(m.phase * 1.7) * config.moth.wanderFhPerS * settle;
+
   m.body.px = m.body.x;
   m.body.py = m.body.y;
-  m.body.vx += ax * dtS;
-  m.body.vy += ay * dtS;
 
-  // Moths fly, so they are damped rather than accelerated by gravity.
+  // Steer toward the flight velocity rather than accumulating acceleration.
+  const steer = 1 - Math.exp(-config.moth.steerHz * dtS);
+  m.body.vx += (dvx - m.body.vx) * steer;
+  m.body.vy += (dvy - m.body.vy) * steer;
+
   const speed = Math.hypot(m.body.vx, m.body.vy);
-  const maxSpeed = config.moth.flySpeedFhPerS * 2.4;
+  const maxSpeed = config.moth.flySpeedFhPerS * config.moth.maxSpeedMultiple;
   if (speed > maxSpeed) {
     m.body.vx = (m.body.vx / speed) * maxSpeed;
     m.body.vy = (m.body.vy / speed) * maxSpeed;
   }
-  m.body.vx *= 0.96;
-  m.body.vy *= 0.96;
 
   m.body.x += m.body.vx * dtS;
   m.body.y += m.body.vy * dtS;
 
-  if (target !== null && bestD < m.body.r + target.body.r) {
+  // Measured *after* moving. This used to test `bestD`, the distance from
+  // before the step, so contact was always judged one frame stale.
+  const touching =
+    target !== null &&
+    draft < config.moth.draftBreaksContactThreshold &&
+    Math.hypot(target.body.x - m.body.x, target.body.y - m.body.y) < m.body.r + target.body.r;
+
+  if (touching && target !== null) {
     m.contactMs += dtS * 1000;
-    if (m.contactMs >= config.moth.snuffMs) out.snuffedWickId = target.id;
+    if (m.contactMs >= config.moth.snuffMs) m.pastBaseSnuff = true;
+    if (m.contactMs >= config.moth.snuffMs * snuffTimeMultiple) {
+      out.snuffedWickId = target.id;
+      m.pastBaseSnuff = false;
+    }
   } else {
-    m.contactMs = 0;
+    // Losing contact for a moment cools the moth off rather than erasing its
+    // progress, so a single wingbeat of drift does not undo a held attack.
+    m.contactMs = Math.max(0, m.contactMs - dtS * 1000 * config.moth.contactDecayMultiple);
+    if (m.contactMs === 0 && m.pastBaseSnuff) {
+      m.pastBaseSnuff = false;
+      // The attack is over and the flame is still lit, having been held for
+      // longer than an unoiled one would have lasted.
+      if (snuffTimeMultiple > 1 && m.targetWickId !== null) out.oiledSaveWickId = m.targetWickId;
+    }
   }
 
   return out;
@@ -338,6 +442,8 @@ export function stepWickDarkness(
   anchors: readonly { x: number; y: number }[],
   dark: DarkState,
   dtS: number,
+  /** Lantern Oil (shop) buys longer in the dark. 1 is unmodified. */
+  snuffTimeMultiple = 1,
 ): boolean {
   if (!dark.enabled || !w.lit || w.state === 'saved' || w.state === 'lost') return false;
 
@@ -352,7 +458,7 @@ export function stepWickDarkness(
   }
 
   w.darkMs += dtS * 1000;
-  return w.darkMs >= config.dark.graceMs;
+  return w.darkMs >= config.dark.graceMs * snuffTimeMultiple;
 }
 
 /** Placing a Crawler needs a surface; this finds one near a requested point. */

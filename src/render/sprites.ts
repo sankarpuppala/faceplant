@@ -148,11 +148,10 @@ export function drawLantern(g: Graphics, level: Level, ctx: DrawContext): void {
 }
 
 /** The Gate: a glowing doorway, breathing slightly so it reads as the goal. */
-export function drawGate(g: Graphics, level: Level, ctx: DrawContext, gateBonusFh: number): void {
+export function drawGate(g: Graphics, level: Level, ctx: DrawContext): void {
   g.clear();
-  const pad = gateBonusFh;
-  const tl = sx({ x: level.gate.x - pad, y: level.gate.y - pad }, ctx);
-  const br = sx({ x: level.gate.x + level.gate.w + pad, y: level.gate.y + level.gate.h + pad }, ctx);
+  const tl = sx({ x: level.gate.x, y: level.gate.y }, ctx);
+  const br = sx({ x: level.gate.x + level.gate.w, y: level.gate.y + level.gate.h }, ctx);
   const w = br.x - tl.x;
   const h = br.y - tl.y;
 

@@ -128,9 +128,10 @@ export function titleScreen(actions: TitleActions, state: TitleState): HTMLEleme
 
     state.returning
       ? el('div', { class: 'title-stats osd-text' }, [
-          el('span', { text: copy.title.candles(state.candles) }),
-          el('span', { class: 'dot', text: '·' }),
-          el('span', { text: copy.shop.coinsHeld(state.coins) }),
+          // Both of these are things the game draws everywhere else; the title
+          // was the one place they were only words.
+          el('span', { class: 'title-stat' }, [candleIcon(true), el('span', { text: copy.title.candles(state.candles) })]),
+          el('span', { class: 'title-stat' }, [iconCoin(), el('span', { text: copy.shop.coinsHeld(state.coins) })]),
         ])
       : null,
 
@@ -279,8 +280,11 @@ export function calibrationScreen(onSkip: () => void, onRetry: () => void): Cali
   retry.style.display = 'none';
 
   const node = screen(copy.calibration.heading, [
-    // A single candle as the focus point (SPEC section 12.5).
-    el('div', { class: 'candlerow', style: 'transform:scale(2.2);margin-bottom:18px' }, [candleIcon(true)]),
+    // A single candle as the focus point (SPEC section 12.5). Sized, not
+    // scaled: `.candlerow` is a full-width flex row, so `transform: scale()`
+    // on it produced a box 2.2x the width of the screen and a horizontal
+    // scrollbar on anything narrow.
+    el('div', { class: 'candle-focus' }, [candleIcon(true)]),
     el('h2', { text: copy.calibration.heading }),
     prompt,
     wrap,
@@ -518,57 +522,110 @@ export function resultsScreen(
 
   const blurb = copy.stampBlurb[result.stamp];
 
-  return screen('Results', [
-    el('div', { class: 'tear' }),
-    el('div', { class: `stamp ${STAMP_CLASS[result.stamp]}`, text: result.stamp }),
-    el('p', { class: 'small dim', text: blurb }),
-    result.failed ? el('p', { class: 'small', style: 'color:var(--rec)', text: copy.results.failed }) : null,
-    candleRow(result.candles),
+  // Every Wick's fate, in spawn order, as pictures. The same information the
+  // share text carries as emoji - it just was not on screen anywhere.
+  const strip = el('div', { class: 'outcome-strip' });
+  for (const o of result.outcomes) {
+    strip.appendChild(el('span', { class: `outcome outcome-${o}` }, [iconForOutcome(o)]));
+  }
 
-    // Every Wick's fate, in spawn order, as pictures. The same information the
-    // share text carries as emoji - it just was not on screen anywhere.
-    (() => {
-      const strip = el('div', { class: 'outcome-strip' });
-      for (const o of result.outcomes) {
-        strip.appendChild(el('span', { class: `outcome outcome-${o}` }, [iconForOutcome(o)]));
-      }
-      return strip;
-    })(),
+  // What the shop items did, if they did anything. Nothing is shown when
+  // nothing happened, so this never becomes decoration you learn to skip.
+  const riteLines = (Object.entries(result.riteSaves) as [keyof typeof result.riteSaves, number][]).filter(
+    ([, n]) => n > 0,
+  );
+  const rites =
+    riteLines.length === 0
+      ? null
+      : el(
+          'div',
+          { class: 'rite-saves' },
+          [el('div', { class: 'rite-saves-title', text: copy.results.ritesTitle }) as Node].concat(
+            riteLines.map(([id, n]) =>
+              el('div', { class: 'rite-save' }, [
+                el('span', { class: 'rite-save-icon' }, [iconForShopItem(id)]),
+                el('span', { text: copy.results.riteSaves[id](n) }),
+              ]),
+            ),
+          ),
+        );
 
-    el('div', { class: 'bigscore', text: result.score.toLocaleString('en-US') }),
+  /*
+   * Composed in three bands rather than stacked as eleven loose blocks.
+   *
+   * Stacked, this screen ran to roughly 1,400px: on a laptop the verdict stamp
+   * was cut off the top of the viewport and Next / Retry / Shelf sat far below
+   * the fold with nothing to suggest they existed. The verdict reads first,
+   * the detail sits in two columns beside itself where there is room for two,
+   * and the actions are stuck to the bottom of the viewport so they can be
+   * reached from any scroll position on any screen.
+   */
+  return screen(
+    'Results',
+    [
+      el('div', { class: 'tear' }),
 
-    // Coins earned. A failed tape pays nothing, and says so, because an
-    // unexplained zero reads as a bug.
-    result.coins > 0
-      ? el('div', { class: 'coin-banner earned' }, [iconCoin(), el('span', { text: copy.results.coins(result.coins) })])
-      : el('p', { class: 'small dim', text: result.failed ? copy.results.noCoins : '' }),
+      el('div', { class: 'result-verdict' }, [
+        el('div', { class: `stamp ${STAMP_CLASS[result.stamp]}`, text: result.stamp }),
+        el('p', { class: 'small dim', text: blurb }),
+        result.failed ? el('p', { class: 'small', style: 'color:var(--rec)', text: copy.results.failed }) : null,
+        candleRow(result.candles),
+        el('div', { class: 'result-numbers' }, [
+          el('div', { class: 'bigscore', text: result.score.toLocaleString('en-US') }),
+          // A failed tape pays nothing and says so, because an unexplained
+          // zero reads as a bug.
+          result.coins > 0
+            ? el('div', { class: 'coin-banner earned' }, [
+                iconCoin(),
+                el('span', { text: copy.results.coins(result.coins) }),
+              ])
+            : result.failed
+              ? el('p', { class: 'small dim', text: copy.results.noCoins })
+              : null,
+        ]),
+        opts.newBest ? el('p', { class: 'tagline', text: copy.results.newBest }) : null,
+      ]),
 
-    opts.newBest ? el('p', { class: 'tagline', text: copy.results.newBest }) : null,
-    stats,
-    opts.practice ? el('p', { class: 'small dim', text: copy.results.practice }) : null,
-    el('pre', { class: 'sharetext', text: shareText(result) }),
-    el('div', { class: 'row' }, [
-      // A lost tape offers no way forward: the only ways out are to try again
-      // or leave. `next` is null in that case, set by the caller.
-      actions.next === null ? null : button(copy.results.next, actions.next, 'btn primary'),
-      button(
-        result.failed ? copy.results.retryFailed : copy.results.retry,
-        actions.retry,
-        result.failed ? 'btn primary' : 'btn',
-      ),
-      button(copy.results.shelf, actions.shelf, 'btn'),
-      // Straight after a payout is the moment someone most wants to spend.
-      result.coins > 0 ? button(copy.title.shop, actions.shop, 'btn') : null,
-    ]),
-    el('div', { class: 'row' }, [
-      button(copy.results.copy, actions.copyResult, 'btn quiet'),
-      button(copy.results.card, actions.saveCard, 'btn quiet'),
-      actions.saveClip === null ? null : button(copy.results.clip, actions.saveClip, 'btn quiet'),
-    ]),
-    // U8 - tell the player what the clip actually is, since "save clip" could
-    // mean the whole attempt and this one is the six seconds that matter.
-    el('p', { class: 'small dim', text: opts.recordingOn ? copy.results.clipHint : copy.results.clipOff }),
-  ], 'transparent');
+      el('div', { class: 'result-detail' }, [
+        el('div', { class: 'result-col' }, [
+          el('h3', { text: copy.results.rosterTitle }),
+          strip,
+          stats,
+          opts.practice ? el('p', { class: 'small dim', text: copy.results.practice }) : null,
+        ]),
+        el('div', { class: 'result-col' }, [
+          rites,
+          el('h3', { text: copy.results.shareTitle }),
+          el('pre', { class: 'sharetext', text: shareText(result) }),
+          el('div', { class: 'row start' }, [
+            button(copy.results.copy, actions.copyResult, 'btn quiet'),
+            button(copy.results.card, actions.saveCard, 'btn quiet'),
+            actions.saveClip === null ? null : button(copy.results.clip, actions.saveClip, 'btn quiet'),
+          ]),
+          // U8 - say what the clip actually is, since "save clip" could mean
+          // the whole attempt and this one is the six seconds that matter.
+          el('p', { class: 'small dim', text: opts.recordingOn ? copy.results.clipHint : copy.results.clipOff }),
+        ]),
+      ]),
+
+      el('div', { class: 'result-actions' }, [
+        el('div', { class: 'row' }, [
+          // A lost tape offers no way forward: the only ways out are to try
+          // again or leave. `next` is null in that case, set by the caller.
+          actions.next === null ? null : button(copy.results.next, actions.next, 'btn primary'),
+          button(
+            result.failed ? copy.results.retryFailed : copy.results.retry,
+            actions.retry,
+            result.failed ? 'btn primary' : 'btn',
+          ),
+          button(copy.results.shelf, actions.shelf, 'btn'),
+          // Straight after a payout is the moment someone most wants to spend.
+          result.coins > 0 ? button(copy.title.shop, actions.shop, 'btn') : null,
+        ]),
+      ]),
+    ],
+    'transparent',
+  );
 }
 
 /** The clip preview dialog. Nothing is kept once this closes (invariant 3). */
@@ -639,20 +696,36 @@ export function settingsScreen(
   return screen(copy.settings.heading, [
     el('h2', { text: copy.settings.heading }),
     el('div', { class: 'col' }, [
-      toggle(copy.settings.scares, settings.scares, (scares) => actions.change({ scares })).node,
-      el('p', { class: 'small dim', text: copy.settings.scaresHint }),
+      toggle(copy.settings.scares, settings.scares, (scares) => actions.change({ scares }), copy.settings.scaresHint)
+        .node,
       field(copy.settings.effects, effectsSeg.node, copy.settings.effectsHint),
       field(copy.settings.filter, filterSeg.node, thermalOk ? undefined : copy.settings.thermalLocked),
-      toggle(copy.settings.hideFace, settings.hideMyFace, (hideMyFace) => actions.change({ hideMyFace })).node,
-      el('p', { class: 'small dim', text: copy.settings.hideFaceHint }),
+      toggle(
+        copy.settings.hideFace,
+        settings.hideMyFace,
+        (hideMyFace) => actions.change({ hideMyFace }),
+        copy.settings.hideFaceHint,
+      ).node,
       field(copy.settings.controls, controlsSeg.node),
       field(copy.settings.recalibrate, button(copy.settings.recalibrate, actions.recalibrate, 'btn')),
       canRecord
-        ? toggle(copy.settings.recording, settings.recording, (recording) => actions.change({ recording })).node
-        : field(copy.settings.recording, el('span', { class: 'small dim', text: 'Not supported in this browser' })),
-      el('p', { class: 'small dim', text: copy.settings.recordingHint }),
-      toggle(copy.settings.lowPower, settings.lowPower, (lowPower) => actions.change({ lowPower })).node,
-      el('p', { class: 'small dim', text: copy.settings.lowPowerHint }),
+        ? toggle(
+            copy.settings.recording,
+            settings.recording,
+            (recording) => actions.change({ recording }),
+            copy.settings.recordingHint,
+          ).node
+        : field(
+            copy.settings.recording,
+            el('span', { class: 'small dim', text: 'Not supported in this browser' }),
+            copy.settings.recordingHint,
+          ),
+      toggle(
+        copy.settings.lowPower,
+        settings.lowPower,
+        (lowPower) => actions.change({ lowPower }),
+        copy.settings.lowPowerHint,
+      ).node,
       slider(copy.settings.volume, settings.volume, (volume) => actions.change({ volume })),
     ]),
 
@@ -787,7 +860,7 @@ export function shopScreen(
     rows.appendChild(
       el('div', { class: `shop-row ${owned ? 'owned' : ''}` }, [
         el('div', { class: 'shop-icon' }, [iconForShopItem(item.id)]),
-        el('div', {}, [
+        el('div', { class: 'shop-text' }, [
           el('div', { class: 'shop-name', text: item.name }),
           el('div', { class: 'shop-blurb', text: item.blurb }),
           el('div', { class: 'shop-effect', text: item.effect }),

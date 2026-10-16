@@ -37,6 +37,7 @@ export type LineTrigger =
   | 'yawn'
   | 'blinkBridge'
   | 'turn'
+  | 'stuck'
   | 'watcher'
   | 'finale';
 
@@ -65,6 +66,17 @@ export const LINES: readonly Line[] = [
   { trigger: 'spawn', text: 'the face is kind. the face is kind. the face is kind.', mood: 'cracking' },
 
   // --- being watched -------------------------------------------------------
+  // Stuck. The one line in the game that is really an instruction: a Wick
+  // pacing a dead end under the chin is invisible otherwise, and tilting the
+  // head - which frees them, and is the whole premise of the game - is not
+  // something a player thinks to try at a problem they cannot see.
+  { trigger: 'stuck', text: 'we are walled in. tip the mountain.', mood: 'any', weight: 3 },
+  { trigger: 'stuck', text: 'this is a basin. we have surveyed it. twice.', mood: 'any' },
+  { trigger: 'stuck', text: 'lean, please. any direction. we are not fussy.', mood: 'any', weight: 2 },
+  { trigger: 'stuck', text: 'under the chin. nobody comes back from under the chin.', mood: 'any' },
+  { trigger: 'stuck', text: 'we have been here before. several times. just now.', mood: 'any' },
+  { trigger: 'stuck', text: 'tilt your head. we will wait. we have no choice.', mood: 'cracking', weight: 2 },
+
   { trigger: 'idle', text: 'do not blink. or do. we do not know what blinking does.', mood: 'any' },
   { trigger: 'idle', text: 'we trust the face.', mood: 'any' },
   { trigger: 'idle', text: 'it smiles before it eats.', mood: 'any' },

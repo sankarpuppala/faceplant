@@ -499,6 +499,224 @@ individually if the judgement was wrong.
    Fixed by testing the horizontal direction of travel with an epsilon, and by
    requiring a continuation to *extend forward* from the endpoint it lands on.
 
+---
+
+### Session: the Watcher, the Moths, and a shop that did nothing
+
+Three things the player reported, all three confirmed by measurement, plus two
+more found by playing the game headlessly for a long time.
+
+#### 1. Moths killed nothing. Not rarely — never.
+
+`stepMoth` applied `config.moth.flySpeedFhPerS` as an **acceleration** and then
+damped the result by `0.96` every step. At 120 Hz that is a terminal speed of
+`0.9 × (1/120) / 0.04 = 0.19` FH/s, which is *half* a Wick's walking pace, so a
+moth could not catch anything walking away from it, and the max-speed clamp of
+2.16 FH/s was mathematically unreachable. Across fifteen headless level runs,
+moths killed **zero** Wicks. The contact test also measured the distance from
+*before* the moth moved, so it was a frame stale.
+
+Two further faults were hiding behind that one:
+
+- **The Maw's draft could not win.** It was a 7 FH/s² acceleration against a
+  steering flight, so the moth's own course correction cancelled it inside a
+  frame. A player doing exactly the right thing saw no effect whatsoever.
+- **Moths hunted off the face.** Left to chase the nearest flame they flew past
+  the face to the ruins beside the head, where Wicks queue after spawning, and
+  picked them off at `x ≈ 1.2` — a full face-width outside the draft. Those
+  deaths were unpreventable by any means the game offers.
+
+Fixed by steering toward a velocity rather than accumulating acceleration, by
+making the draft a wind that both pushes the moth away *and* spoils its aim,
+and by restricting hunting to `moth.huntRadiusFh` of the nose so a moth only
+preys where a breath can reach it. `tests/physics/moth.test.ts` asserts all
+three. Result: ignore moths and lose 2–4 a level; answer them and lose 0–1.
+
+Tuning: `snuffMs` **260 → 700** (260 ms is less time than it takes a person to
+see a moth land, decide, and move their jaw — the death read as arbitrary),
+`draftRadiusFh` **0.9 → 1.1**, `draftFhPerS2` 7 → `draftFhPerS` **1.8**
+(acceleration → wind speed). New: `steerHz`, `maxSpeedMultiple`,
+`settleRadiusFh`, `settleWanderMultiple`, `contactDecayMultiple`,
+`huntRadiusFh`, `loiterRadiusFh`, `loiterTurnMultiple`, `draftBlindMultiple`,
+`draftFullAreaFh2`, `draftBreaksContactThreshold`.
+
+#### 2. THE WATCHER looked bad because it was not on screen
+
+**It was framed wrong.** The head was scaled to 2.1× the viewport *height* and
+centred on the skull's geometric middle. On a 1280×720 viewport that put the
+crown at −517px, the horns at −1001px, the chin at 1146px and **the screaming
+mouth starting 33px below the bottom edge**. At the climax of the scare the
+player was looking at two glowing dots and two nose slits on a black screen.
+A test asserted `finalHeightFraction > 1.5` and passed the whole time: "fills
+the frame" and "is in the frame" are different claims, and only one was checked.
+
+**It had no values.** The skull was filled `0x050204` on a `0x000000` veil, so
+it had no silhouette — only a 5px ember outline, itself off-screen.
+
+Rebuilt: `watcherComposition()` derives the scale from both frame dimensions,
+and `FACE` declares the anatomy as data so the drawing and the framing read the
+same numbers. The skull is a cranium plus a **mandible that drops as it
+screams** — the old version grew a hole downward out of a rigid face, so at
+full scream the mouth ran out past the chin and the lower teeth hung in void.
+It is lit from below by a gradient from warm bone to the veil, with brow
+ridges, cheekbones and nose bridge picked out and the sockets, nose and throat
+cut as true black. Highlights are clipped to the head; they used to hang beside
+it as grey smudges. All of the above was found by rendering the real Pixi draw
+calls to SVG and looking at them.
+
+Tuning: `finalHeightFraction` **2.1 → 1.15**, new `finalWidthFraction` 1.2 and
+`faceLiftFraction` 0.08, `tearCount` 3 → 2. New `watcherTokens` palette in
+`tokens.ts`. The old framing test is replaced by seven that check the eyes and
+the whole mouth land on screen at every viewport shape the game can open at.
+
+#### 3. The shop sold insurance against things that do not happen
+
+Measured over fifteen levels: owning **five of the seven items saved exactly
+zero extra Wicks**. They guarded against falling in gaps (0 deaths), going out
+in the dark (0) and missing the Gate by a hair (0), while Crawlers and Drips
+were 94% of real losses and only one item touched either, imperceptibly.
+
+- `wideGate` **deleted** — it did nothing and nothing could make it matter.
+- `slowSpawn` ("Rite of Patience") **deleted**: not merely useless but
+  *harmful*, costing four extra Wicks a playthrough, because spacing the roster
+  out leaves each Wick alone with the hazards for longer.
+- **`tallowShell`** (new) — survive your first Drip. Nothing answered Drips.
+- **`mawSense`** (new, "The Warning") — notice an open Maw from 70% further
+  away. Worth +41 Wicks to a player who laughs.
+- `wardingSalt` now *drives a Crawler off* the first flame it reaches and sends
+  it retreating across the face for 7 s. Crawler deaths 20 → 10.
+- `lanternOil` now doubles how long a Moth or the Dark needs. Moth deaths halve.
+- `steadyWicks` now also raises walk speed 18%, felt everywhere: +17 Wicks for
+  a careful player, +65 for one who laughs.
+- `ironNerve` blocks THE YAWN outright and is repriced **400 → 240**, because
+  measurement says it saves very few Wicks in any playstyle — a yawn fires when
+  your mouth is already open — so it is an earnings item and now says so.
+
+The other half of the fix is that **the items report themselves**.
+`world.riteSaves` counts the flames each one saved and the results screen lists
+them ("Warding Salt drove a Crawler off 3 flames"). A permanent passive effect
+nobody tells you about is indistinguishable from a broken one, and five of them
+genuinely were.
+
+#### 4. Found by soaking: a quake that fired 13 times a second
+
+A quake is one thing happening to the whole level, but it was reported once per
+stumbling Wick per physics step — 2,453 events across three levels. Each one
+adds screen shake and requests a line of dialogue. Throttled to one per
+`quake.eventCooldownMs` (450 ms), which also keeps the shake under the 3 Hz
+ceiling every other repeating effect is held to.
+
+#### 5. Found by soaking: the jaw is a basin, and nobody said so
+
+A Wick turns around timidly at an edge it cannot step off (decision D5). Under
+the chin that is a loop: up one side, turn, slide back, up the other, forever.
+A player swaying their head by a couple of centimetres put **six of seven Wicks
+in there, where they turned back 306 times** and finished the level still
+walking — scoring nothing, dying of nothing, explaining nothing.
+
+Tilting the head frees them (6/7 saved instead of 1/7), so the mechanic is
+sound and the bug was that the player is never told. A Wick now notices it is
+pacing and says so, in lines that name the fix ("tip the mountain"), and after
+`trapped.turnsAllowed` refusals it stops being timid and takes the edge, so a
+genuine dead end resolves visibly instead of stalling in silence.
+
+#### Not fixed, and why
+
+Wicks still strand on a few tapes when the player moves a lot — 74 of 223
+headless runs ended with somebody still walking. That is the clock expiring,
+not a fault: the same runs showed **no conservation breaks, no NaN, nothing
+escaping the world, no negative or mispaid coins, and no level that failed to
+end**. It is now signposted rather than silent, which was the actual problem.
+
+`npm run soak` is kept as a script for exactly that reason: every bug in
+sections 1, 4 and 5 is invisible to a test that holds the face still, and none
+of them fail an assertion. They just quietly ruin the game.
+
+---
+
+---
+
+### Session: looking at the interface
+
+The interface had never been looked at. Every DOM screen is assembled at
+runtime, deep inside a camera flow, so reviewing one meant playing to it — and
+nobody had. This session built `uigallery.html`, which renders all seventeen
+screens from `screens.ts` with representative data, and `npm run check:ui`,
+which screenshots them through headless Chrome and fails the build on
+horizontal overflow. Four layout faults fell out of the first run.
+
+#### Bugs found by screenshotting
+
+1. **The results screen could not be finished.** `.layer` used
+   `place-items: center` inside `overflow-y: auto`. A centred grid item taller
+   than its container overflows in *both* directions and the half above the
+   top edge cannot be scrolled back to — so on a 1280×800 laptop the verdict
+   stamp was cut off the top and Next / Retry / Shelf sat ~500px below the
+   fold with nothing to indicate they existed. Fixed with `align-items: start`
+   plus `margin-block: auto`, which centres what fits and tops-aligns what
+   does not. The screen was then recomposed from eleven stacked blocks into
+   three bands, with the action row `position: sticky` to the bottom of the
+   viewport so the way out is reachable from any scroll position.
+
+2. **Every shop row was broken.** `.shop-row` declared
+   `grid-template-columns: 1fr auto` — two columns — for three children. The
+   buy button wrapped onto a second row underneath the icon, and because it
+   was wider than the 38px icon it widened column one, so each row's text
+   started at a different horizontal position and the list had a ragged left
+   edge. Now `auto minmax(0, 1fr) auto`, stacking to two columns under 620px.
+
+3. **Half the settings hints were orphaned.** `field()` nested its hint inside
+   the row; `toggle()` had no hint parameter, so those hints were emitted as
+   loose centred paragraphs *between* rows, visually attached to nothing.
+   `toggle()` now takes a hint like `field()` does.
+
+4. **The calibration candle was 2.2× the width of the screen.** It was a
+   `transform: scale(2.2)` on `.candlerow`, which is a full-width flex row, so
+   its box extended a screen-width past each edge. Replaced with a sized
+   element.
+
+#### Also wrong, and not a layout bug
+
+The How to Play face map labelled EYES in mint green (`0x8fff9b`) and NOSE in
+sky blue (`0x5fd0ff`) — raw hex literals, the only two cold colours in a game
+lit entirely by candlelight, and a direct breach of the "colours live in
+tokens.ts" rule. Every callout now uses a palette token. The labels were also
+centre-anchored on the end of their own leader lines, so the dashes ran
+through the words, and the 420-unit viewBox clipped them mid-word — "blink
+shut = a bridge" rendered as "link shut = a bridge". Labels now hang clear of
+the line on the side they belong to, in a box wide enough to hold them.
+
+#### Made nicer
+
+- **The menus are the tape now.** All the analog-horror atmosphere lived in
+  the Pixi stage; the menus were a flat black page. A static scanline and
+  vignette layer sits over every screen — no animation, so it costs nothing
+  against the 3 Hz flash ceiling, and "Reduce effects" drops it to a plain
+  vignette.
+- **Buttons have three legible weights.** The middle weight was transparent
+  with a near-black border, which reads as *disabled* rather than secondary.
+- **The tapes look like tapes**: moulded plastic with a highlight down the
+  near edge, a shadow where they lean on each other, and a printed paper
+  label. Locked tapes dim rather than disappear — an earlier attempt at this
+  made them unreadable, which defeats the point of a shelf.
+- **One spacing scale** (`--s1`…`--s6`) and one set of surface tokens, instead
+  of forty hand-picked paddings and six different near-blacks.
+- **The shop is called "Shop".** It was "Rites", then "The Pedlar". Both times
+  a player could not tell what it was from its name. Flavour belongs in the
+  body copy, where it costs nothing.
+
+#### The narrow-width caveat
+
+Chrome on Windows will not make a headless window narrower than about 504 CSS
+px: ask for 390 and the page is still laid out at 504 and the *image* is
+scaled down — which looks exactly like text overflowing when it is not. An
+earlier reading of "the shop overflows on mobile" was this artefact and not a
+real fault. 504px is still below both interface breakpoints (620px and 520px),
+so the narrow layouts are exercised, but **nothing here has been tested at a
+real phone width** and that remains an open gap.
+
+---
+
 **Next session starts with the only thing that matters now: play it.**
 
 1. `npm install && npm run setup && npm run dev`, then play with a camera in a

@@ -74,7 +74,10 @@ export type WorldEvent =
   | { kind: 'procession'; multiple: number }
   | { kind: 'processionBroken' }
   | { kind: 'turn'; x: number; y: number }
+  | { kind: 'stuck'; x: number; y: number }
   | { kind: 'crawlerSated'; x: number; y: number }
+  | { kind: 'warded'; x: number; y: number }
+  | { kind: 'shielded'; x: number; y: number }
   | { kind: 'watcher' }
   | { kind: 'wave'; n: number };
 
@@ -110,6 +113,25 @@ export interface WorldSnapshot {
   lossesRemaining: number | null;
   /** Per-Wick outcome in spawn order, for the share string (SPEC section 16). */
   outcomes: ('saved' | LostCause | 'alive')[];
+  /**
+   * How many flames each purchased item actually saved this run.
+   *
+   * This exists because the shop did not feel worth buying from, and the
+   * reason was not that the items were weak - it was that they were silent.
+   * A permanent passive effect the player cannot observe is indistinguishable
+   * from one that is broken, and five of them genuinely were. Counting the
+   * saves means the results screen can say "Warding Salt turned back 2".
+   */
+  riteSaves: RiteSaves;
+}
+
+/** Flames saved this run, by the item that saved them. */
+export interface RiteSaves {
+  wardingSalt: number;
+  ironNerve: number;
+  tallowShell: number;
+  secondChance: number;
+  lanternOil: number;
 }
 
 export class World {
@@ -123,12 +145,15 @@ export class World {
   readonly maw = new MawDetector();
   readonly eyes = new EyeDetector();
 
+  readonly riteSaves: RiteSaves = { wardingSalt: 0, ironNerve: 0, tallowShell: 0, secondChance: 0, lanternOil: 0 };
+
   /** Terrain for the current substep. Rendering reads this. */
   segments: Segment[] = [];
   index = new SegmentIndex([]);
   swallow: { x: number; y: number }[] = [];
 
   elapsedMs = 0;
+  private lastQuakeAtMs = -Infinity;
   /** Set when the loss threshold is crossed; the run holds open for the scare. */
   failed = false;
   private failedAtMs = -1;
@@ -200,7 +225,7 @@ export class World {
     this.staticSegments = buildStaticTerrain(this.level.ruins, this.level.walls);
     this.dark = makeDark(this.level.dark.startRadiusFh, this.level.dark.shrinkFhPerS);
     this.pendingHazards = [...this.level.hazards];
-    this.spawnIntervalMs = this.level.spawn.intervalMs * this.tunables.spawnIntervalMultiple;
+    this.spawnIntervalMs = this.level.spawn.intervalMs;
     this.nextWaveAtMs = config.endless.waveIntervalMs;
     this.secondChancesLeft = this.tunables.secondChanceCount;
     this.composureState = this.composure.update(noReactions(), false, 0, 0);
@@ -300,6 +325,7 @@ export class World {
       dtMs,
       this.elapsedMs,
       this.tunables.composureDrainMultiple,
+      this.tunables.blocksYawn,
     );
     if (this.composureState.justYawned) this.events.push({ kind: 'yawn' });
 
@@ -342,15 +368,27 @@ export class World {
         nowMs: this.elapsedMs,
         mawCentre,
         faceSpeedFhPerS: this.faceSpeedFhPerS,
-        tunables: { maxStepDownFh: this.tunables.wickMaxStepDownFh, maxGapFh: this.tunables.wickMaxGapFh },
+        tunables: {
+          maxStepDownFh: this.tunables.wickMaxStepDownFh,
+          maxGapFh: this.tunables.wickMaxGapFh,
+          speedMultiple: this.tunables.wickSpeedMultiple,
+          mawFearRadiusMultiple: this.tunables.mawFearRadiusMultiple,
+        },
         rng: this.rng,
       });
 
       if (r.flicked) this.events.push({ kind: 'flick', x: w.body.x, y: w.body.y });
       if (r.landed) this.events.push({ kind: 'land', x: w.body.x, y: w.body.y });
       if (r.startedRail) this.events.push({ kind: 'rail', x: w.body.x, y: w.body.y });
-      if (r.stumbled) this.events.push({ kind: 'quake' });
+      // One quake is one event, however many Wicks it knocks over.
+      if (r.stumbled && this.elapsedMs - this.lastQuakeAtMs >= config.quake.eventCooldownMs) {
+        this.lastQuakeAtMs = this.elapsedMs;
+        this.events.push({ kind: 'quake' });
+      }
       if (r.turnedAtEdge) this.events.push({ kind: 'turn', x: w.body.x, y: w.body.y });
+      // Pacing a dead end. Reported once per Wick per trap, so it reads as a
+      // hint rather than a stream.
+      if (r.becameStuck) this.events.push({ kind: 'stuck', x: w.body.x, y: w.body.y });
 
       // The Maw (SPEC 6.4).
       if (this.swallow.length >= 3 && pointInPolygon(w.body, this.swallow)) {
@@ -363,7 +401,7 @@ export class World {
         continue;
       }
       // The Dark (SPEC 8.2).
-      if (stepWickDarkness(w, anchors, this.dark, dtS)) {
+      if (stepWickDarkness(w, anchors, this.dark, dtS, this.tunables.snuffTimeMultiple)) {
         this.lose(w, 'dark');
         continue;
       }
@@ -373,7 +411,7 @@ export class World {
 
     this.stepCrawlers(dtS, mawCentre);
     this.stepDrips(dtS);
-    this.stepMoths(dtS, mawCentre, mawArea);
+    this.stepMoths(dtS, this.faceCentre(), mawCentre, mawArea);
 
     // Flick hazards off a rising brow too, which is the Crawler's other counter.
     this.flickHazardsFromBrows(dtS);
@@ -428,6 +466,7 @@ export class World {
       name,
       titleForRunsSurvived(runs + 1),
       this.level.spawn.dir,
+      this.tunables.dripShieldCount,
     );
     w.body.vx = this.level.spawn.dir * config.wick.spawnDriftFhPerS;
     this.wicks.push(w);
@@ -543,6 +582,22 @@ export class World {
       c.touchMs += dtS * 1000;
 
       if (c.touchMs >= config.crawler.touchMs * this.tunables.crawlerTouchMultiple) {
+        // Warding Salt (shop): a Crawler is driven back off the first flame it
+        // reaches. The slow and the longer contact window it also buys only
+        // help a player who is watching that exact Crawler at that exact
+        // moment, which measured as saving nobody at all; this saves a flame
+        // whether or not the player sees it happen, and says so afterwards.
+        if (!c.warded && this.tunables.crawlerWardCount > 0) {
+          c.warded = true;
+          c.touchingWickId = null;
+          c.touchMs = 0;
+          c.targetWickId = null;
+          c.retreatUntilMs = this.elapsedMs + config.rites.wardingSaltRetreatMs;
+          c.leaveToX = c.body.x > 0 ? -99 : 99;
+          this.riteSaves.wardingSalt++;
+          this.events.push({ kind: 'warded', x: c.body.x, y: c.body.y });
+          continue;
+        }
         this.lose(touching, 'crawler');
         c.touchingWickId = null;
         c.touchMs = 0;
@@ -581,6 +636,14 @@ export class World {
         if (w.state === 'saved' || w.state === 'lost') continue;
         if (Math.hypot(w.body.x - d.body.x, w.body.y - d.body.y) < w.body.r + d.body.r) {
           d.alive = false;
+          // Tallow Shell (shop). Drips were the second biggest killer in the
+          // game and nothing in the shop answered them.
+          if (w.dripShield > 0) {
+            w.dripShield--;
+            this.riteSaves.tallowShell++;
+            this.events.push({ kind: 'shielded', x: w.body.x, y: w.body.y });
+            continue;
+          }
           this.lose(w, 'drip');
         }
       }
@@ -588,10 +651,32 @@ export class World {
     if (this.drips.length > 64) this.drips.splice(0, this.drips.length - 64);
   }
 
-  private stepMoths(dtS: number, mawCentre: { x: number; y: number } | null, mawArea: number): void {
+  /**
+   * The nose, in world FH - the anchor for "on the face". Falls back to the
+   * origin, which is where the neutral face centre sits by definition, so a
+   * frame with no nose landmarks still gives moths somewhere sensible to be.
+   */
+  private faceCentre(): { x: number; y: number } {
+    const nose = this.curContours.nose;
+    if (nose.length === 0) return { x: 0, y: 0 };
+    let x = 0;
+    let y = 0;
+    for (const p of nose) {
+      x += p.x;
+      y += p.y;
+    }
+    return { x: x / nose.length, y: y / nose.length };
+  }
+
+  private stepMoths(
+    dtS: number,
+    faceCentre: { x: number; y: number },
+    mawCentre: { x: number; y: number } | null,
+    mawArea: number,
+  ): void {
     for (const m of this.moths) {
       if (!m.alive) continue;
-      const r = stepMoth(m, this.wicks, mawCentre, mawArea, dtS);
+      const r = stepMoth(m, this.wicks, faceCentre, mawCentre, mawArea, dtS, this.tunables.snuffTimeMultiple);
 
       if (this.swallow.length >= 3 && pointInPolygon(m.body, this.swallow)) {
         m.alive = false;
@@ -602,6 +687,10 @@ export class World {
         const victim = this.wicks.find((w) => w.id === r.snuffedWickId);
         if (victim !== undefined) this.lose(victim, 'moth');
         m.contactMs = 0;
+      }
+      if (r.oiledSaveWickId !== null) {
+        const held = this.wicks.find((w) => w.id === r.oiledSaveWickId);
+        if (held !== undefined && held.state !== 'lost') this.riteSaves.lanternOil++;
       }
       if (m.body.y > config.wick.voidYFh + 1) m.alive = false;
     }
@@ -639,7 +728,7 @@ export class World {
 
   private inGate(w: Wick): boolean {
     const g = this.level.gate;
-    const pad = this.tunables.gateBonusFh + config.wick.gateReachPadFh;
+    const pad = config.wick.gateReachPadFh;
     return (
       w.body.x >= g.x - pad &&
       w.body.x <= g.x + g.w + pad &&
@@ -661,6 +750,7 @@ export class World {
     // recoverable one instead of a write-off.
     if (this.secondChancesLeft > 0 && cause !== 'maw') {
       this.secondChancesLeft--;
+      this.riteSaves.secondChance++;
       w.body.x = this.level.spawn.x;
       w.body.y = this.level.spawn.y;
       w.body.vx = 0;
@@ -750,6 +840,7 @@ export class World {
       over: this.over,
       failed: this.failed,
       lossesRemaining: this.endless ? null : Math.max(0, this.lossBudget - this.lostCount),
+      riteSaves: { ...this.riteSaves, ironNerve: this.composure.nerveHolds },
       outcomes: this.spawnOrder.map((w) =>
         w.state === 'saved' ? 'saved' : w.state === 'lost' ? (w.cause ?? 'void') : 'alive',
       ),
