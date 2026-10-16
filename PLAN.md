@@ -717,6 +717,73 @@ real phone width** and that remains an open gap.
 
 ---
 
+---
+
+### Session: making it deployable
+
+Everything below was found by trying to actually ship it, not by reading it.
+
+**The itch.io zip was silently broken.** Windows PowerShell 5.1 runs on .NET
+Framework, whose zip writer records entry names with the *platform* separator,
+so every path came out as `assetspp-xxxx.js`. The ZIP specification requires
+forward slashes, so a conforming extractor treats that as one file with
+backslashes in its name. Uploaded to itch it would unpack as a flat pile of
+oddly-named files, `index.html` would find none of its assets, and the player
+would get a black page. The zip was valid, the right size, and useless.
+Rebuilt with Windows' bundled `bsdtar` - by absolute path, because `tar` on
+PATH resolves to Git's GNU tar on any developer machine and GNU tar cannot
+write zip at all - and `package:itch` now reads its own output back and fails
+on a missing root `index.html`, a missing `mediapipe/`, or any backslash.
+
+**Every shared result pointed at a dead site.** `config.share.canonicalUrl`
+was `https://faceplant.game`, a domain nobody owns, and a test asserted the
+share text contained it - so the test passed for the life of the project while
+guaranteeing the bug. The address is now read off `location` at runtime
+(`shareUrlFor`), which is correct on GitHub Pages, on itch, and behind a
+custom domain, with nothing to remember at release. A local run emits no URL
+line rather than a useless one. Eight tests cover it, including one that fails
+if anybody hard-codes a domain as the fallback again.
+
+**The Daily Tape epoch** (Q5) is set to the launch date, so Day 1 is the day
+it ships.
+
+**The Node floor was wrong.** `engines` said `>=20.11`, but every script in
+the repo runs through `--experimental-strip-types`, which needs 22.6+. CI
+would have been free to pick a Node that could not run `npm run setup`.
+
+#### Deployment, decided
+
+GitHub Pages is the primary host, with itch.io as a secondary. The reason is
+the camera: itch serves browser games in an iframe that needs `allow="camera"`
+to permit `getUserMedia`, and the itch uploader gives no way to set it, so on
+itch the game has to be launched in a new window before the camera works at
+all (risk R4). That is a poor first impression for a game that is entirely
+about your face. `.github/workflows/pages.yml` runs the whole gate and
+publishes only if it is green. `docs/DEPLOY.md` has the steps.
+
+One deployment risk is now closed rather than open: the bundled MediaPipe wasm
+is the **single-threaded** build, so it needs no `SharedArrayBuffer` and
+therefore no COOP/COEP response headers - which is exactly why both Pages and
+itch can host it, since neither lets you set headers.
+
+#### Verified, not assumed
+
+  - `npm ci && npm run setup && npm run verify` from a clean `node_modules` -
+    the exact CI job - runs green: 338 tests, build, privacy, flash safety.
+  - The built bundle boots in a real browser to the notice screen with a clean
+    console.
+  - The itch zip was extracted, served, and booted - the actual upload
+    artifact, not the directory it came from.
+
+#### Still blocked on a human
+
+There is no git remote, and no `gh` CLI on this machine, so nothing could be
+pushed. The work is committed on `main`; creating the GitHub repository and
+the first `git push` are the remaining steps, and the itch upload is a browser
+action either way. `docs/DEPLOY.md` has both.
+
+---
+
 **Next session starts with the only thing that matters now: play it.**
 
 1. `npm install && npm run setup && npm run dev`, then play with a camera in a
