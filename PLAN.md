@@ -784,6 +784,79 @@ action either way. `docs/DEPLOY.md` has both.
 
 ---
 
+---
+
+### Session: the face was unreadable in Assist mode, and nobody had looked
+
+The request was "make the interface and game nicer." Rather than guess at
+decoration, this session drove the actual built game through a headless
+browser via raw Chrome DevTools Protocol (no Puppeteer/Playwright dependency -
+Node's built-in `WebSocket` is enough to talk to Chrome's own debug port) and
+looked at real gameplay frames for the first time this project has done so.
+Every UI session before this one audited the DOM menus (`uigallery.html`);
+none had looked at the Pixi-rendered face and terrain a player actually plays
+on.
+
+#### The bug: every new player's first screen was nearly blank
+
+`DrawContext.ink` controls whether the face contour draws as a thin 35%-alpha
+guide meant to sit *over real webcam video*, or as the bold, 0.95-alpha,
+thicker line meant to stand in for a face when there is no video
+(`settings.filter === 'ink'` or "Hide my face" - decision D8). It was computed
+purely from those two settings, never from whether a video frame actually
+existed.
+
+U10 starts **every** first-time player in Assist mode, camera or not
+(`beginFirstRun`) - so every new player's very first level runs with
+`this.videoSprite === null` and, until this fix, `ink === false`, drawing the
+over-video style onto nothing. Measured: the forehead line's brightest pixel
+went from `lum 43` to `lum 95` - more than double - once `stage.ts` also
+treats "no video sprite" as ink mode (`drawInk = ink || this.videoSprite ===
+null`). Invariant 7 means this is not a minority path either: every level
+must be completable without a camera, and Assist is the mandatory fallback for
+all of them.
+
+Also added, prompted by the same screenshots: the Maw's lip contour now draws
+in `tokens.rec` (the same red the REC dot, the fail stamp, and the critical
+loss-budget warning already use) instead of the same colour as every other
+line on the face, at boosted width/alpha to survive the scene's film grade.
+**Unverified claim, flagged as such on purpose**: pixel-sampling the rendered
+frame found the grade crushes saturation hard - even the baseline white
+contour line measured only 5-6 points of RGB spread, barely more "colour"
+than grey - so whether this reads as clearly red to a human eye in a real
+browser is genuinely open. Per CLAUDE.md section 7, this is a game-feel claim
+a screenshot cannot settle; it needs a human looking at it.
+
+#### Also found and fixed this session: the control-hint drift, a second time
+
+A second copy of the same fact that was fixed earlier this project turned out
+to carry the identical bug: the How to Play screen's own key-binding table
+(`copy.howTo.controls`) was missing Left/Right-tilt and the L-smile key, the
+same two bindings that had drifted out of the in-play toast hint. Fixed, and
+`tests/face/assistControls.test.ts` now checks both copies against the real
+switch statement in `AssistInput`, not just one.
+
+#### Verified, not assumed
+
+  - 352 tests pass (up from 338 at the top of this session); typecheck, build,
+    `check:privacy` and `check:flash` all green.
+  - `npm run check:ui` passes at both checked widths with the new code.
+  - The `ink`-mode fix is proven with before/after pixel measurements on the
+    actual rendered frame, not a visual impression.
+  - The Maw-colour change is *not* claimed as proven - see above.
+
+#### Not investigated this session
+
+The "big black band below the face" from the original pasted review was
+chased and found to be a **test-harness artifact**: my driver script moved
+the fake cursor to y=260-300 on an 800px-tall window, well above centre, so
+the Assist face naturally rendered high with empty space below it - not a
+layout bug. Re-testing with the cursor near vertical centre showed the face
+filling the frame normally. Worth remembering before treating headless
+screenshots as ground truth without controlling for input.
+
+---
+
 **Next session starts with the only thing that matters now: play it.**
 
 1. `npm install && npm run setup && npm run dev`, then play with a camera in a

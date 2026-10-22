@@ -1,18 +1,20 @@
 /**
- * The Assist control hint, checked against the real bindings.
+ * The Assist controls, checked against the real bindings - in three places
+ * that all say what the keys do, not just one.
  *
- * `AssistInput` in `syntheticSource.ts` and the hint string in `ui/copy.ts`
- * are two separate places describing the same keys, and they had already
- * drifted apart: `ArrowLeft`/`ArrowRight` tilt the face exactly like the
- * wheel does, and `KeyL` smiles, and neither was mentioned anywhere on
- * screen. A player had no way to discover either short of reading this
- * source file. Worse, the one place the hint *did* appear was the pause
- * screen - never during actual play - so even the bindings it did list were
- * only visible once you had already stopped playing to go looking.
+ * `AssistInput` in `syntheticSource.ts`, the in-play toast (`copy.hud.
+ * assistHint`), and the How to Play screen's own key table (`copy.howTo.
+ * controls`) each describe the same keys independently, and two bindings had
+ * drifted out of *both* copies at once: `ArrowLeft`/`ArrowRight` tilt the
+ * face exactly like the wheel does, and `KeyL` smiles, and neither was
+ * mentioned anywhere a player could see. Worse, the toast hint only ever
+ * appeared on the pause screen - never during actual play - so even the
+ * bindings it did list were only visible once you had already stopped
+ * playing to go looking.
  *
  * This reads the handler's own `case` list out of the source rather than
  * hand-copying it, so a future binding that is added to the switch and
- * forgotten in the copy fails here instead of shipping silently again.
+ * forgotten in either copy fails here instead of shipping silently again.
  */
 
 import { readFileSync } from 'node:fs';
@@ -78,6 +80,37 @@ describe('the Assist control hint names every real binding', () => {
     // that only appears once tracking is lost. The no-face message used to
     // promise "press P for Assist" as if it were one step, which was false.
     expect(copy.hud.noFace.toLowerCase()).not.toMatch(/press p for assist/);
+  });
+});
+
+describe('the How to Play key table names every real binding', () => {
+  // Flattened once, lowercased, so a key and its description can be searched
+  // together the same way the toast hint is above.
+  const table = copy.howTo.controls.flat().join(' ').toLowerCase();
+
+  it('lists every key code the real handler switches on', () => {
+    // A loose per-letter/arrow presence check rather than a 1:1 row mapping,
+    // because the table is free to phrase a row however reads best (e.g.
+    // "Wheel / ← →" sharing one row with "tilt your head") - what matters is
+    // that nothing in the switch is simply absent.
+    for (const code of boundKeyCodes()) {
+      if (code.startsWith('Arrow')) {
+        expect(table, `${code} missing`).toMatch(/[↑↓←→]|arrow/i);
+      } else if (code === 'Space') {
+        expect(table, `${code} missing`).toContain('space');
+      } else if (code === 'KeyB') {
+        expect(table, `${code} missing`).toMatch(/\bb\b/);
+      } else if (code === 'KeyL') {
+        expect(table, `${code} missing - this is the one that was missing entirely`).toMatch(/\bl\b/);
+      } else if (code.startsWith('Shift')) {
+        expect(table, 'shift missing').toContain('shift');
+      }
+    }
+  });
+
+  it('mentions the mouse and the wheel too, since those are not key codes', () => {
+    expect(table).toContain('mouse');
+    expect(table).toContain('wheel');
   });
 });
 

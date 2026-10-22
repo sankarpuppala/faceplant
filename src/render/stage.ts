@@ -177,6 +177,22 @@ export class Stage {
   render(input: RenderInput): void {
     const { world, snapshot, settings, level } = input;
     const ink = settings.filter === 'ink' || settings.hideMyFace;
+    /**
+     * Whether the contours should draw *as* the face (full candle colour,
+     * near-opaque) rather than as a thin guide laid over real video.
+     *
+     * `ink` only asked "did the player choose the INK filter, or Hide My
+     * Face". It never asked the much more basic question "is there a video
+     * under this at all" - so in Assist mode, which has no camera and
+     * therefore `this.videoSprite === null`, the renderer still drew the
+     * dim 35%-alpha overlay style that only makes sense on top of a picture.
+     * The result was the very first thing every new player sees (U10 starts
+     * everyone in Assist, camera or not): a faint grey line on bare grain,
+     * nothing else in frame.
+     *
+     * `this.videoSprite` already carries exactly the fact that was missing.
+     */
+    const drawInk = ink || this.videoSprite === null;
     const reduced = settings.reducedEffects;
     const dtS = input.dtMs / 1000;
 
@@ -197,12 +213,13 @@ export class Stage {
       const lm = this.lightmapFilter;
       this.videoLayer.filters = lm === null ? filters : [...filters, lm];
       this.updateLightMap(input, ink);
-    } else if (ink) {
-      // INK: no picture at all, so nothing to light - the contours are the face.
-      this.updateLightMap(input, ink);
+    } else if (drawInk) {
+      // INK, or no camera at all: no picture either way, so nothing to
+      // light - the contours are the face.
+      this.updateLightMap(input, drawInk);
     }
 
-    const ctx = makeDrawContext(input.cal, this.vp, input.timeMs, ink, reduced);
+    const ctx = makeDrawContext(input.cal, this.vp, input.timeMs, drawInk, reduced);
 
     // --- the face line ----------------------------------------------------
     drawContours(this.contourG, world.segments, ctx);

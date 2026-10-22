@@ -54,13 +54,21 @@ export const copy = {
     tapesTitle: 'The Shelf',
     tapesExplain: 'Five tapes of levels, a new Daily Tape each day, and the endless Long Tape.',
     controlsTitle: 'Controls without a camera',
+    // This table, `copy.hud.assistHint` (the in-play reminder) and the real
+    // bindings in `AssistInput` (src/face/syntheticSource.ts) are three
+    // separate places describing the same keys, and two of them had already
+    // drifted: Left/Right also tilt, same as the wheel, and L smiles.
+    // Neither was ever in this table either.
+    // tests/face/assistControls.test.ts checks this array against the real
+    // switch statement, the same way it checks the toast hint.
     controls: [
       ['Mouse', 'move your face'],
       ['Space', 'open the Maw'],
       ['Shift', 'raise your brows (flings them)'],
+      ['L', 'smile'],
       ['B', 'blink (an eyelid is a bridge)'],
       ['↑ ↓', 'lean in and out'],
-      ['Wheel', 'tilt your head'],
+      ['Wheel / ← →', 'tilt your head'],
       ['P / Esc', 'pause'],
     ] as const,
     close: 'Got it',

@@ -56,6 +56,18 @@ const DRAWN_CONTOURS: readonly ContourName[] = [
 ];
 
 /**
+ * The lip contours - the Maw's edge - drawn separately from the rest of the
+ * face so they can be its own colour.
+ *
+ * The Maw is the single hazard the whole game is built around, and on the
+ * face it used to be indistinguishable from any other contour line: the same
+ * line that draws a harmless cheek drew the mouth that eats a Wick who stands
+ * on it. The only mark of it anywhere was a small text label and icon at the
+ * foot of the HUD - nowhere near the mouth a player is actually looking at.
+ */
+const LIP_CONTOURS: readonly ContourName[] = ['lipUpper', 'lipLower'];
+
+/**
  * The face as a thin line (SPEC section 12.4 layer 3). In INK mode this *is* the
  * face - no video is drawn at all, which is also "Hide my face" (decision D8),
  * so a streamer can play without appearing on camera.
@@ -75,6 +87,7 @@ export function drawContours(g: Graphics, segments: readonly Segment[], ctx: Dra
     for (const seg of segments) {
       if (seg.kind === 'ruin' || seg.kind === 'wall') continue;
       if (seg.contour !== null && !DRAWN_CONTOURS.includes(seg.contour)) continue;
+      if (seg.contour !== null && LIP_CONTOURS.includes(seg.contour)) continue;
       if (seg.walkable !== pass) continue;
       const a = sx({ x: seg.ax, y: seg.ay }, ctx);
       const b = sx({ x: seg.bx, y: seg.by }, ctx);
@@ -87,6 +100,39 @@ export function drawContours(g: Graphics, segments: readonly Segment[], ctx: Dra
         width: pass ? width : width * 0.7,
         color: faceColor,
         alpha: pass ? faceAlpha : faceAlpha * 0.4,
+        cap: 'round',
+      });
+    }
+  }
+
+  // The Maw's edge, in `tokens.rec` - the same red the REC dot, the fail
+  // stamp and the critical loss-budget warning already use, so "red" already
+  // means danger before a player ever reaches the mouth.
+  //
+  // Drawn noticeably bolder than the rest of the face, not just a different
+  // hue: `this.taped.filters` (stage.ts) runs the whole scene through an
+  // old-film grade for the found-footage look, which mutes a line drawn at
+  // the same weight as everything else into a muddy brown rather than a
+  // clear red - confirmed by drawing it at full-saturation green first and
+  // watching the same grade turn that a drab olive. Extra width and alpha
+  // compensate for exactly that, so what survives the grade still reads as
+  // "this line is different" even after it is toned down.
+  for (const pass of [false, true]) {
+    let any = false;
+    for (const seg of segments) {
+      if (seg.contour === null || !LIP_CONTOURS.includes(seg.contour)) continue;
+      if (seg.walkable !== pass) continue;
+      const a = sx({ x: seg.ax, y: seg.ay }, ctx);
+      const b = sx({ x: seg.bx, y: seg.by }, ctx);
+      g.moveTo(a.x, a.y);
+      g.lineTo(b.x, b.y);
+      any = true;
+    }
+    if (any) {
+      g.stroke({
+        width: (pass ? width : width * 0.7) * 1.6,
+        color: tokens.rec,
+        alpha: Math.min(1, (pass ? faceAlpha : faceAlpha * 0.6) * 1.8),
         cap: 'round',
       });
     }
