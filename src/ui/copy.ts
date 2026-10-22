@@ -124,9 +124,26 @@ export const copy = {
     composure: 'COMPOSURE',
     lossBudget: (n: number): string =>
       n === 0 ? 'ONE MORE AND THE TAPE IS LOST' : `${n} MORE CAN BE LOST`,
-    noFace: 'No face yet — press P for Assist, or move into the light.',
+    // P does not switch to Assist by itself - it pauses, and Switch to Assist
+    // is a button on the pause screen. This used to say "press P for Assist",
+    // which was one step short of true and sent a stuck player looking for a
+    // key that does not exist.
+    noFace: 'No face yet — pause (P) and Switch to Assist, or move into the light.',
+    // Every real binding, including the two that had drifted out of this
+    // string entirely: ←→ also tilts (not just the wheel), and L smiles.
+    // Both existed in the input code with nothing on screen ever naming them.
     assistHint:
-      'Mouse moves your face · Space opens the Maw · Shift raises brows · B blinks · ↑↓ lean · wheel tilts · P or Esc pauses',
+      'Mouse moves your face · Space opens the Maw · Shift raises brows · B blinks · L smiles · ' +
+      '↑↓ lean, ←→ or wheel tilt · P or Esc pauses',
+    /**
+     * A tape's actual win/lose rule, stated in numbers, for the level intro
+     * card. The card used to show only flavour text ("hold still, your
+     * forehead is the bridge") and never the rule itself - a new player had
+     * no way to know what they were trying to do beyond "not lose", which is
+     * a mood, not a goal.
+     */
+    objective: (spawned: number): string =>
+      `${spawned} Wick${spawned === 1 ? '' : 's'}. Lose more than half and the tape is lost.`,
   },
 
   pause: {

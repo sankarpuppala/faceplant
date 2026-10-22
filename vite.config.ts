@@ -15,6 +15,16 @@ export default defineConfig({
       },
     },
   },
-  server: { port: 5173, open: false },
+  server: {
+    port: 5173,
+    open: false,
+    // `.uishots/` is `npm run check:ui`'s output directory, and that script
+    // deletes and recreates it on every run while a dev server may be
+    // watching the project tree. A headless Chrome screenshot landing in the
+    // directory at the same instant Vite's watcher is mid-stat on it crashed
+    // the whole dev server with an uncaught EBUSY - ignoring the directory is
+    // the fix, since nothing in it is ever a source file Vite should serve.
+    watch: { ignored: ['**/.uishots/**'] },
+  },
   preview: { port: 4173 },
 });

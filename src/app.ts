@@ -797,6 +797,15 @@ export class App {
     if (this.source === this.webcam && now - this.lastFaceAtMs > config.face.lostTrackingPauseMs) {
       return copy.pause.lostTracking;
     }
+    // The Assist control reminder used to live only on the pause screen, so a
+    // mouse-and-keyboard player - the default for a first-time player, U10 -
+    // had nothing on screen telling them what any key did while actually
+    // playing. `crashAtMs` doubles as the level's start time (set in
+    // `startLevel`); shown for the first few seconds of a level and then out
+    // of the way, same as it already fades once the player pauses once.
+    if (this.source === this.synthetic && now - this.crashAtMs < config.hud.assistHintMs) {
+      return copy.hud.assistHint;
+    }
     return null;
   }
 

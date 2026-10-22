@@ -976,6 +976,13 @@ export function levelIntro(level: Level): HTMLElement {
       el('p', { class: 'osd-text dim', text: level.label }),
       el('h2', { text: level.title }),
       level.hint === undefined ? null : el('p', { class: 'small dim', text: level.hint }),
+      // The flavour hint above says what the level is teaching, never what it
+      // is scoring - a player could clear tapes for a while with no idea what
+      // they were actually trying to protect. Endless has no fixed roster to
+      // state a count for, so it keeps the card to flavour alone.
+      level.mode === 'endless'
+        ? null
+        : el('p', { class: 'small objective', text: copy.hud.objective(level.spawn.count) }),
     ]),
   ]);
 }

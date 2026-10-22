@@ -92,6 +92,8 @@ const level = {
   title: 'LANTERN LIGHT',
   mode: 'story',
   timeLimitS: 90,
+  spawn: { count: 9 },
+  hint: 'the nose is a slide, and it points at your mouth.',
 } as unknown as Level;
 
 const titleActions: S.TitleActions = {

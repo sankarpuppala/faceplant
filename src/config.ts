@@ -109,6 +109,20 @@ export const config = {
    * somewhere new or drops it into the void. Both are outcomes the player can
    * see and understand; being quietly stuck is not.
    */
+  hud: {
+    /**
+     * How long the Assist control reminder stays on screen at the start of a
+     * level, ms.
+     *
+     * It used to only exist on the pause screen - a player using the mouse
+     * and keyboard (the default for a first-time player, U10) had nothing on
+     * screen telling them Space opens the Maw or that the wheel tilts, and
+     * would have had to stop and pause to find out. Shown for a few seconds
+     * and then it gets out of the way.
+     */
+    assistHintMs: 7000,
+  },
+
   trapped: {
     /**
      * Turn-backs in a row before a Wick stops refusing the edge.

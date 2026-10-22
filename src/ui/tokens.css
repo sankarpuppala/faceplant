@@ -202,6 +202,9 @@ p { margin: 0; }
   color: var(--candle);
 }
 .dim { color: var(--bone-dim); }
+/* The level intro's actual win/lose rule, set apart from the flavour hint
+   above it so it reads as the goal rather than more mood text. */
+.objective { color: var(--candle); margin-top: 4px; }
 .small { font-size: 13px; }
 .osd-text { font-family: var(--osd); font-size: clamp(15px, 2vw, 22px); letter-spacing: 0.04em; }
 .label-text { font-family: var(--label); }
