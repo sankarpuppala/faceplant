@@ -19,11 +19,12 @@ import { Application, Container, Graphics, Sprite, Texture } from 'pixi.js';
 import { SimpleLightmapFilter } from 'pixi-filters';
 import { config } from '../config.ts';
 import type { Calibration } from '../face/calibration.ts';
+import type { Vec2 } from '../face/types.ts';
 import type { ActiveLine } from '../game/lineDirector.ts';
 import type { Level } from '../game/levelSchema.ts';
 import type { ActiveScare } from '../game/scares.ts';
 import type { World, WorldSnapshot } from '../physics/world.ts';
-import { computeViewport, worldToScreen, type Viewport } from '../terrain/mapping.ts';
+import { computeViewport, videoRect, worldToScreen, type Viewport } from '../terrain/mapping.ts';
 import type { Settings } from '../storage/settings.ts';
 import { LightMap, type LightSource } from './lighting.ts';
 import { Osd } from './osd.ts';
@@ -163,15 +164,33 @@ export class Stage {
     this.fitVideo();
   }
 
-  /** Covers the viewport with the camera frame, cropping rather than stretching. */
+  /**
+   * Places the camera frame exactly where the terrain mapping puts the image
+   * (`videoRect`), so the picture and the contours cannot disagree.
+   */
   private fitVideo(): void {
     const s = this.videoSprite;
     if (s === null) return;
     const tw = s.texture.width || 16;
     const th = s.texture.height || 9;
-    const scale = Math.max(this.vp.width / tw, this.vp.height / th);
+    const r = videoRect(this.vp, tw / th);
+    const scale = r.height / th;
     s.scale.set(-scale, scale);
-    s.position.set(this.vp.offsetX + this.vp.width / 2, this.vp.offsetY + this.vp.height / 2);
+    s.position.set(r.x + r.width / 2, r.y + r.height / 2);
+  }
+
+  /**
+   * Where a normalised camera-image point is drawn on screen, through the video
+   * sprite's own transform. The debug overlay compares this with where the
+   * terrain puts the same landmark; null without a camera picture.
+   */
+  videoPointToScreen(p: Vec2): Vec2 | null {
+    const s = this.videoSprite;
+    if (s === null) return null;
+    return {
+      x: s.position.x + (p.x - 0.5) * s.texture.width * s.scale.x,
+      y: s.position.y + (p.y - 0.5) * s.texture.height * s.scale.y,
+    };
   }
 
   render(input: RenderInput): void {

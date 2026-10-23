@@ -75,7 +75,11 @@ import {
   titleScreen,
   type HudView,
 } from './ui/screens.ts';
-import { worldToScreen } from './terrain/mapping.ts';
+import { imageToWorld, worldToScreen } from './terrain/mapping.ts';
+import { DebugOverlay, debugEnabled } from './ui/debugOverlay.ts';
+
+/** MediaPipe face-mesh index of the nose tip, the debug overlay's alignment probe. */
+const NOSE_TIP_INDEX = 1;
 
 type Phase = 'boot' | 'notice' | 'title' | 'camera' | 'calibrate' | 'shelf' | 'playing' | 'paused' | 'results' | 'ending' | 'menu';
 
@@ -128,12 +132,16 @@ export class App {
   private durability: Durability = 'best-effort';
   private practiceRun = false;
   private frameTimes: number[] = [];
+  private readonly debug = debugEnabled() ? new DebugOverlay() : null;
+  private renderParity = false;
+  private lastRenderMs = 0;
 
   constructor(host: HTMLElement) {
     this.stageHost = el('div', { id: 'stage-host' });
     this.uiHost = el('div', { id: 'ui-host' });
     host.appendChild(this.stageHost);
     host.appendChild(this.uiHost);
+    if (this.debug !== null) host.appendChild(this.debug.node);
 
     this.settings = applySystemPreferences(loadSettings());
     this.progress = loadProgress();
@@ -621,7 +629,23 @@ export class App {
     return t;
   }
 
+  /**
+   * The fix for the tracking regression (docs/OVERHAUL.md section 7). From
+   * 0455ab0 on, a returning player's primary button was CONTINUE, which went
+   * straight into a level on the synthetic Assist face and never started the
+   * camera - so the face on screen stopped following the player's own face.
+   * Every route into a level now honours the chosen controls: in face mode
+   * with no live camera, the camera (and calibration) comes first.
+   */
+  private needsCamera(): boolean {
+    return this.settings.controls === 'face' && this.webcam === null;
+  }
+
   private async playStory(id: string): Promise<void> {
+    if (this.needsCamera()) {
+      await this.enableCamera(() => void this.playStory(id));
+      return;
+    }
     try {
       this.startLevel(await loadLevel(id), false);
     } catch (err) {
@@ -633,10 +657,18 @@ export class App {
   }
 
   private async playDaily(): Promise<void> {
+    if (this.needsCamera()) {
+      await this.enableCamera(() => void this.playDaily());
+      return;
+    }
     this.startLevel(generateDaily(dayNumber()), false);
   }
 
   private async playEndless(): Promise<void> {
+    if (this.needsCamera()) {
+      await this.enableCamera(() => void this.playEndless());
+      return;
+    }
     this.startLevel(generateEndless(), true);
   }
 
@@ -723,13 +755,17 @@ export class App {
     this.lastFrameMs = now;
     if (this.frameTimes.length > 120) this.frameTimes.shift();
     this.frameTimes.push(dtMs);
+    this.updateDebug(now);
 
     // Assist produces a frame on demand; the webcam pushes them asynchronously.
     if (this.source === this.synthetic && this.synthetic !== null) this.synthetic.tick(now);
 
     if (this.phase !== 'playing') {
-      // Still render, so menus sit over a live stage rather than a frozen one.
-      if (this.world !== null && this.level !== null) this.renderFrame(now, 0);
+      // Pause and Results are see-through, so the stage under them stays live.
+      // Every other menu is opaque: drawing the whole stage and its post-process
+      // under it only took frame time away from the tracker.
+      const seeThrough = this.phase === 'paused' || this.phase === 'results';
+      if (seeThrough && this.world !== null && this.level !== null) this.renderFrame(now, 0);
       return;
     }
 
@@ -774,11 +810,44 @@ export class App {
     this.hudView?.setLossBudget(snap.lossesRemaining);
     this.hudView?.setHint(this.hintText(world, now));
 
-    this.renderFrame(now, dtMs, snap);
-    if (this.recordingThisRun) this.capturePortrait(now, snap);
+    this.renderParity = !this.renderParity;
+    if (!this.trackerStarved() || this.renderParity) {
+      this.renderFrame(now, Math.min(100, now - this.lastRenderMs), snap);
+      this.lastRenderMs = now;
+      if (this.recordingThisRun) this.capturePortrait(now, snap);
+    }
 
     if (snap.over) this.finishRun();
   };
+
+  /** True while a live camera is being out-run by the renderer. */
+  private trackerStarved(): boolean {
+    if (this.source !== this.webcam || this.webcam === null) return false;
+    const hz = this.webcam.info().trackingHz;
+    return hz > 0 && hz < config.render.trackerPriorityHz && this.fps > config.render.throttleAboveFps;
+  }
+
+  /** `?debug=1` - the numbers docs/OVERHAUL.md section 7 is judged by. */
+  private updateDebug(now: number): void {
+    const d = this.debug;
+    if (d === null) return;
+    const recent = this.frameTimes.slice(-60);
+    let offsetPx: number | null = null;
+    const raw = this.source === this.webcam ? (this.webcam?.latestRaw() ?? null) : null;
+    const nose = raw?.faces[0]?.landmarks[NOSE_TIP_INDEX];
+    if (raw !== null && nose !== undefined) {
+      const inVideo = this.stage.videoPointToScreen(nose);
+      const inWorld = worldToScreen(imageToWorld(nose, this.cal, raw.aspect), this.cal, this.stage.viewport);
+      if (inVideo !== null) offsetPx = Math.hypot(inVideo.x - inWorld.x, inVideo.y - inWorld.y);
+    }
+    d.update(now, {
+      trackerHz: this.trackingHz,
+      fps: this.fps,
+      worstFrameMs: recent.length === 0 ? 0 : Math.max(...recent),
+      detectMs: this.source === this.webcam ? (this.webcam?.detectMs ?? null) : null,
+      offsetPx,
+    });
+  }
 
   /** Pushes a face frame into the world, applying the finale override if due. */
   private consumeFace(frame: FaceFrame, now: number, world: World): void {

@@ -149,6 +149,11 @@ export class TapeFx {
   private wobblePhase = 0;
   private shake = 0;
 
+  constructor() {
+    // Capped, so a 2x display does not quadruple the cost of every pass.
+    for (const f of [this.crt, this.film, this.split, this.reducedCrt]) f.resolution = config.render.postfxResolutionMultiple;
+  }
+
   /** Current shake offset in pixels, applied by the stage to the world container. */
   shakeOffset = { x: 0, y: 0 };
 

@@ -1079,3 +1079,16 @@ body.reduced-effects .bd-flame,
 body.reduced-effects .bd-halo,
 body.reduced-effects .bd-fog { animation: none; }
 body.reduced-effects .bd-embers { display: none; }
+
+/* `?debug=1` (src/ui/debugOverlay.ts). Above everything, never interactive. */
+.debug-overlay {
+  position: fixed;
+  right: var(--s2);
+  bottom: var(--s2);
+  z-index: 1000;
+  pointer-events: none;
+  background: rgba(0, 0, 0, 0.7);
+  border: 1px solid var(--line-bright);
+  padding: var(--s1) var(--s2);
+}
+.debug-overlay-text { margin: 0; font: 16px/1.15 var(--osd); color: var(--candle); }

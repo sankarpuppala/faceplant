@@ -20,6 +20,8 @@ export const config = {
     /** Exponential moving average on blendshapes; 0..1 fraction, higher = less smoothing. */
     blendEmaAlpha: 0.5,
     lostTrackingPauseMs: 2000,
+    /** With no video-frame callback for this long, an animation-frame loop drives detection instead, ms. */
+    videoCallbackTimeoutMs: 250,
     /** Tracking below this rate switches on low-power defaults. */
     lowPowerTrackingHz: 14,
   },
@@ -537,6 +539,16 @@ export const config = {
   render: {
     /** Target aspect of the stage; the camera frame is cropped to it. */
     aspect: 16 / 9,
+    /** Resolution of the full-screen tape post-process passes, as a multiple of CSS pixels, independent of devicePixelRatio. */
+    postfxResolutionMultiple: 1,
+    /**
+     * Tracking comes first (docs/OVERHAUL.md section 7.5). While the camera is
+     * live and the tracker is below this rate, Hz, the stage is redrawn on
+     * every other animation frame; physics still steps every frame.
+     */
+    trackerPriorityHz: 25,
+    /** Only throttle while rendering above this rate, fps, so it never drops below 30. */
+    throttleAboveFps: 50,
     /** Declared maximum flash rate per effect, in Hz. WCAG 2.3.1 requires <= 3. */
     effects: {
       scanlines: { maxFlashHz: 0 },

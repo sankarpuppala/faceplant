@@ -92,6 +92,27 @@ export function screenToWorld(p: Vec2, cal: Calibration, vp: Viewport): Vec2 {
   return uvToWorld(uv, cal);
 }
 
+/**
+ * Where the camera picture must be drawn so that it sits exactly under the
+ * terrain: the rectangle `worldToScreen` maps the whole image onto. UV spans
+ * 0..videoAspect horizontally and 0..1 vertically, so the picture is one
+ * viewport tall and anchored at the viewport's left edge.
+ *
+ * For a 16:9 camera on the 16:9 stage this is the viewport itself, which is
+ * what v1 drew. For any other camera aspect v1 scaled the picture to *cover*
+ * the stage instead, which stretched it away from the landmarks - a 4:3 camera
+ * (or low-power mode, which asks for 640x480) put the terrain a quarter of a
+ * screen off the face.
+ */
+export function videoRect(vp: Viewport, videoAspect: number): { x: number; y: number; width: number; height: number } {
+  return {
+    x: vp.offsetX,
+    y: vp.offsetY,
+    width: (videoAspect / vp.aspect) * vp.width,
+    height: vp.height,
+  };
+}
+
 /** One FH in pixels for the current viewport. Used for radii and line widths. */
 export function fhToPx(cal: Calibration, vp: Viewport): number {
   return cal.fhUV * vp.height;
