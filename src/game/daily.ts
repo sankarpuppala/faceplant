@@ -67,7 +67,7 @@ export function generateDaily(day: number): Level {
       // Nothing but your upper lip between the lantern and the Gate, plus one
       // Crawler walking the same road.
       hazards.push({ type: 'crawler', x: farSide * 1.3, y: route.y, atMs: 15_000 + rng.int(0, 8000) });
-      hint = 'keep the lip shut. the lip is the bridge.';
+      hint = 'keep the lip shut. it is the bridge.';
       break;
 
     case 'siege':
@@ -83,7 +83,7 @@ export function generateDaily(day: number): Level {
       // Fast spawns and moths: the Procession is the point (U3).
       hazards.push({ type: 'moth', x: rng.range(-0.9, 0.9), y: CEILING_Y, atMs: 17_000 });
       hazards.push({ type: 'moth', x: rng.range(-0.9, 0.9), y: CEILING_Y, atMs: 45_000 });
-      hint = 'they come quickly. do not laugh at the queue.';
+      hint = 'they come quickly. do not make a sound.';
       break;
 
     case 'blinkRun':
@@ -149,10 +149,10 @@ export function generateEndless(): Level {
     hazards: [],
     dark: { startRadiusFh: 99, shrinkFhPerS: 0 },
     scares: [],
-    lines: [{ atMs: 1800, text: 'this tape does not end. we keep walking.' }],
+    lines: [{ atMs: 1800, text: 'this tape does not end.' }],
     candles: { 3: 24, 2: 12, 1: 4 },
     mode: 'endless',
-    hint: 'it does not end. see how long you can keep a straight face.',
+    hint: 'it does not end.',
   };
   validateLevel(level, 'endless');
   return level;

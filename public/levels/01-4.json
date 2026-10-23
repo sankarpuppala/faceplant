@@ -74,11 +74,11 @@
   "lines": [
     {
       "atMs": 2000,
-      "text": "it comes closer…"
+      "text": "it comes closer."
     },
     {
       "atMs": 12000,
-      "text": "lean in, mountain. be larger."
+      "text": "closer. closer is wider."
     },
     {
       "atMs": 26000,
@@ -91,5 +91,5 @@
     "3": 7
   },
   "mode": "story",
-  "hint": "lean in. a bigger face makes wider bridges."
+  "hint": "lean in. a closer face is a wider road."
 }

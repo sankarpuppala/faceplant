@@ -47,7 +47,7 @@ export const ROUTES: Record<RouteName, Route> = {
   chin: {
     y: 0.46,
     inner: 0.24,
-    blurb: 'across the chin, right under the hunger.',
+    blurb: 'across the chin, under the mouth.',
   },
 };
 

@@ -33,8 +33,8 @@ export const TAPES: readonly Tape[] = [
   },
   {
     number: 3,
-    name: "don't laugh",
-    teaches: 'levels written to be funny, with timing tight enough that laughing costs you',
+    name: 'hold your breath',
+    teaches: 'long crossings over the mouth, where any sound costs you',
     levelIds: ['03-1', '03-2', '03-3'],
   },
   {

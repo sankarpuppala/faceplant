@@ -582,7 +582,7 @@ export class World {
       c.touchMs += dtS * 1000;
 
       if (c.touchMs >= config.crawler.touchMs * this.tunables.crawlerTouchMultiple) {
-        // Warding Salt (shop): a Crawler is driven back off the first flame it
+        // A warding tunable: a Crawler is driven back off the first flame it
         // reaches. The slow and the longer contact window it also buys only
         // help a player who is watching that exact Crawler at that exact
         // moment, which measured as saving nobody at all; this saves a flame
@@ -592,7 +592,7 @@ export class World {
           c.touchingWickId = null;
           c.touchMs = 0;
           c.targetWickId = null;
-          c.retreatUntilMs = this.elapsedMs + config.rites.wardingSaltRetreatMs;
+          c.retreatUntilMs = this.elapsedMs + config.crawler.wardRetreatMs;
           c.leaveToX = c.body.x > 0 ? -99 : 99;
           this.riteSaves.wardingSalt++;
           this.events.push({ kind: 'warded', x: c.body.x, y: c.body.y });

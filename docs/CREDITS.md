@@ -8,21 +8,23 @@ what is actually in `public/`, so an uncredited asset fails the test run.
 
 ## Audio
 
-**There are no audio files.** Every sound in the game is **synthesised at
-runtime** in Web Audio by `src/audio/sound.ts` — the tape hiss, the drone, the
-Wick squeaks, the gulp, the flame-out, the Gate chime, the Crawler skitter, the
-flick, the offering, the Procession steps, the yawn and the scare stingers.
+**There are no audio files.** Every sound in the game is **synthesised**:
+the library in `src/audio/samples.ts` is rendered once at startup, in plain
+JavaScript, into Web Audio buffers - drone, room tone, tape hiss, creaks,
+breathing, whispers, heartbeat, the scream layers, sub boom, metal scrape,
+tape stop / rewind / insert, candle snuff, gulp, groan, bell, piano, UI
+clicks and the music box - and `src/audio/sound.ts` adds a few oscillator
+blips for the Wicks. All of it is original work made for this game and is
+dedicated to the public domain (CC0) along with it.
 
-This was a deliberate change from SPEC v1.0's "CC0 sounds in `public/audio`":
+The horror overhaul (`docs/OVERHAUL.md` §6.2) asked for CC0 recordings from
+Freesound, OpenGameArt and Kenney. None of those sites were reachable from the
+machine it was built on, and no encoder was installed, so nothing was
+imported. If recordings are added later, each one gets a line here: name,
+author, URL, licence (CC0 only; anything else needs approval first).
 
-- nothing to licence, and nothing to get wrong in an audit;
-- about a megabyte less to download;
-- no possibility of a runtime fetch for a sound file (invariant 1);
-- the Wick squeaks can be pitched **per Wick**, so a crowd of them sounds like
-  a crowd rather than one clip retriggered eight times.
-
-Everything passes through a master limiter at −6 dBFS, and scare sounds are
-given a 30 ms minimum attack (invariant 6).
+Everything passes through a limiter and a hard ceiling at −6 dBFS, and scare
+sounds attack over at least 30 ms (invariant 6).
 
 ---
 
@@ -35,12 +37,14 @@ by `npm run setup:fonts`. **Never loaded from the Google Fonts CDN**
 | File | Family | Licence |
 |---|---|---|
 | `vt323-latin-400-normal.woff2` | VT323 | SIL Open Font License 1.1 (OFL) — © 2011 The VT323 Project Authors |
-| `special-elite-latin-400-normal.woff2` | Special Elite | Apache License 2.0 — Astigmatic (AOETI) |
+| `im-fell-english-sc-latin-400-normal.woff2` | IM Fell English SC | SIL Open Font License 1.1 (OFL) — © Igino Marini, the Fell Types |
 | `inter-latin-400-normal.woff2` | Inter | SIL Open Font License 1.1 (OFL) — © 2016 The Inter Project Authors |
 | `inter-latin-600-normal.woff2` | Inter (semibold) | SIL Open Font License 1.1 (OFL) — © 2016 The Inter Project Authors |
 
 Packaged by [Fontsource](https://fontsource.org/) as `@fontsource/vt323`,
-`@fontsource/special-elite` and `@fontsource/inter`.
+`@fontsource/im-fell-english-sc` and `@fontsource/inter`. IM Fell English
+SC replaced Special Elite (Apache 2.0) in the horror overhaul, so every font
+is now OFL.
 
 ---
 

@@ -10,7 +10,7 @@
  */
 
 import { config } from '../config.ts';
-import { hex, tokens } from '../render/tokens.ts';
+import { fonts, hex, tokens } from '../render/tokens.ts';
 import type { WorldSnapshot } from '../physics/world.ts';
 
 export interface PortraitFrameInput {
@@ -100,7 +100,7 @@ export class PortraitCanvas {
     ctx.fillStyle = hex(tokens.boneDim);
     ctx.fillText('COMPOSURE', pad, barY - 34);
 
-    ctx.fillStyle = '#140f19';
+    ctx.fillStyle = hex(tokens.ink);
     ctx.fillRect(pad, barY, barW, 14);
     const frac = Math.max(0, Math.min(1, snapshot.composure.fraction));
     ctx.fillStyle =
@@ -123,7 +123,7 @@ export class PortraitCanvas {
 
     // Wordmark, so a reposted clip still carries the name (pillar 4).
     ctx.textAlign = 'center';
-    ctx.font = '34px "Special Elite", "Courier New", serif';
+    ctx.font = `34px ${fonts.label}`;
     ctx.fillStyle = hex(tokens.boneDim);
     ctx.fillText('FACEPLANT', canvas.width / 2, canvas.height - 58);
   }

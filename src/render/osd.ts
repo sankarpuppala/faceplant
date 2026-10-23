@@ -1,14 +1,20 @@
 /**
- * The camcorder on-screen display (SPEC section 12.4 layer 6).
+ * The camcorder on-screen display (docs/OVERHAUL.md section 3.1, after Iron
+ * Lung: almost no UI). Four corners and nothing else:
  *
- * Sits outside the post-process container, so the OSD stays crisp while the
- * picture behind it is a degraded tape. That contrast is most of what makes the
- * look read as "a camcorder recording something" rather than "a game with a
- * filter on it".
+ *   top-left      ● REC 00:01:12
+ *   top-right     T02/3
+ *   bottom-left   one candle per Wick: lit, out, or still to come
+ *   bottom-right  the Maw: lips, dim while shut, blood-red while open
  *
- * The Maw indicator earns its place: players cannot see their own mouth, and
- * the game is about their mouth, so it is the one piece of the HUD that teaches
- * something they cannot otherwise learn.
+ * Composure is not on the OSD at all - it is shown by the picture (the stage
+ * closes the vignette and thickens the grain as it falls).
+ *
+ * Below 30 % composure the OSD briefly shows things it should not, for one
+ * frame at a time (The Mortuary Assistant): "REC" reads "SEE", or there is
+ * one Wick too many. A text change, never a change in brightness.
+ *
+ * Sits outside the post-process container, so it stays crisp over the tape.
  */
 
 import { Container, Graphics, Text, TextStyle } from 'pixi.js';
@@ -18,226 +24,164 @@ import type { Viewport } from '../terrain/mapping.ts';
 import { fonts, tokens } from './tokens.ts';
 
 function osdStyle(size: number, color: number = tokens.bone): TextStyle {
-  return new TextStyle({ fontFamily: fonts.osd, fontSize: size, fill: color, letterSpacing: 1.2 });
+  return new TextStyle({ fontFamily: fonts.osd, fontSize: size, fill: color, letterSpacing: 1.4 });
 }
 
-/** mm:ss:ff at 25 frames, which is what a camcorder timestamp looks like. */
+/** hh:mm:ss, which is what a camcorder's tape counter shows. */
 export function formatTimecode(ms: number): string {
-  const total = Math.max(0, Math.floor(ms));
-  const mm = Math.floor(total / 60_000);
-  const ss = Math.floor((total % 60_000) / 1000);
-  const ff = Math.floor(((total % 1000) / 1000) * 25);
+  const total = Math.max(0, Math.floor(ms / 1000));
+  const hh = Math.floor(total / 3600);
+  const mm = Math.floor((total % 3600) / 60);
+  const ss = total % 60;
   const p = (n: number): string => String(n).padStart(2, '0');
-  return `${p(mm)}:${p(ss)}:${p(ff)}`;
+  return `${p(hh)}:${p(mm)}:${p(ss)}`;
+}
+
+/** `02-3` -> `T02/3`; the daily and the Long Tape get their own marks. */
+export function tapeMark(levelId: string, mode: 'story' | 'daily' | 'endless', wave = 0): string {
+  if (mode === 'daily') return 'DAILY';
+  if (mode === 'endless') return `LONG W${String(wave).padStart(2, '0')}`;
+  const [tape, chapter] = levelId.split('-');
+  return `T${tape ?? '00'}/${Number(chapter ?? 1)}`;
+}
+
+export interface OsdInput {
+  snap: WorldSnapshot;
+  mark: string;
+  /** How many Wicks the level will spawn in all, so the row is full from the start. */
+  rosterSize: number;
+  timeMs: number;
+  reducedEffects: boolean;
+  /** Composure 0..1, for the glitch. */
+  composure: number;
+  /** Glitches are a scare; Scares off means none. */
+  glitches: boolean;
 }
 
 export class Osd extends Container {
   private readonly recDot = new Graphics();
   private readonly recText: Text;
-  private readonly timecode: Text;
-  private readonly tapeLabel: Text;
-  private readonly sp: Text;
-  private readonly battery = new Graphics();
-  private readonly candleBar = new Graphics();
-  private readonly candleCount: Text;
-  private readonly mawIcon = new Graphics();
-  private readonly mawLabel: Text;
-  private readonly scoreText: Text;
-  private readonly waveText: Text;
-  private readonly procText: Text;
+  private readonly mark: Text;
+  private readonly wicks = new Graphics();
+  private readonly maw = new Graphics();
+
+  private size = 16;
+  private left = 0;
+  private right = 0;
+  private bottom = 0;
+
+  private lastRec = '';
+  private lastMark = '';
+  private lastWickKey = '';
+  private lastMawOpen: boolean | null = null;
+  /** Until when, on the render clock, the current glitch shows; and when the next may start. */
+  private glitchUntilMs = 0;
+  private nextGlitchAtMs = 0;
+  private glitch: 'see' | 'extra' | null = null;
 
   constructor() {
     super();
-    this.recText = new Text({ text: 'REC', style: osdStyle(20) });
-    this.timecode = new Text({ text: '00:00:00', style: osdStyle(20) });
-    this.tapeLabel = new Text({ text: '', style: osdStyle(20) });
-    this.sp = new Text({ text: 'SP', style: osdStyle(20) });
-    this.candleCount = new Text({ text: '', style: osdStyle(18, tokens.boneDim) });
-    this.mawLabel = new Text({ text: 'MAW', style: osdStyle(16, tokens.boneDim) });
-    this.scoreText = new Text({ text: '', style: osdStyle(22, tokens.candle) });
-    this.waveText = new Text({ text: '', style: osdStyle(18, tokens.boneDim) });
-    this.procText = new Text({ text: '', style: osdStyle(20, tokens.candle) });
-
-    this.addChild(
-      this.recDot,
-      this.recText,
-      this.timecode,
-      this.tapeLabel,
-      this.sp,
-      this.battery,
-      this.candleBar,
-      this.candleCount,
-      this.mawIcon,
-      this.mawLabel,
-      this.scoreText,
-      this.waveText,
-      this.procText,
-    );
+    this.recText = new Text({ text: 'REC 00:00:00', style: osdStyle(20) });
+    this.mark = new Text({ text: '', style: osdStyle(20) });
+    this.addChild(this.recDot, this.recText, this.mark, this.wicks, this.maw);
   }
 
   /** Lays the OSD out for a viewport. Called on resize, not every frame. */
   layout(vp: Viewport): void {
-    const size = Math.max(12, Math.round(vp.height * 0.032));
-    const pad = Math.round(vp.height * 0.035);
-    const left = vp.offsetX + pad;
-    const right = vp.offsetX + vp.width - pad;
+    const size = Math.max(14, Math.round(vp.height * 0.036));
+    const pad = Math.round(vp.height * 0.05);
+    this.size = size;
+    this.left = vp.offsetX + pad;
+    this.right = vp.offsetX + vp.width - pad;
+    this.bottom = vp.offsetY + vp.height - pad;
     const top = vp.offsetY + pad;
-    const bottom = vp.offsetY + vp.height - pad;
 
-    for (const t of [this.recText, this.timecode, this.tapeLabel, this.sp, this.scoreText, this.procText]) {
-      t.style.fontSize = size;
-    }
-    this.candleCount.style.fontSize = Math.round(size * 0.9);
-    this.waveText.style.fontSize = Math.round(size * 0.9);
-    this.mawLabel.style.fontSize = Math.round(size * 0.78);
+    this.recText.style.fontSize = size;
+    this.mark.style.fontSize = size;
 
-    const dotR = size * 0.26;
-    this.recDot.clear().circle(left + dotR, top + size * 0.52, dotR).fill({ color: tokens.rec });
-    this.recText.position.set(left + dotR * 2 + size * 0.35, top);
-    this.timecode.position.set(left, top + size * 1.2);
+    const dotR = size * 0.24;
+    this.recDot.clear().circle(this.left + dotR, top + size * 0.52, dotR).fill({ color: tokens.rec });
+    this.recText.position.set(this.left + dotR * 2 + size * 0.3, top);
+    this.mark.anchor.set(1, 0);
+    this.mark.position.set(this.right, top);
 
-    this.sp.anchor.set(1, 0);
-    this.sp.position.set(right, top);
-    this.tapeLabel.anchor.set(1, 0);
-    this.tapeLabel.position.set(right, top + size * 1.2);
+    this.wicks.position.set(this.left, this.bottom - size * 1.5);
+    this.maw.position.set(this.right - size * 0.9, this.bottom - size * 0.45);
 
-    // Decorative battery, bottom of the right stack.
-    const bw = size * 1.5;
-    const bh = size * 0.62;
-    this.battery
-      .clear()
-      .rect(right - bw, top + size * 2.5, bw, bh)
-      .stroke({ width: 1, color: tokens.boneDim, alpha: 0.8 })
-      .rect(right - bw + 2, top + size * 2.5 + 2, bw * 0.62 - 2, bh - 4)
-      .fill({ color: tokens.boneDim, alpha: 0.8 })
-      .rect(right, top + size * 2.5 + bh * 0.28, 2, bh * 0.44)
-      .fill({ color: tokens.boneDim, alpha: 0.8 });
-
-    this.scoreText.anchor.set(1, 1);
-    this.scoreText.position.set(right, bottom - size * 1.5);
-    this.waveText.anchor.set(1, 1);
-    this.waveText.position.set(right, bottom - size * 0.2);
-
-    this.candleCount.position.set(left, bottom - size * 0.95);
-    this.candleBar.position.set(left, bottom - size * 2.5);
-
-    this.mawLabel.anchor.set(0.5, 1);
-    this.mawLabel.position.set(vp.offsetX + vp.width / 2, bottom);
-    this.mawIcon.position.set(vp.offsetX + vp.width / 2, bottom - size * 1.5);
-
-    this.procText.anchor.set(0, 1);
-    this.procText.position.set(left, bottom - size * 3.6);
-
-    this.lastSize = size;
-
-    // Everything memoised in `update` was drawn at the old size, so a resize
-    // has to invalidate it or the candle row and Maw icon keep the old scale.
-    this.lastCandleKey = '';
+    // Everything memoised in `update` was drawn at the old size.
+    this.lastWickKey = '';
     this.lastMawOpen = null;
   }
 
-  private lastSize = 16;
-
-  /**
-   * Memos for the per-frame work that used to be unconditional. The OSD is
-   * updated every rendered frame, but almost nothing on it changes that often:
-   * the score changes on a save, the candle row changes on an outcome, the
-   * Maw icon changes on a state flip. Rebuilding all of it 60 times a second -
-   * including an Intl `toLocaleString` call and two full Graphics rebuilds -
-   * was spending frame budget that the face contour needed.
-   */
-  private lastScore = -1;
-  private lastTimecode = '';
-  private lastLabel = '';
-  private lastCandleKey = '';
-  private lastCountText = '';
-  private lastMawOpen: boolean | null = null;
-  private lastWaveText = '';
-  private lastProcText = '';
-
-  update(snap: WorldSnapshot, label: string, timeMs: number, reducedEffects: boolean, endless: boolean): void {
-    const size = this.lastSize;
+  update(input: OsdInput): void {
+    const { snap, timeMs } = input;
+    const size = this.size;
 
     // REC dot blinks at 1 Hz (config.render.effects.recDot.maxFlashHz).
     const hz = config.render.effects.recDot.maxFlashHz;
-    this.recDot.alpha = reducedEffects ? 1 : (Math.floor((timeMs / 1000) * hz * 2) % 2 === 0 ? 1 : 0.18);
+    this.recDot.alpha = input.reducedEffects ? 1 : Math.floor((timeMs / 1000) * hz * 2) % 2 === 0 ? 1 : 0.18;
 
-    const tc = formatTimecode(snap.elapsedMs);
-    if (tc !== this.lastTimecode) {
-      this.timecode.text = tc;
-      this.lastTimecode = tc;
+    this.updateGlitch(input);
+
+    const rec = `${this.glitch === 'see' ? 'SEE' : 'REC'} ${formatTimecode(snap.elapsedMs)}`;
+    if (rec !== this.lastRec) {
+      this.recText.text = rec;
+      this.lastRec = rec;
     }
-    if (label !== this.lastLabel) {
-      this.tapeLabel.text = label;
-      this.lastLabel = label;
+    if (input.mark !== this.lastMark) {
+      this.mark.text = input.mark;
+      this.lastMark = input.mark;
     }
 
-    // Candle counter: lit for each saved Wick, unlit for each lost one.
-    // Rebuilt only when an outcome actually changes.
-    const candleKey = `${snap.spawned}:${snap.saved}:${snap.lost}`;
-    if (candleKey !== this.lastCandleKey) {
-      this.lastCandleKey = candleKey;
-      this.candleBar.clear();
-      const iconW = size * 0.42;
-      const gap = size * 0.2;
-      const shown = Math.min(14, snap.spawned);
-      for (let i = 0; i < shown; i++) {
+    // One candle per Wick: lit when saved, dark when lost, faint until then.
+    const extra = this.glitch === 'extra' ? 1 : 0;
+    const roster = Math.min(config.hud.maxWickIconsCount, Math.max(input.rosterSize, snap.spawned) + extra);
+    const wickKey = `${roster}:${snap.outcomes.join(',')}`;
+    if (wickKey !== this.lastWickKey) {
+      this.lastWickKey = wickKey;
+      const g = this.wicks.clear();
+      const w = size * 0.36;
+      const gap = size * 0.24;
+      for (let i = 0; i < roster; i++) {
         const outcome = snap.outcomes[i];
-        const x = i * (iconW + gap);
+        const x = i * (w + gap);
         const lit = outcome === 'saved';
-        const pending = outcome === 'alive';
-        this.candleBar
-          .rect(x, size * 0.5, iconW, size * 0.95)
-          .fill({ color: tokens.wax, alpha: lit ? 0.95 : pending ? 0.4 : 0.14 });
-        if (lit) {
-          this.candleBar.circle(x + iconW / 2, size * 0.32, iconW * 0.42).fill({ color: tokens.candle, alpha: 0.95 });
-        }
+        const lost = outcome !== undefined && outcome !== 'saved' && outcome !== 'alive';
+        g.rect(x, size * 0.45, w, size * 0.9).fill({ color: lost ? tokens.rot : tokens.wax, alpha: lit ? 0.95 : lost ? 0.9 : 0.3 });
+        if (lit) g.circle(x + w / 2, size * 0.26, w * 0.42).fill({ color: tokens.candle, alpha: 0.95 });
       }
     }
 
-    const countText = endless
-      ? `SAVED ${snap.saved}  LOST ${snap.lost}/${config.endless.lossesAllowed}`
-      : `${snap.saved}/${snap.spawned} SAVED`;
-    if (countText !== this.lastCountText) {
-      this.candleCount.text = countText;
-      this.lastCountText = countText;
-    }
-
-    // The Maw indicator: lips that glow `rec` while open (SPEC section 12.4).
-    // Only two shapes exist, so it is redrawn on the flip, not every frame.
+    // The Maw: lips, dim while shut and blood-red while open. Two shapes only,
+    // so it is redrawn on the flip, never per frame.
     const open = snap.maw.open;
     if (open !== this.lastMawOpen) {
       this.lastMawOpen = open;
-      const w = size * 1.5;
-      const h = size * (open ? 0.72 : 0.2);
-      this.mawIcon.clear();
-      this.mawIcon
+      const w = size * 1.6;
+      const h = size * (open ? 0.75 : 0.22);
+      this.maw
+        .clear()
         .moveTo(-w / 2, 0)
         .quadraticCurveTo(0, -h, w / 2, 0)
         .quadraticCurveTo(0, h, -w / 2, 0)
-        .fill({ color: open ? tokens.rec : tokens.ink, alpha: open ? 0.85 : 0.6 })
-        .stroke({ width: 1.5, color: open ? tokens.rec : tokens.boneDim, alpha: open ? 1 : 0.6 });
-      this.mawLabel.style.fill = open ? tokens.rec : tokens.boneDim;
+        .fill({ color: open ? tokens.blood : tokens.ink, alpha: open ? 0.95 : 0.6 })
+        .stroke({ width: 1.5, color: open ? tokens.rec : tokens.boneDim, alpha: open ? 0.9 : 0.55 });
     }
+  }
 
-    // `toLocaleString` is an Intl call; it has no business running 60 times a
-    // second for a number that changes when a Wick reaches the Gate.
-    if (snap.score !== this.lastScore) {
-      this.lastScore = snap.score;
-      this.scoreText.text = snap.score.toLocaleString('en-US');
+  /** One frame of wrongness every few seconds, only while composure is low. */
+  private updateGlitch(input: OsdInput): void {
+    const now = input.timeMs;
+    if (this.glitch !== null && now >= this.glitchUntilMs) this.glitch = null;
+    if (!input.glitches || input.composure >= config.hud.glitchBelowComposureFraction) {
+      this.glitch = null;
+      return;
     }
-
-    const waveText = endless ? `WAVE ${snap.wave}` : `${Math.ceil(snap.timeLeftS)}s`;
-    if (waveText !== this.lastWaveText) {
-      this.waveText.text = waveText;
-      this.lastWaveText = waveText;
-    }
-
-    // U3 - the Procession multiplier. Hidden at x1 so it only appears when it means something.
-    const procText = snap.procession.multiple > 1 ? `PROCESSION x${snap.procession.multiple}` : '';
-    if (procText !== this.lastProcText) {
-      this.procText.text = procText;
-      this.lastProcText = procText;
+    if (this.glitch === null && now >= this.nextGlitchAtMs) {
+      this.glitch = Math.random() < 0.5 ? 'see' : 'extra';
+      this.glitchUntilMs = now + config.hud.glitchMs;
+      const [lo, hi] = config.hud.glitchGapMs;
+      this.nextGlitchAtMs = now + lo + Math.random() * (hi - lo);
     }
   }
 }

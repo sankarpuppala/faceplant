@@ -86,15 +86,15 @@
   "lines": [
     {
       "atMs": 2000,
-      "text": "a moth. it wants my head."
+      "text": "a moth. it wants the light."
     },
     {
       "atMs": 16000,
-      "text": "blow it away! open the maw and BLOW!"
+      "text": "breathe on it. only on it."
     },
     {
       "atMs": 20000,
-      "text": "but we are standing on the lip. think, mountain."
+      "text": "we are standing on the lip."
     }
   ],
   "candles": {
@@ -103,5 +103,5 @@
     "3": 9
   },
   "mode": "story",
-  "hint": "open it for the moth, shut it for the wicks. good luck."
+  "hint": "open for the moth. shut for the wicks."
 }

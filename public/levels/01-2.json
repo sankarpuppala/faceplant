@@ -3,7 +3,7 @@
   "tape": 1,
   "index": 2,
   "label": "T01/2",
-  "title": "Good Slide",
+  "title": "The Slope",
   "timeLimitS": 75,
   "spawn": {
     "x": -1.42,
@@ -75,15 +75,15 @@
   "lines": [
     {
       "atMs": 2000,
-      "text": "big nose. good slide."
+      "text": "the nose slopes to the mouth."
     },
     {
       "atMs": 14000,
-      "text": "the slide ends near the hunger. mind that."
+      "text": "the slope ends at the mouth."
     },
     {
       "atMs": 34000,
-      "text": "walk softly on the chin."
+      "text": "something under the chin."
     }
   ],
   "candles": {
@@ -92,5 +92,5 @@
     "3": 5
   },
   "mode": "story",
-  "hint": "the nose is a slide, and it points at your mouth."
+  "hint": "the nose slopes down. it ends at your mouth."
 }

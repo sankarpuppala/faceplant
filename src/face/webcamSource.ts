@@ -49,11 +49,16 @@ export class WebcamFaceSource implements FaceSource {
   private stream: MediaStream | null = null;
   private readonly videoEl: HTMLVideoElement;
   private raf = 0;
+  private vfc = 0;
+  private lastVideoCallbackMs = -Infinity;
   private frame: FaceFrame | null = null;
   private rawFrame: RawFrame | null = null;
   private lastVideoTime = -1;
   private hz = 0;
   private lastTickMs = 0;
+  private meanDtMs = 0;
+  /** Smoothed wall time of one `detectForVideo` call, ms. For the debug overlay. */
+  detectMs = 0;
   private running = false;
   private cal: Calibration;
   private aspectValue = config.render.aspect;
@@ -120,7 +125,7 @@ export class WebcamFaceSource implements FaceSource {
 
     this.landmarker = await this.createLandmarker();
     this.running = true;
-    this.loop();
+    this.schedule();
   }
 
   private async waitForMetadata(): Promise<void> {
@@ -172,15 +177,49 @@ export class WebcamFaceSource implements FaceSource {
     throw new CameraError('The face model could not be loaded.', 'model');
   }
 
-  private loop = (): void => {
-    if (!this.running) return;
-    this.raf = requestAnimationFrame(this.loop);
+  /**
+   * Detection is driven by the video, not by the renderer (docs/OVERHAUL.md
+   * section 7.5): `requestVideoFrameCallback` fires once per *new camera
+   * frame*, so the landmarker never runs twice on one frame and never waits on
+   * the game's render. Some browsers never call it back for a video that is not
+   * in the page (and older Firefox lacks it), so a light animation-frame
+   * watchdog takes over whenever no video callback has arrived for a while -
+   * the v1 behaviour, as a floor rather than the design.
+   */
+  private schedule(): void {
+    const v = this.videoEl as HTMLVideoElement & {
+      requestVideoFrameCallback?: (cb: (now: number, meta: { mediaTime: number }) => void) => number;
+    };
+    if (typeof v.requestVideoFrameCallback === 'function') {
+      const onFrame = (_now: number, meta: { mediaTime: number }): void => {
+        if (!this.running) return;
+        this.lastVideoCallbackMs = performance.now();
+        this.detect(meta.mediaTime);
+        this.vfc = v.requestVideoFrameCallback?.(onFrame) ?? 0;
+      };
+      this.vfc = v.requestVideoFrameCallback(onFrame);
+    }
+    const watchdog = (): void => {
+      if (!this.running) return;
+      this.raf = requestAnimationFrame(watchdog);
+      if (performance.now() - this.lastVideoCallbackMs < config.face.videoCallbackTimeoutMs) return;
+      this.detect(this.videoEl.currentTime);
+    };
+    this.raf = requestAnimationFrame(watchdog);
+  }
 
+  /** Which clock drove the last detection, for the debug overlay. */
+  get drivenByVideo(): boolean {
+    return performance.now() - this.lastVideoCallbackMs < config.face.videoCallbackTimeoutMs;
+  }
+
+  private detect(videoTime: number): void {
+    if (!this.running) return;
     const lm = this.landmarker;
     if (lm === null) return;
     // detectForVideo throws if handed the same timestamp twice.
-    if (this.videoEl.currentTime === this.lastVideoTime) return;
-    this.lastVideoTime = this.videoEl.currentTime;
+    if (videoTime === this.lastVideoTime) return;
+    this.lastVideoTime = videoTime;
 
     const now = performance.now();
     let result;
@@ -189,9 +228,16 @@ export class WebcamFaceSource implements FaceSource {
     } catch {
       return;
     }
+    const spent = performance.now() - now;
+    this.detectMs = this.detectMs === 0 ? spent : this.detectMs * 0.9 + spent * 0.1;
 
+    // Smooth the interval, then invert. Averaging 1000/dt instead (v1) reads
+    // high whenever frame timing jitters.
     const dt = now - this.lastTickMs;
-    if (this.lastTickMs > 0 && dt > 0) this.hz = this.hz * 0.85 + (1000 / dt) * 0.15;
+    if (this.lastTickMs > 0 && dt > 0) {
+      this.meanDtMs = this.meanDtMs === 0 ? dt : this.meanDtMs * 0.9 + dt * 0.1;
+      this.hz = 1000 / this.meanDtMs;
+    }
     this.lastTickMs = now;
 
     const faces = result.faceLandmarks ?? [];
@@ -223,7 +269,7 @@ export class WebcamFaceSource implements FaceSource {
       t: now,
       faces: rawFaces.map((rf) => buildFaceData(rf, this.cal, this.aspectValue)),
     };
-  };
+  }
 
   /**
    * Collapses MediaPipe's 52 blendshape categories into our five, averaging
@@ -270,6 +316,9 @@ export class WebcamFaceSource implements FaceSource {
     this.running = false;
     if (this.raf !== 0) cancelAnimationFrame(this.raf);
     this.raf = 0;
+    const v = this.videoEl as HTMLVideoElement & { cancelVideoFrameCallback?: (h: number) => void };
+    if (this.vfc !== 0) v.cancelVideoFrameCallback?.(this.vfc);
+    this.vfc = 0;
     this.landmarker?.close();
     this.landmarker = null;
     for (const track of this.stream?.getTracks() ?? []) track.stop();

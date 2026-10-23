@@ -15,15 +15,16 @@
  * dimmed by their own darkness.
  */
 
-import { Application, Container, Graphics, Sprite, Texture } from 'pixi.js';
+import { Application, Container, Graphics, Rectangle, Sprite, Texture } from 'pixi.js';
 import { SimpleLightmapFilter } from 'pixi-filters';
 import { config } from '../config.ts';
 import type { Calibration } from '../face/calibration.ts';
+import type { Vec2 } from '../face/types.ts';
 import type { ActiveLine } from '../game/lineDirector.ts';
 import type { Level } from '../game/levelSchema.ts';
 import type { ActiveScare } from '../game/scares.ts';
 import type { World, WorldSnapshot } from '../physics/world.ts';
-import { computeViewport, worldToScreen, type Viewport } from '../terrain/mapping.ts';
+import { computeViewport, videoRect, worldToScreen, type Viewport } from '../terrain/mapping.ts';
 import type { Settings } from '../storage/settings.ts';
 import { LightMap, type LightSource } from './lighting.ts';
 import { Osd } from './osd.ts';
@@ -60,8 +61,8 @@ export interface RenderInput {
    * whenever Scares are off, so the app does not have to special-case it.
    */
   watcherElapsedMs: number | null;
-  /** Shown when no face has been seen yet. */
-  showNoFaceHint: boolean;
+  /** The OSD's top-right mark, e.g. `T02/3`. */
+  mark: string;
 }
 
 export class Stage {
@@ -135,6 +136,10 @@ export class Stage {
     const w = this.app.renderer.width;
     const h = this.app.renderer.height;
     this.vp = computeViewport(w, h, config.render.aspect);
+    // The tape effects cover the whole frame. Left to itself Pixi filters only
+    // the bounds of what is drawn, and with no camera picture under it (Assist)
+    // that stopped the scanlines, grain and vignette at the Gate's edge.
+    this.taped.filterArea = new Rectangle(0, 0, w, h);
     this.osd.layout(this.vp);
     this.lightMap?.resize(config.render.aspect);
     this.staticKey = '';
@@ -163,20 +168,38 @@ export class Stage {
     this.fitVideo();
   }
 
-  /** Covers the viewport with the camera frame, cropping rather than stretching. */
+  /**
+   * Places the camera frame exactly where the terrain mapping puts the image
+   * (`videoRect`), so the picture and the contours cannot disagree.
+   */
   private fitVideo(): void {
     const s = this.videoSprite;
     if (s === null) return;
     const tw = s.texture.width || 16;
     const th = s.texture.height || 9;
-    const scale = Math.max(this.vp.width / tw, this.vp.height / th);
+    const r = videoRect(this.vp, tw / th);
+    const scale = r.height / th;
     s.scale.set(-scale, scale);
-    s.position.set(this.vp.offsetX + this.vp.width / 2, this.vp.offsetY + this.vp.height / 2);
+    s.position.set(r.x + r.width / 2, r.y + r.height / 2);
+  }
+
+  /**
+   * Where a normalised camera-image point is drawn on screen, through the video
+   * sprite's own transform. The debug overlay compares this with where the
+   * terrain puts the same landmark; null without a camera picture.
+   */
+  videoPointToScreen(p: Vec2): Vec2 | null {
+    const s = this.videoSprite;
+    if (s === null) return null;
+    return {
+      x: s.position.x + (p.x - 0.5) * s.texture.width * s.scale.x,
+      y: s.position.y + (p.y - 0.5) * s.texture.height * s.scale.y,
+    };
   }
 
   render(input: RenderInput): void {
     const { world, snapshot, settings, level } = input;
-    const ink = settings.filter === 'ink' || settings.hideMyFace;
+    const ink = settings.filter === 'ink';
     /**
      * Whether the contours should draw *as* the face (full candle colour,
      * near-opaque) rather than as a thin guide laid over real video.
@@ -197,6 +220,7 @@ export class Stage {
     const dtS = input.dtMs / 1000;
 
     this.fx.update(dtS, input.timeMs, reduced);
+    this.fx.setComposure(world.composureState.fraction);
     if (!reduced) this.flickerPhase += dtS * Math.PI * 2 * config.light.flickerHz;
 
     // --- post-process and shake ------------------------------------------
@@ -281,7 +305,15 @@ export class Stage {
     // `osdVisible` is honoured here rather than set: the menus render over a
     // live stage, and an earlier version forced it true every frame, so hiding
     // it for the title screen lasted exactly one frame.
-    this.osd.update(snapshot, level.label, input.timeMs, reduced, level.mode === 'endless');
+    this.osd.update({
+      snap: snapshot,
+      mark: input.mark,
+      rosterSize: level.mode === 'endless' ? snapshot.spawned : level.spawn.count,
+      timeMs: input.timeMs,
+      reducedEffects: reduced,
+      composure: world.composureState.fraction,
+      glitches: settings.scares && !reduced,
+    });
     this.osd.visible = this.osdVisible;
 
     this.app.render();

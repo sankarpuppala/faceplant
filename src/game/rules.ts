@@ -4,9 +4,8 @@
 
 import { config } from '../config.ts';
 import type { Level } from './levelSchema.ts';
-import type { RiteSaves, WorldSnapshot } from '../physics/world.ts';
+import type { WorldSnapshot } from '../physics/world.ts';
 import type { LostCause } from '../physics/wick.ts';
-import { coinsFor } from './shop.ts';
 
 export type Stamp = 'KEPT STILL' | 'THE MAW AWOKE' | 'LIGHTS OUT' | 'COMPOSED' | 'CRACKED' | 'TAPE LOST';
 
@@ -34,18 +33,6 @@ export interface RunResult {
   wave: number;
   /** True when more than half the roster was lost - the tape is lost. */
   failed: boolean;
-  /** Coins earned, 0 on a failed or practice run. */
-  coins: number;
-  /**
-   * How many flames each shop item saved this run.
-   *
-   * Reported on the results screen, and the reason is worth keeping: the shop
-   * did not feel worth buying from, and a measured sweep showed five of the
-   * seven items saved no Wicks at all. Those are fixed - but even the two
-   * that always worked were invisible, because a permanent passive effect
-   * that nobody tells you about is indistinguishable from a bug.
-   */
-  riteSaves: RiteSaves;
 }
 
 export function candlesFor(level: Level, saved: number): 0 | 1 | 2 | 3 {
@@ -71,16 +58,7 @@ export function stampFor(result: Omit<RunResult, 'stamp'>): Stamp {
   return 'KEPT STILL';
 }
 
-/**
- * @param replay true when this level has already been cleared, which pays
- *   fewer coins - so grinding the easiest level is not the best way to earn.
- */
-export function buildResult(
-  level: Level,
-  snap: WorldSnapshot,
-  finalScore: number,
-  replay = false,
-): RunResult {
+export function buildResult(level: Level, snap: WorldSnapshot, finalScore: number): RunResult {
   const partial: Omit<RunResult, 'stamp'> = {
     levelId: level.id,
     label: level.label,
@@ -101,18 +79,6 @@ export function buildResult(
     elapsedMs: snap.elapsedMs,
     wave: snap.wave,
     failed: snap.failed,
-    riteSaves: snap.riteSaves,
-    coins: coinsFor({
-      failed: snap.failed,
-      saved: snap.saved,
-      spawned: snap.spawned,
-      candles: candlesFor(level, snap.saved),
-      composureLeft: snap.composure.fraction,
-      offerings: snap.offerings,
-      mode: level.mode,
-      wave: snap.wave,
-      replay,
-    }),
   };
   return { ...partial, stamp: stampFor(partial) };
 }

@@ -3,7 +3,7 @@
   "tape": 3,
   "index": 3,
   "label": "T03/3",
-  "title": "The Dance",
+  "title": "Stand Very Still",
   "timeLimitS": 90,
   "spawn": {
     "x": -1.42,
@@ -96,19 +96,19 @@
   "lines": [
     {
       "atMs": 2000,
-      "text": "the festival of standing extremely still."
+      "text": "stand very still."
     },
     {
       "atMs": 20000,
-      "text": "the dance is: do not move. we are excellent dancers."
+      "text": "do not move. they see movement."
     },
     {
       "atMs": 42000,
-      "text": "you are a terrible dancer."
+      "text": "you moved."
     },
     {
       "atMs": 64000,
-      "text": "the festival is going badly. keep dancing."
+      "text": "still. still. still."
     }
   ],
   "candles": {
@@ -117,5 +117,5 @@
     "3": 9
   },
   "mode": "story",
-  "hint": "two moths, two crawlers, and a festival of standing still."
+  "hint": "two moths, two crawlers. stand very still."
 }

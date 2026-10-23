@@ -3,7 +3,7 @@
   "tape": 3,
   "index": 2,
   "label": "T03/2",
-  "title": "A Joke, Mid-Crossing",
+  "title": "A Whisper, Mid-Crossing",
   "timeLimitS": 85,
   "spawn": {
     "x": 1.42,
@@ -74,27 +74,27 @@
   "lines": [
     {
       "atMs": 3000,
-      "text": "while i cross, a joke. to steady us."
+      "text": "while i cross, listen."
     },
     {
       "atMs": 10000,
-      "text": "why did the pilgrim cross the lip."
+      "text": "there is something under your tongue."
     },
     {
       "atMs": 15000,
-      "text": "because the lip was there. that is the joke."
+      "text": "it moves when you swallow."
     },
     {
       "atMs": 19000,
-      "text": "do not laugh. i am standing on the joke."
+      "text": "do not open. i am standing on it."
     },
     {
       "atMs": 36000,
-      "text": "nobody is laughing. good. nobody is laughing?"
+      "text": "you are quiet. good. stay quiet."
     },
     {
       "atMs": 58000,
-      "text": "i have more jokes. that is the threat."
+      "text": "i have more to tell you."
     }
   ],
   "candles": {
@@ -103,5 +103,5 @@
     "3": 8
   },
   "mode": "story",
-  "hint": "they will tell you a joke while standing on your lip. don't."
+  "hint": "they will whisper while they stand on your lip. do not answer."
 }

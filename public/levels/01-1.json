@@ -59,19 +59,19 @@
   "lines": [
     {
       "atMs": 1400,
-      "text": "…warm."
+      "text": "it's warm here."
     },
     {
       "atMs": 6000,
-      "text": "do not wake the maw."
+      "text": "do not wake the mouth."
     },
     {
       "atMs": 15000,
-      "text": "the forehead is a field. we walk it."
+      "text": "the forehead is a field. it is warm."
     },
     {
       "atMs": 30000,
-      "text": "hold still and this is easy. that is the trick."
+      "text": "hold still. that is all it asks."
     }
   ],
   "candles": {
@@ -80,5 +80,5 @@
     "3": 3
   },
   "mode": "story",
-  "hint": "hold still. your forehead is the bridge."
+  "hint": "hold still. your forehead is the road."
 }

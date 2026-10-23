@@ -101,7 +101,7 @@
     },
     {
       "atMs": 25000,
-      "text": "closer, everyone. closer to the flames."
+      "text": "closer to the flames."
     },
     {
       "atMs": 50000,
@@ -114,5 +114,5 @@
     "3": 8
   },
   "mode": "story",
-  "hint": "the dark closes in, and wax falls. tilt: a brow makes a roof."
+  "hint": "the dark closes in. wax falls. a brow is a roof."
 }

@@ -127,7 +127,7 @@
   "lines": [
     {
       "atMs": 2000,
-      "text": "the last tape. it knows it is the last tape."
+      "text": "the last tape. it knows."
     },
     {
       "atMs": 47000,
@@ -139,7 +139,7 @@
     },
     {
       "atMs": 74000,
-      "text": "the dark is faster now. run."
+      "text": "the dark is faster now."
     }
   ],
   "candles": {
@@ -148,5 +148,5 @@
     "3": 9
   },
   "mode": "story",
-  "hint": "midway through, your face stops being yours for two seconds."
+  "hint": "halfway through, your face stops being yours."
 }

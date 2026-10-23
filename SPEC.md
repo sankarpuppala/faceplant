@@ -455,26 +455,40 @@ crisp white text of a camcorder on-screen display. The ruins look like burnt
 paper silhouettes with amber rim light. Quiet, cinematic, a little funny.
 
 ### 12.2 Tokens (`src/render/tokens.ts` and `src/ui/tokens.css`)
+Revised by the horror overhaul (`docs/OVERHAUL.md` §2.1): less cosy, more damp
+and wrong.
+
 | Token | Value | Use |
 |---|---|---|
-| `void` | `#07060A` | Darkness, backgrounds |
-| `ink` | `#15121B` | Panels, ruins fill |
-| `dusk` | `#2B2236` | Raised panels, shadows with colour |
-| `bone` | `#EDE6D6` | OSD and UI text |
-| `boneDim` | `#9E968A` | Secondary text |
-| `candle` | `#FFB547` | Flames, light, primary accent, candle icons |
-| `ember` | `#FF6A2B` | Flame cores, highlights |
-| `rec` | `#E0322B` | REC dot, the Maw indicator only |
+| `void` | `#050407` | Everything |
+| `ink` | `#0E0C11` | Panels (barely lifted) |
+| `rot` | `#1B1714` | Raised panels, ruins: warm, dirty, not purple |
+| `bone` | `#E6DFCF` | Text |
+| `boneDim` | `#8C8578` | Secondary text (5.6:1 on `void`, 4.9:1 on `rot`) |
+| `candle` | `#F2A93B` | The ONE accent: primary button, flames, focus |
+| `ember` | `#C4521F` | Flame core, hover |
+| `blood` | `#8E1B17` | Loss stamp, Maw indicator. Never a full-screen red flash |
+| `rec` | `#D8302A` | REC dot only |
+| `static` | `#B9C2C9` at 8 % | Grain and noise overlays |
 | `mold` | `#5F6E4C` | Crawlers |
-| `chalk` | `#FFB547` at 35 % | Face contour line |
+| `wax` | `#EADCC0` | Wick bodies, tape labels |
+| `chalk` | `candle` at 35 % | Face contour line |
 
-UI text must meet 4.5:1 contrast against its background (bone on void is
-well above this; check `boneDim` uses).
+UI text must meet 4.5:1 contrast against its background.
 
 ### 12.3 Type (self-hosted, OFL)
-- **VT323** — camcorder OSD, timestamps, counters, the tagline.
-- **Special Elite** — tape labels, the title, lore on ruins, Wick lines.
-- **Inter** — settings, notices and any text longer than two lines.
+- **IM Fell English SC** — the wordmark, stamps, tape labels, headings.
+- **VT323** — camcorder OSD, timestamps, counters, buttons, the tagline.
+- **Inter** — settings, notices and any text longer than two lines; 16 px minimum.
+
+### 12.3.1 Buttons (`docs/OVERHAUL.md` §2.4)
+One system everywhere. **Primary**: `candle` fill, `void` text, VT323
+uppercase, 56 px tall, at least 220 px wide, a ≤ 2 Hz flicker on hover.
+**Secondary**: transparent, 1 px `bone` 40 % border, same size as the primary
+in its row. **Tertiary**: an underlined-on-hover text link with a 44 px hit
+area. Buttons in a row are equal width with a 16 px gap, centred, in a sticky
+footer that is never off screen. Arrows/Tab move focus, Enter confirms, Esc
+goes back; the focus ring is 2 px `candle` at a 2 px offset.
 
 ### 12.4 Render stack (bottom to top)
 1. **Video**: mirrored webcam frame graded by the active filter — VHS
@@ -498,18 +512,27 @@ well above this; check `boneDim` uses).
 7. **DOM overlay** for menus and dialogs.
 
 ### 12.5 Screens
+Rewritten by the horror overhaul (`docs/OVERHAUL.md` §3). Every screen has an
+exit, Main menu is at most two inputs away, and Esc always works;
+`npm run check:flow` walks the real game to prove it.
+
 | Screen | Content |
 |---|---|
-| First-launch notice | 13+, startling moments, flashing-light-safe, "the camera never leaves this device". Buttons: *Continue* / *Continue with scares off* |
-| Title | Black with soft CRT glow. **FACEPLANT** in Special Elite, wide letter-spacing, faint jitter (off in reduced effects). Tagline *Don't open your mouth.* in VT323. Primary *▶ INSERT FACE*; secondary *Play without camera*. Footer: *The camera never leaves this device.* |
-| Camera explainer | One sentence on what the camera is used for and that nothing is uploaded, then the browser prompt |
-| Calibration | §7, with a single candle as the focus point |
-| Tape shelf | VHS spines standing on a shelf, video-store style; each spine has a handwritten-style sticker (Special Elite) and its candles; the selected tape is pulled forward and glows; the Daily Tape has a red sticker `daily #017` |
-| In-game | §12.4 |
-| Pause | VHS `PAUSE ‖` freeze with a slight horizontal tear; Resume, Restart, Settings, Shelf |
-| Results | Freeze-frame with VHS pause distortion; a stamp — *KEPT STILL* (none swallowed), *THE MAW AWOKE* (≥ 1 swallowed), *LIGHTS OUT* (none saved); candles lighting one by one; stats (saved x/y, the Maw woke n×, laughs n); *Next*, *Retry*, *Save clip* (if recording), *Save card*, *Copy result* |
-| Settings | Scares on/off; Effects full/reduced; Filter VHS/INK/THERMAL; Hide my face (forces INK); Controls Face/Assist; Recalibrate; Clip recording off/on; Volume |
-| Ending | Black. *thank you for keeping still.* Credits. |
+| First-launch notice | 13+, startling moments, flashing-light-safe, camera stays on device. A Scares on/off toggle. One button: *Continue* |
+| Title | A dark room, one candle, and a face in the dark whose eyes open after 20 s idle. **FACEPLANT** in IM Fell English SC, *Don't open your mouth.* Buttons: *Insert face* (primary), *Play without camera*, *Settings*; tertiary *Leave* (credits, to black) |
+| Camera | One sentence, then the browser prompt. *Turn on camera*, *Play without camera*, *Back* |
+| Calibration | "Hold still. Look at the candle." while a ring fills, then "Open your mouth.", then done (§7). *Skip*, *Back* |
+| Tape shelf | A row of tape spines with number, name and candles earned; locked tapes are black spines; the selected spine slides out; its chapters below. *Play*, *Back*. No shop |
+| Tape insert | 2 s: the tape's label on masking tape and a tracking settle. The very first tape also shows the face diagram and one sentence, and waits for a key |
+| In-game | §12.4. HUD: `● REC 00:01:12` top-left, `T02/3` top-right, Wick icons bottom-left, Maw lips bottom-right. Composure is shown by the picture: the vignette closes and the grain thickens. A lost or loading face shows `TRACKING…` with a Pause button |
+| Pause | *Resume*, *Restart* (0.8 s rewind), *Settings*, *Main menu* |
+| Results | Stamp *TAPE SAVED* / *TAPE LOST*, one line, the Wick row, the score. *Next tape* or *Try again* (primary), *Tape shelf*, *Main menu*; *Save clip* only when a clip was recorded |
+| Settings | Volume (master, music, sound), Scares, Reduce effects, Camera filter (VHS/INK/THERMAL), Clip recording (opt-in), *Back*; *Erase progress* as a two-tap link |
+| Ending | *thank you for keeping still.* *Main menu* |
+
+Removed by the overhaul: How to Play (replaced by the diagram on the first
+insert), the Ossuary, the shop and coins, the share text, Copy result and Save
+card, save export/import, Hide my face (INK does the same) and Low power.
 
 `docs/design-reference.html` shows the intended look of the title, shelf,
 in-game HUD and results; match its feel, not its pixels.
@@ -547,12 +570,35 @@ repeats within a level; ≥ 60 lines in `src/game/lines.ts`, tagged by trigger.
 ---
 
 ## 14. Audio
+Rewritten by the horror overhaul (`docs/OVERHAUL.md` §6). Scary is not loud:
+silence, anticipation, low frequency and timing.
 
-Bed: low tape hiss and a slow drone (CC0). Wicks: tiny pitched babble
-squeaks generated with jsfxr (no voice acting). Gulp, flame-out hiss, Gate
-chime, Crawler skitter, flick *boing*, results candle-lighting tones, scare
-stingers. Web Audio with a master limiter (invariant 6). Every file listed in
-`docs/CREDITS.md`.
+**Mix.** ambient, music, sfx and scare buses → master → compressor →
+limiter at −6 dBFS → hard ceiling at −6 dBFS → output. The scare bus is muted
+with Scares off. `duckFor` pulls the other buses down under a scare. Settings
+has master, music (music + ambient) and sound (sfx + scare) volumes.
+
+**Library** (`src/audio/samples.ts`). Every sound is synthesised in plain JS
+DSP and rendered once into a buffer: drone, room tone with wind, tape hiss,
+wood creak, close breathing, whispers (forward and reversed), heartbeat, the
+three scream layers, sub boom, metal scrape, tape stop, rewind, VHS insert,
+candle snuff, wet gulp, the Maw's groan, a soft bell, a low piano note, the
+UI click and clunk, and a music-box tine. Each is normalised to −14 LUFS, or
+quieter where its peak would pass −6 dBFS; scare sounds attack over ≥ 30 ms.
+`tests/audio/samples.test.ts` measures all of it. (The brief asked for CC0
+recordings; the sound sites and an encoder were not reachable from the build
+machine, so nothing was imported. Any sound can be replaced by a recording
+later: the mixer asks the library for a buffer by name.)
+
+**Behaviour.** Title: a detuned music box over the drone; on every third
+pass one note is wrong; a creak somewhere every 20–40 s. Level: drone, room
+tone and hiss. As composure falls the drone's filter opens and it rises; a
+heartbeat comes in below 40 %, whispers below 25 %, and the room tone is gone
+below 15 %. The Maw opening is a quiet wet groan; a swallowed Wick is a gulp
+and a muffled snuff; a saved Wick is a soft bell. Once per level, a creak far
+to one side and a breath, and nothing after (scare bus). The tape inserts,
+rewinds on retry and stops at the end; results land on one low piano note.
+The Wicks' own small sounds (squeaks, thuds, flicks) are oscillator glue.
 
 ---
 
