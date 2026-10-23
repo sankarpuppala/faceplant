@@ -955,3 +955,32 @@ tape with sound on.
    real launch date (Q5). Daily numbering is wrong until that is done.
 5. Replace the synthetic fixtures with real recordings from `/debug.html`.
 6. Deploy, and verify the camera on GitHub Pages and itch.io (AC-12, risk R4).
+
+---
+
+### Horror overhaul (docs/OVERHAUL.md), 2026-10-23/24
+
+Approved brief; overrode §8 rules 1, 2 and 4 for this task. All seven steps
+of OVERHAUL §9 built, one commit each.
+
+- **Tracking regression: commit 0455ab0.** A returning player's primary
+  button became CONTINUE, which played on the synthetic Assist face and never
+  started the camera. Confirmed at runtime (6fc0949 opens the camera screen,
+  0455ab0 plays on `synthetic`). Fixed, plus detection on
+  `requestVideoFrameCallback`, `?debug=1` overlay, `npm run bench:tracking`
+  (26 Hz median under software WebGL, fake 30 fps camera), and a v1 terrain
+  reference test.
+- Tokens, IM Fell English SC, one button system; the flow and every screen
+  rebuilt; How to Play, Ossuary, shop/coins, share text/card, save
+  export/import cut; copy rewritten quiet and lowercase; sound rebuilt as four
+  buses and a synthesised library (CC0 sites and an encoder were unreachable,
+  so nothing was imported); the Watcher rebuilt to the five-beat sheet.
+- New checks: `npm run check:flow` (walks every screen in headless Edge),
+  `tests/audio/samples.test.ts`, `tests/audio/mixer.test.ts`.
+- Tuning recorded (§8 rule 5): `watcher.stareMs/approachMs/holdMs/leaveMs`
+  replaced by `watcher.beatsMs` (1200/2600/3100/4400/6000); `audio.composure`
+  thresholds 0.4 / 0.25 / 0.15 new; `render.composureImage` new.
+- Soak: 74 reports, identical to before the overhaul (stranded Wicks on 03-x
+  and 04-x); physics was not changed. Not fixed here.
+- **Not verified by anyone yet:** whether any of it is frightening, and how
+  the synthesised sounds actually sound. Needs a human to play.
