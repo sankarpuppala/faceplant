@@ -34,16 +34,6 @@ const progress: Progress = {
     ]),
   ),
   survivors: { millicent: 2, horace: 4 },
-  ossuary: [
-    { name: 'millicent', title: 'the twice-lit', cause: 'maw', lastWords: 'it is smiling. why is it smiling.', levelLabel: 'TAPE 02 — 3', at: Date.now() },
-    { name: 'bartlett', title: null, cause: 'crawler', lastWords: 'something has my ankle.', levelLabel: 'TAPE 02 — 2', at: Date.now() },
-    { name: 'horace', title: 'the steadfast', cause: 'drip', lastWords: null, levelLabel: 'TAPE 04 — 1', at: Date.now() },
-    { name: 'gwendolyn', title: null, cause: 'moth', lastWords: 'it wants the light. it may not have it.', levelLabel: 'TAPE 03 — 3', at: Date.now() },
-    { name: 'ambrose', title: null, cause: 'void', lastWords: 'the mountain has moved.', levelLabel: 'TAPE 01 — 4', at: Date.now() },
-  ],
-  rites: ['steadyWicks', 'tallowShell'],
-  coins: 640,
-  coinsEarned: 1940,
   endlessBest: { score: 9120, waves: 14, saved: 38 },
   daily: null,
 };
@@ -71,8 +61,6 @@ const result: RunResult = {
   elapsedMs: 72_400,
   wave: 0,
   failed: false,
-  coins: 185,
-  riteSaves: { wardingSalt: 2, ironNerve: 0, tallowShell: 1, secondChance: 1, lanternOil: 0 },
 };
 
 const failedResult: RunResult = {
@@ -81,12 +69,10 @@ const failedResult: RunResult = {
   lost: 6,
   candles: 0,
   score: 940,
-  coins: 0,
   failed: true,
   stamp: 'TAPE LOST',
   lossesByCause: { maw: 2, void: 0, drip: 1, dark: 0, crawler: 2, moth: 1 },
   outcomes: ['maw', 'saved', 'crawler', 'maw', 'saved', 'drip', 'moth', 'saved', 'crawler'],
-  riteSaves: { wardingSalt: 0, ironNerve: 0, tallowShell: 0, secondChance: 0, lanternOil: 0 },
 };
 
 const level = {
@@ -96,112 +82,45 @@ const level = {
   mode: 'story',
   timeLimitS: 90,
   spawn: { count: 9 },
-  hint: 'the nose is a slide, and it points at your mouth.',
 } as unknown as Level;
 
-const titleActions: S.TitleActions = {
-  play: noop,
-  playNoCamera: noop,
-  shelf: noop,
-  settings: noop,
-  ossuary: noop,
-  shop: noop,
-  howToPlay: noop,
-};
-
-const shelfActions: S.ShelfActions = {
-  playLevel: noop,
-  playDaily: noop,
-  playEndless: noop,
-  shop: noop,
-  back: noop,
-};
-
-const pauseActions: S.PauseActions = {
-  resume: noop,
-  restart: noop,
-  settings: noop,
-  shelf: noop,
-  exit: noop,
-  howToPlay: noop,
-};
-
-const resultsActions: S.ResultsActions = {
-  next: noop,
-  retry: noop,
-  shelf: noop,
-  shop: noop,
-  copyResult: noop,
-  saveCard: noop,
-  saveClip: noop,
-};
-
-const settingsActions: S.SettingsActions = {
-  change: noop,
-  recalibrate: noop,
-  resetProgress: noop,
-  exportSave: noop,
-  importSave: noop,
-  close: noop,
-};
+const titleActions: S.TitleActions = { insertFace: noop, playNoCamera: noop, settings: noop, leave: noop };
+const shelfActions: S.ShelfActions = { playLevel: noop, playDaily: noop, playEndless: noop, back: noop };
+const pauseActions: S.PauseActions = { resume: noop, restart: noop, settings: noop, mainMenu: noop };
+const resultsActions: S.ResultsActions = { next: noop, retry: noop, shelf: noop, mainMenu: noop, saveClip: null };
+const settingsActions: S.SettingsActions = { change: noop, resetProgress: noop, back: noop };
 
 type Entry = [id: string, label: string, make: () => HTMLElement];
 
 const SCREENS: Entry[] = [
-  ['notice', 'First launch notice', () => S.noticeScreen(noop)],
-  [
-    'title',
-    'Title (returning player)',
-    () =>
-      S.titleScreen(titleActions, {
-        hasCamera: true,
-        reducedEffects: true,
-        returning: true,
-        candles: 11,
-        coins: progress.coins,
-        canSave: true,
-      }),
-  ],
-  [
-    'title-new',
-    'Title (first time)',
-    () =>
-      S.titleScreen(titleActions, {
-        hasCamera: true,
-        reducedEffects: true,
-        returning: false,
-        candles: 0,
-        coins: 0,
-        canSave: true,
-      }),
-  ],
-  ['howto', 'How to play', () => S.howToPlayScreen(noop)],
-  ['camera', 'Camera permission', () => S.cameraScreen(noop, noop)],
-  ['camera-error', 'Camera denied', () => S.cameraScreen(noop, noop, 'No camera found.')],
-  ['calibration', 'Calibration', () => S.calibrationScreen(noop, noop).node],
+  ['notice', 'First launch notice', () => S.noticeScreen(true, noop)],
+  ['title', 'Title', () => S.titleScreen(titleActions, { canSave: true })],
+  ['camera', 'Camera permission', () => S.cameraScreen(noop, noop, noop)],
+  ['camera-error', 'Camera refused', () => S.cameraScreen(noop, noop, noop, 'There is no camera. Everything can be played without it.')],
+  ['calibration', 'Calibration', () => {
+    const v = S.calibrationScreen(noop, noop, noop);
+    v.setProgress(0.4);
+    return v.node;
+  }],
   ['shelf', 'The shelf', () => S.shelfScreen(progress, shelfActions, 12)],
-  ['pause', 'Pause', () => S.pauseScreen(pauseActions, false)],
-  ['pause-lost', 'Pause (lost tracking)', () => S.pauseScreen(pauseActions, true)],
-  [
-    'results',
-    'Results',
-    () => S.resultsScreen(result, resultsActions, { practice: false, newBest: true, recordingOn: true }),
-  ],
+  ['insert', 'Tape insert', () => S.tapeInsert(level, { firstRun: false, assist: false })],
+  ['insert-first', 'Tape insert (first tape)', () => S.tapeInsert(level, { firstRun: true, assist: true })],
+  ['tracking', 'Tracking lost', () => {
+    const h = S.hud(noop);
+    h.setTracking(true);
+    return h.node;
+  }],
+  ['rewind', 'Rewind', () => S.rewindOverlay()],
+  ['pause', 'Pause', () => S.pauseScreen(pauseActions, { assist: true })],
+  ['results', 'Results', () => S.resultsScreen(result, resultsActions, { practice: false, newBest: false, line: 'your mouth opened. they saw it.' })],
   [
     'results-failed',
     'Results (lost tape)',
-    () =>
-      S.resultsScreen(
-        failedResult,
-        { ...resultsActions, next: null, saveClip: null },
-        { practice: false, newBest: false, recordingOn: false },
-      ),
+    () => S.resultsScreen(failedResult, { ...resultsActions, next: null, saveClip: noop }, { practice: false, newBest: false, line: 'you let it in.' }),
   ],
-  ['settings', 'Settings', () => S.settingsScreen(settings, settingsActions, 11, true, 'persistent')],
-  ['ossuary', 'The Ossuary', () => S.ossuaryScreen(progress, noop)],
-  ['shop', 'Shop', () => S.shopScreen(progress, noop, noop)],
+  ['settings', 'Settings', () => S.settingsScreen(settings, settingsActions, { thermalUnlocked: false, canRecord: true })],
   ['ending', 'Ending', () => S.endingScreen(noop)],
-  ['intro', 'Level intro', () => S.levelIntro(level)],
+  ['credits', 'Leave (credits)', () => S.creditsScreen(noop)],
 ];
 
 const host = document.getElementById('host') as HTMLElement;

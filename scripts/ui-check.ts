@@ -43,21 +43,20 @@ const run = promisify(execFile);
 const SCREENS = [
   'notice',
   'title',
-  'title-new',
-  'howto',
   'camera',
   'camera-error',
   'calibration',
   'shelf',
+  'insert',
+  'insert-first',
+  'tracking',
+  'rewind',
   'pause',
-  'pause-lost',
   'results',
   'results-failed',
   'settings',
-  'ossuary',
-  'shop',
   'ending',
-  'intro',
+  'credits',
 ];
 
 /** Desktop, laptop, and the narrowest layout the tooling can actually reach. */

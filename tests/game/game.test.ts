@@ -31,23 +31,15 @@ import { FaceLooksBack, finaleBlendOverride, ScareDirector, scareDurationMs } fr
 import { noReactions, type Reactions } from '../../src/face/reactions.ts';
 import { Rng } from '../../src/physics/vec.ts';
 import { World } from '../../src/physics/world.ts';
-import { outcomeRow, shareHeader, shareText } from '../../src/share/shareText.ts';
 import {
-  buyRite,
-  canBuyRite,
   completedLevelIds,
   EMPTY_PROGRESS,
-  hasProgress,
   recordDaily,
   recordRun,
-  riteCost,
-  addCoins,
-  totalCandles,
   type Progress,
 } from '../../src/storage/progress.ts';
 import { DEFAULT_SETTINGS } from '../../src/storage/settings.ts';
 import { flashBudget } from '../../src/render/postfx.ts';
-import { SHOP_ITEMS, SHOP_ITEM_IDS, coinsFor, type ShopItemId } from '../../src/game/shop.ts';
 import { hex, tokens } from '../../src/render/tokens.ts';
 
 const ROOT = join(import.meta.dirname, '..', '..');
@@ -504,7 +496,7 @@ describe('candles, stamps and score (SPEC 9.2, 12.5)', () => {
     spawned: 5, saved: 5, lost: 0, candles: 3, score: 100, mawWokeCount: 0,
     offerings: 0, bestProcession: 1, composureLeft: 1, composureLow: 1,
     lossesByCause: { maw: 0, void: 0, drip: 0, dark: 0, crawler: 0, moth: 0 },
-    outcomes: [], elapsedMs: 1000, wave: 0, failed: false, coins: 0, riteSaves: { wardingSalt: 0, ironNerve: 0, tallowShell: 0, secondChance: 0, lanternOil: 0 },
+    outcomes: [], elapsedMs: 1000, wave: 0, failed: false,
   };
 
   it('stamps LIGHTS OUT when nothing survived', () => {
@@ -640,92 +632,28 @@ describe('scares (SPEC 10, invariants 4 and 5)', () => {
 
 // ----------------------------------------------------------------- share ---
 
-describe('share text (SPEC 16)', () => {
-  const result: RunResult = {
-    levelId: '02-3', label: 'T02/3', title: 'Timing', mode: 'story',
-    stamp: 'THE MAW AWOKE',
-    spawned: 9, saved: 8, lost: 1, candles: 2, score: 1234, mawWokeCount: 2,
-    offerings: 1, bestProcession: 3, composureLeft: 0.62, composureLow: 0.4,
-    lossesByCause: { maw: 1, void: 0, drip: 0, dark: 0, crawler: 0, moth: 0 },
-    outcomes: ['saved', 'saved', 'saved', 'saved', 'saved', 'saved', 'saved', 'maw', 'saved'],
-    elapsedMs: 60_000, wave: 0, failed: false, coins: 0, riteSaves: { wardingSalt: 0, ironNerve: 0, tallowShell: 0, secondChance: 0, lanternOil: 0 },
-  };
-
-  it('writes one emoji per Wick in spawn order', () => {
-    expect(outcomeRow(result.outcomes)).toBe('🕯🕯🕯🕯🕯🕯🕯👄🕯');
-    expect(outcomeRow(['saved', 'maw', 'void', 'alive'])).toBe('🕯👄💨·');
-  });
-
-  it('matches the documented shape', () => {
-    const lines = shareText(result, 'https://example.test').split('\n');
-    expect(lines[0]).toBe('FACEPLANT · TAPE 02-3');
-    expect(lines[1]).toBe('🕯🕯🕯🕯🕯🕯🕯👄🕯');
-    expect(lines[2]).toBe('saved 8/9 · the maw woke 2×');
-    expect(lines[3]).toBe('composure 62% · the maw awoke');
-    expect(lines[4]).toBe('https://example.test');
-    expect(lines).toHaveLength(5);
-  });
-
-  it('headers the daily and the long tape differently', () => {
-    expect(shareHeader({ ...result, mode: 'daily', label: 'DAILY #017' })).toBe('FACEPLANT · DAILY #017');
-    expect(shareHeader({ ...result, mode: 'endless' })).toBe('FACEPLANT · THE LONG TAPE');
-  });
-
-  it('reports waves rather than a roster for the Long Tape', () => {
-    const text = shareText({ ...result, mode: 'endless', wave: 7, score: 54_321 });
-    expect(text).toContain('wave 7');
-    expect(text).toContain('54,321 pts');
-  });
-
-  /*
-   * The URL is taken from `location` at runtime now, not from config. It used
-   * to be a hard-coded `https://faceplant.game` - a domain nobody owns - so
-   * this test passed while guaranteeing that every shared result pointed at a
-   * dead site. What matters is the two real behaviours: a deployed game puts
-   * its own address in the text, and a game with no address worth sharing
-   * leaves the line out rather than emitting a blank one.
-   */
-  it('carries the game name, and whatever address it was given', () => {
-    const text = shareText(result, 'https://example.test/faceplant/');
-    expect(text.startsWith('FACEPLANT')).toBe(true);
-    expect(text).toContain('https://example.test/faceplant/');
-  });
-
-  it('omits the url line entirely when there is no address to share', () => {
-    const text = shareText(result, '');
-    expect(text.startsWith('FACEPLANT')).toBe(true);
-    expect(text.endsWith('\n')).toBe(false);
-    expect(text.split('\n').some((l) => l.trim() === '')).toBe(false);
-  });
-});
-
-// --------------------------------------------------------------- progress ---
-
-describe('progress, the Ossuary and Rites (U7, U9)', () => {
+describe('progress (U7)', () => {
   const result: RunResult = {
     levelId: '01-1', label: 'T01/1', title: 'Warm', mode: 'story',
     stamp: 'THE MAW AWOKE',
     spawned: 3, saved: 2, lost: 1, candles: 2, score: 500, mawWokeCount: 1,
     offerings: 0, bestProcession: 1, composureLeft: 0.8, composureLow: 0.7,
     lossesByCause: { maw: 1, void: 0, drip: 0, dark: 0, crawler: 0, moth: 0 },
-    outcomes: ['saved', 'saved', 'maw'], elapsedMs: 30_000, wave: 0, failed: false, coins: 0, riteSaves: { wardingSalt: 0, ironNerve: 0, tallowShell: 0, secondChance: 0, lanternOil: 0 },
+    outcomes: ['saved', 'saved', 'maw'], elapsedMs: 30_000, wave: 0, failed: false,
   };
 
   const roster = [
-    { name: 'kevin', title: null, state: 'saved', cause: null, lastWords: null },
-    { name: 'agnes', title: null, state: 'saved', cause: null, lastWords: null },
-    { name: 'deborah', title: null, state: 'lost', cause: 'maw' as const, lastWords: 'deborah is gone.' },
+    { name: 'kevin', state: 'saved' },
+    { name: 'agnes', state: 'saved' },
+    { name: 'deborah', state: 'lost' },
   ];
 
-  it('records candles, survivors and bones', () => {
+  it('records candles and survivors', () => {
     const p = recordRun(structuredClone(EMPTY_PROGRESS), result, roster);
     expect(p.levels['01-1']?.candles).toBe(2);
     expect(p.survivors.kevin).toBe(1);
     expect(p.survivors.agnes).toBe(1);
-    expect(p.ossuary).toHaveLength(1);
-    expect(p.ossuary[0]?.name).toBe('deborah');
-    expect(p.ossuary[0]?.cause).toBe('maw');
-    expect(p.ossuary[0]?.lastWords).toBe('deborah is gone.');
+    expect(p.survivors.deborah).toBeUndefined();
   });
 
   it('keeps the best candles, never downgrades them', () => {
@@ -738,7 +666,7 @@ describe('progress, the Ossuary and Rites (U7, U9)', () => {
   it('a Wick that dies loses its accumulated title', () => {
     let p = recordRun(structuredClone(EMPTY_PROGRESS), result, roster);
     expect(p.survivors.kevin).toBe(1);
-    p = recordRun(p, result, [{ name: 'kevin', title: 'the twice-blessed', state: 'lost', cause: 'void', lastWords: null }]);
+    p = recordRun(p, result, [{ name: 'kevin', state: 'lost' }]);
     expect(p.survivors.kevin).toBeUndefined();
   });
 
@@ -759,148 +687,6 @@ describe('progress, the Ossuary and Rites (U7, U9)', () => {
     expect(p.endlessBest.score).toBe(900);
   });
 
-  it('buys shop items with coins, once each', () => {
-    const cheapest = SHOP_ITEM_IDS.reduce((a: ShopItemId, b: ShopItemId) => (riteCost(a) <= riteCost(b) ? a : b));
-    const broke: Progress = { ...structuredClone(EMPTY_PROGRESS), coins: 0 };
-    expect(canBuyRite(broke, cheapest)).toBe(false);
-
-    const rich: Progress = { ...structuredClone(EMPTY_PROGRESS), coins: 10_000 };
-    const bought = buyRite(rich, cheapest);
-    expect(bought.rites).toContain(cheapest);
-    expect(bought.coins).toBe(10_000 - riteCost(cheapest));
-    // Buying twice is a no-op, and does not charge twice.
-    const again = buyRite(bought, cheapest);
-    expect(again.rites.filter((r) => r === cheapest)).toHaveLength(1);
-    expect(again.coins).toBe(bought.coins);
-  });
-
-  it('spends coins, never candles - a purchase must not lower your rating', () => {
-    // The reason the shop moved off candles: candles are a per-level rating,
-    // so spending them made your record of how well you played go down when
-    // you bought something.
-    const p: Progress = {
-      ...structuredClone(EMPTY_PROGRESS),
-      coins: 10_000,
-      levels: { a: { candles: 3, bestScore: 0, bestSaved: 0, attempts: 1 } },
-    };
-    const before = totalCandles(p);
-    const after = buyRite(p, SHOP_ITEM_IDS[0] as ShopItemId);
-    expect(totalCandles(after)).toBe(before);
-    expect(after.coins).toBeLessThan(p.coins);
-  });
-
-  it('every shop item states a real price and a concrete effect', () => {
-    expect(SHOP_ITEMS.length).toBeGreaterThanOrEqual(5);
-    const prices = SHOP_ITEMS.map((i) => i.costCoins);
-    for (const item of SHOP_ITEMS) {
-      expect(item.costCoins, `${item.id} is free`).toBeGreaterThan(0);
-      expect(item.name.length).toBeGreaterThan(2);
-      // The old screen described effects only in flavour text and nobody could
-      // tell what they had bought, so every item must quantify itself.
-      expect(item.effect, `${item.id} has no numbers in its effect`).toMatch(/\d/);
-    }
-    // Cheapest first, so the list reads as a progression.
-    expect([...prices]).toEqual([...prices].sort((a, b) => a - b));
-    expect(new Set(SHOP_ITEM_IDS).size).toBe(SHOP_ITEM_IDS.length);
-  });
-
-  it('every shop item actually changes something', () => {
-    // Three items shipped briefly as purchasable and completely inert, because
-    // the shop list grew and `riteTunables()` did not. Selling a player
-    // something that does nothing is worse than not selling it.
-    const baseline = JSON.stringify(defaultTunables());
-    const appSrc = readFileSync(join(ROOT, 'src', 'app.ts'), 'utf8');
-
-    for (const item of SHOP_ITEMS) {
-      // Each id must be referenced by the code that builds the run's tunables.
-      const at = appSrc.indexOf('riteTunables');
-      const body = appSrc.slice(at, at + 1800);
-      expect(body, `${item.id} is never applied in riteTunables()`).toContain(`'${item.id}'`);
-    }
-    expect(baseline).toBeTruthy();
-  });
-
-  it('shop items translate into tunables that make the game easier, never harder', () => {
-    const base = defaultTunables();
-    expect(base.wickMaxGapFh).toBe(config.wick.maxGapFh);
-    expect(config.rites.steadyWicksMultiple).toBeGreaterThan(1);
-    expect(config.rites.mawSenseRadiusMultiple).toBeGreaterThan(1);
-    expect(config.rites.tallowShellCount).toBeGreaterThan(0);
-    expect(config.rites.secondChanceCount).toBeGreaterThan(0);
-    // And in the direction that helps, never the other way.
-    expect(config.rites.steadyWicksSpeedMultiple).toBeGreaterThan(1);
-    expect(config.rites.lanternOilSnuffMultiple).toBeGreaterThan(1);
-    expect(config.rites.wardingSaltWardCount).toBeGreaterThan(0);
-    expect(config.rites.lanternOilMultiple).toBeGreaterThan(1);
-    expect(config.rites.ironNerveMultiple).toBeLessThan(1);
-    expect(config.rites.wardingSaltSpeedMultiple).toBeLessThan(1);
-    expect(config.rites.wardingSaltTouchMultiple).toBeGreaterThan(1);
-  });
-});
-
-// -------------------------------------------------------- coins and failing ---
-
-describe('coins (the shop currency)', () => {
-  const base = {
-    failed: false,
-    saved: 8,
-    spawned: 10,
-    candles: 2,
-    composureLeft: 0.6,
-    offerings: 1,
-    mode: 'story' as const,
-    wave: 0,
-    replay: false,
-  };
-
-  it('pays for a cleared level', () => {
-    expect(coinsFor(base)).toBeGreaterThan(0);
-  });
-
-  it('pays nothing at all for a lost tape', () => {
-    // This is most of what makes failing sting, now that failing exists.
-    expect(coinsFor({ ...base, failed: true })).toBe(0);
-    expect(coinsFor({ ...base, failed: true, saved: 9, candles: 3 })).toBe(0);
-  });
-
-  it('pays more for playing better', () => {
-    const poor = coinsFor({ ...base, saved: 5, candles: 1, composureLeft: 0.1, offerings: 0 });
-    const good = coinsFor({ ...base, saved: 10, candles: 3, composureLeft: 1, offerings: 3 });
-    expect(good).toBeGreaterThan(poor);
-  });
-
-  it('pays a flawless run a bonus', () => {
-    const some = coinsFor({ ...base, saved: 9, spawned: 10 });
-    const all = coinsFor({ ...base, saved: 10, spawned: 10 });
-    expect(all).toBeGreaterThan(some + config.coins.perSavedWick);
-  });
-
-  it('pays less for replaying a level already cleared', () => {
-    const first = coinsFor(base);
-    const again = coinsFor({ ...base, replay: true });
-    expect(again).toBeLessThan(first);
-    expect(again).toBeGreaterThan(0);
-  });
-
-  it('pays the Long Tape by wave', () => {
-    const short = coinsFor({ ...base, mode: 'endless', wave: 2 });
-    const long = coinsFor({ ...base, mode: 'endless', wave: 9 });
-    expect(long).toBeGreaterThan(short);
-  });
-
-  it('never pays a negative amount', () => {
-    expect(coinsFor({ ...base, saved: 0, candles: 0, composureLeft: 0, offerings: 0 })).toBeGreaterThanOrEqual(0);
-  });
-
-  it('banks coins into the save, tracking the lifetime total', () => {
-    let p = structuredClone(EMPTY_PROGRESS);
-    p = addCoins(p, 150);
-    expect(p.coins).toBe(150);
-    expect(p.coinsEarned).toBe(150);
-    p = buyRite({ ...p, coins: 10_000 }, SHOP_ITEM_IDS[0] as ShopItemId);
-    // Spending reduces the purse but never the lifetime total.
-    expect(p.coinsEarned).toBe(150);
-  });
 });
 
 describe('losing a tape (the fail condition)', () => {
@@ -910,7 +696,7 @@ describe('losing a tape (the fail condition)', () => {
       spawned: 10, saved: 4, lost: 6, candles: 1, score: 100, mawWokeCount: 0,
       offerings: 0, bestProcession: 1, composureLeft: 1, composureLow: 1,
       lossesByCause: { maw: 0, void: 6, drip: 0, dark: 0, crawler: 0, moth: 0 },
-      outcomes: [], elapsedMs: 1000, wave: 0, failed: true, coins: 0, riteSaves: { wardingSalt: 0, ironNerve: 0, tallowShell: 0, secondChance: 0, lanternOil: 0 },
+      outcomes: [], elapsedMs: 1000, wave: 0, failed: true,
     };
     expect(stampFor(r)).toBe('TAPE LOST');
     // Even a run that would otherwise have read as composed.
@@ -934,24 +720,6 @@ describe('losing a tape (the fail condition)', () => {
 // ------------------------------------------- resuming, exiting, the ending ---
 
 describe('picking up where you left off', () => {
-  it('a fresh save is not "returning", so the title offers INSERT FACE', () => {
-    expect(hasProgress(structuredClone(EMPTY_PROGRESS))).toBe(false);
-  });
-
-  it('any finished level, daily or endless run counts as progress', () => {
-    const withLevel: Progress = {
-      ...structuredClone(EMPTY_PROGRESS),
-      levels: { '01-1': { candles: 1, bestScore: 10, bestSaved: 1, attempts: 1 } },
-    };
-    expect(hasProgress(withLevel)).toBe(true);
-
-    const withEndless: Progress = {
-      ...structuredClone(EMPTY_PROGRESS),
-      endlessBest: { score: 500, waves: 3, saved: 4 },
-    };
-    expect(hasProgress(withEndless)).toBe(true);
-  });
-
   it('CONTINUE resumes the first unfinished level, not the first level', () => {
     // The bug this covers: the title button always started 01-1, so a player
     // who had finished ten levels was dropped back into the tutorial.
@@ -1179,7 +947,7 @@ describe('the seeded PRNG', () => {
 });
 
 describe('buildResult ties the systems together', () => {
-  it('turns a finished world into a shareable result', () => {
+  it('turns a finished world into a result', () => {
     const level = loadAll().find((l) => l.id === '01-1') as Level;
     const world = new World({ level, tunables: defaultTunables(), seed: 5, endless: false });
     const stepMs = 1000 / config.physics.stepHz;
@@ -1193,6 +961,5 @@ describe('buildResult ties the systems together', () => {
     expect(result.spawned).toBe(level.spawn.count);
     expect(result.outcomes).toHaveLength(result.spawned);
     expect(result.score).toBeGreaterThanOrEqual(0);
-    expect(shareText(result)).toContain('FACEPLANT');
   });
 });

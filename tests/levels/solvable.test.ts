@@ -228,8 +228,6 @@ describe('AC-8 story levels are completable in Assist mode', () => {
     expect(competent.offerings, 'the Offering is not performable on 02-2').toBeGreaterThan(0);
     expect(passive.offerings).toBe(0);
     expect(competent.score).toBeGreaterThan(passive.score);
-    // And it pays in coins, which is what the shop runs on.
-    expect(competent.coins).toBeGreaterThan(passive.coins);
   });
 
   it('a calm player three-candles the opening level', () => {

@@ -9,52 +9,40 @@
  *
  * Physics runs on its own fixed clock inside `World.step`, so a dropped frame
  * slows the picture rather than the simulation.
+ *
+ * The flow is docs/OVERHAUL.md section 3:
+ *
+ *   notice -> title -+-> camera -> calibration -+-> shelf -> tape insert -> play
+ *                    +-> without camera --------+            |   Esc -> pause
+ *                    +-> settings                           win / loss -> results
+ *                    +-> leave (credits)        after the last tape -> ending
+ *
+ * Every screen has an exit, Main menu is never more than two inputs away, and
+ * Esc always does something.
  */
 
-import { config, defaultTunables, type Tunables } from './config.ts';
+import { config, defaultTunables } from './config.ts';
 import { buildCalibration, CalibrationCollector, defaultCalibration, type Calibration } from './face/calibration.ts';
 import { ReactionDetector } from './face/reactions.ts';
 import { AssistInput, SyntheticFaceSource } from './face/syntheticSource.ts';
 import type { FaceFrame, FaceSource, RawFrame } from './face/types.ts';
 import { CameraError, WebcamFaceSource } from './face/webcamSource.ts';
 import { dayNumber, generateDaily, generateEndless } from './game/daily.ts';
-import { isStoryFinale, loadLevel, nextLevelId, nextUnplayedLevelId, TAPES } from './game/levelLoader.ts';
+import { isStoryFinale, loadLevel, nextLevelId } from './game/levelLoader.ts';
 import type { Level } from './game/levelSchema.ts';
 import { LineDirector } from './game/lineDirector.ts';
 import { displayName } from './game/names.ts';
-import { buildResult, type RunResult } from './game/rules.ts';
+import { buildResult, filterUnlocked, type RunResult } from './game/rules.ts';
 import { FaceLooksBack, finaleBlendOverride, ScareDirector, type ActiveScare } from './game/scares.ts';
 import { World, type WorldSnapshot } from './physics/world.ts';
+import { tapeMark } from './render/osd.ts';
 import { Stage } from './render/stage.ts';
 import { sound } from './audio/sound.ts';
 import { PortraitCanvas } from './share/portraitCanvas.ts';
 import { ClipRecorder, downloadBlob } from './share/recorder.ts';
-import { cardFilename, downloadCanvas, drawResultCard } from './share/resultCard.ts';
-import { copyToClipboard, shareText } from './share/shareText.ts';
-import {
-  addCoins,
-  buyRite,
-  completedLevelIds,
-  hasProgress,
-  loadProgress,
-  recordDaily,
-  recordRun,
-  resetProgress,
-  saveProgress,
-  survivorMap,
-  totalCandles,
-  type Progress,
-  type RiteName,
-} from './storage/progress.ts';
+import { loadProgress, recordDaily, recordRun, resetProgress, saveProgress, survivorMap, totalCandles, type Progress } from './storage/progress.ts';
 import { applySystemPreferences, loadSettings, saveSettings, storageAvailable, type Settings } from './storage/settings.ts';
-import {
-  applySaveFile,
-  currentDurability,
-  exportSave,
-  pickSaveFile,
-  requestPersistent,
-  type Durability,
-} from './storage/durability.ts';
+import { requestPersistent } from './storage/durability.ts';
 import { copy } from './ui/copy.ts';
 import { el, focusFirst, toast, trapFocus } from './ui/dom.ts';
 import { installGrain } from './ui/grain.ts';
@@ -62,17 +50,16 @@ import {
   calibrationScreen,
   cameraScreen,
   clipPreviewScreen,
+  creditsScreen,
   endingScreen,
-  howToPlayScreen,
   hud,
-  levelIntro,
   noticeScreen,
-  ossuaryScreen,
   pauseScreen,
   resultsScreen,
-  shopScreen,
+  rewindOverlay,
   settingsScreen,
   shelfScreen,
+  tapeInsert,
   titleScreen,
   type HudView,
 } from './ui/screens.ts';
@@ -82,7 +69,21 @@ import { DebugOverlay, debugEnabled } from './ui/debugOverlay.ts';
 /** MediaPipe face-mesh index of the nose tip, the debug overlay's alignment probe. */
 const NOSE_TIP_INDEX = 1;
 
-type Phase = 'boot' | 'notice' | 'title' | 'camera' | 'calibrate' | 'shelf' | 'playing' | 'paused' | 'results' | 'ending' | 'menu';
+type Phase =
+  | 'boot'
+  | 'notice'
+  | 'title'
+  | 'camera'
+  | 'calibrate'
+  | 'shelf'
+  | 'inserting'
+  | 'playing'
+  | 'paused'
+  | 'rewinding'
+  | 'results'
+  | 'ending'
+  | 'credits'
+  | 'menu';
 
 export class App {
   private readonly stageHost: HTMLElement;
@@ -104,7 +105,6 @@ export class App {
   private level: Level | null = null;
   private scares: ScareDirector | null = null;
   private finale: FaceLooksBack | null = null;
-  private tunables: Tunables = defaultTunables();
 
   private readonly recorder = new ClipRecorder();
   private readonly portrait = new PortraitCanvas();
@@ -116,7 +116,8 @@ export class App {
   private currentScreen: HTMLElement | null = null;
   private releaseTrap: (() => void) | null = null;
   private hudView: HudView | null = null;
-  private introNode: HTMLElement | null = null;
+  /** The tape insert card or the rewind bands, whichever is up. */
+  private overlay: HTMLElement | null = null;
 
   private lastFrameMs = 0;
   private running = false;
@@ -129,13 +130,21 @@ export class App {
    * with Scares off, so the fail still happens - just quietly.
    */
   private watcherStartedMs = -1;
-  /** What the browser promises about the save. Resolved once, on boot. */
-  private durability: Durability = 'best-effort';
   private practiceRun = false;
   private frameTimes: number[] = [];
   private readonly debug = debugEnabled() ? new DebugOverlay() : null;
   private renderParity = false;
   private lastRenderMs = 0;
+  /** The tape insert ends at this render time; `Infinity` while it waits for a key. */
+  private insertUntilMs = 0;
+  /**
+   * Bumped whenever calibration is abandoned. Calibration is a chain of awaits,
+   * and without this a player who pressed Back halfway through would be thrown
+   * onto the shelf a few seconds later when the abandoned run finished.
+   */
+  private calibrationRun = 0;
+  /** The current screen's Esc. Also run from the window, so Esc works wherever focus is. */
+  private escape: (() => void) | null = null;
 
   constructor(host: HTMLElement) {
     this.stageHost = el('div', { id: 'stage-host' });
@@ -163,30 +172,18 @@ export class App {
     window.addEventListener('keydown', this.onGlobalKey);
 
     // Ask the browser not to evict the save when the device runs low on disk.
-    // Chrome grants this silently based on engagement - there is no prompt -
-    // and where it is unsupported the save is simply best-effort, which is
-    // what Settings then says. Deliberately not awaited: it must never delay
-    // the title screen.
-    void (storageAvailable()
-      ? requestPersistent().then((d) => {
-          this.durability = d;
-        })
-      : currentDurability(false).then((d) => {
-          this.durability = d;
-        }));
+    // Granted silently on engagement; never awaited, so it cannot delay the title.
+    if (storageAvailable()) void requestPersistent();
 
     this.running = true;
     this.lastFrameMs = performance.now();
     requestAnimationFrame(this.loop);
 
-    // A returning player lands straight on the title with no click yet, and a
-    // browser will not play anything until there has been one. The first
-    // gesture of any kind lets the menu music start (`sound.resume` starts a
-    // theme the title asked for while the browser was still saying no).
+    // A browser will not play anything until there has been a gesture.
     const firstGesture = (): void => {
       window.removeEventListener('pointerdown', firstGesture);
       window.removeEventListener('keydown', firstGesture);
-      void sound.resume().then(() => sound.setVolume(this.settings.volume));
+      void sound.resume().then(() => this.applyVolume());
     };
     window.addEventListener('pointerdown', firstGesture);
     window.addEventListener('keydown', firstGesture);
@@ -203,6 +200,7 @@ export class App {
     this.currentScreen?.remove();
     this.currentScreen = node;
     this.phase = phase;
+    this.escape = onEscape ?? null;
     if (node === null) return;
     this.uiHost.appendChild(node);
     this.releaseTrap = trapFocus(node, onEscape);
@@ -213,172 +211,106 @@ export class App {
     document.body.classList.toggle('reduced-effects', this.settings.reducedEffects);
   }
 
-  private showNotice(): void {
-    this.setScreen(
-      noticeScreen((scares) => {
-        this.settings = { ...this.settings, scares, noticeSeen: true };
-        saveSettings(this.settings);
-        void sound.resume().then(() => sound.setVolume(this.settings.volume));
-        // The very first thing a brand-new player sees after the safety notice
-        // is How to Play, not the title screen - a title screen with no
-        // instructions on it is not usable by someone who has never played.
-        if (!this.settings.howToPlaySeen) this.showHowToPlay(() => this.showTitle());
-        else this.showTitle();
-      }),
-      'notice',
-    );
+  private applyVolume(): void {
+    sound.setVolume(this.settings.volume);
   }
 
-  private showHowToPlay(onClose: () => void): void {
-    this.settings = { ...this.settings, howToPlaySeen: true };
+  private saveSettingsWith(next: Partial<Settings>): void {
+    this.settings = { ...this.settings, ...next };
     saveSettings(this.settings);
-    this.setScreen(howToPlayScreen(onClose), 'menu', onClose);
   }
 
-  /** Removes the in-game overlay. The HUD lives outside `currentScreen`. */
-  private clearPlayUi(): void {
-    this.hudView?.node.remove();
-    this.hudView = null;
-    this.introNode?.remove();
-    this.introNode = null;
+  private showNotice(): void {
+    const go = (scares: boolean): void => {
+      this.saveSettingsWith({ scares, noticeSeen: true });
+      void sound.resume().then(() => this.applyVolume());
+      this.showTitle();
+    };
+    // Esc is the same as Continue: there is nowhere else to go from here.
+    this.setScreen(noticeScreen(this.settings.scares, go), 'notice', () => go(this.settings.scares));
   }
 
+  /** Main menu. Leaves any run behind; nothing earned so far is lost. */
   private showTitle(): void {
+    this.endRun();
     sound.startTheme();
-    this.clearPlayUi();
-    this.stage.setOsdVisible(false);
-
-    const returning = hasProgress(this.progress);
-
     this.setScreen(
       titleScreen(
         {
-          // U10 - for a new player the primary button plays immediately, with
-          // no permission prompt between a stranger and the first Wick landing
-          // on a face. For a returning player it resumes instead: it used to
-          // restart 01-1 and silently discard their place in the story.
-          play: () => (returning ? void this.continueStory() : void this.beginFirstRun(true)),
-          playNoCamera: () => void this.beginFirstRun(false),
-          shelf: () => this.showShelf(),
+          insertFace: () => {
+            // Already live (a second visit this session): nothing to ask.
+            if (this.webcam !== null) {
+              this.useCamera();
+              this.showShelf();
+            } else {
+              this.showCameraScreen();
+            }
+          },
+          playNoCamera: () => {
+            this.useAssist();
+            this.showShelf();
+          },
           settings: () => this.showSettings(() => this.showTitle()),
-          ossuary: () => this.setScreen(ossuaryScreen(this.progress, () => this.showTitle()), 'menu', () => this.showTitle()),
-          shop: () => this.showShop(),
-          howToPlay: () => this.showHowToPlay(() => this.showTitle()),
+          leave: () => this.setScreen(creditsScreen(() => this.showTitle()), 'credits', () => this.showTitle()),
         },
-        {
-          hasCamera: this.webcam !== null,
-          reducedEffects: this.settings.reducedEffects,
-          returning,
-          candles: totalCandles(this.progress),
-          coins: this.progress.coins,
-          canSave: storageAvailable(),
-        },
+        { canSave: storageAvailable() },
       ),
       'title',
     );
   }
 
-  /**
-   * CONTINUE: pick up at the first level the player has not finished. Once the
-   * whole story is done there is nothing to resume, so the shelf - with the
-   * Daily Tape, the Long Tape and anything left to three-candle - is the right
-   * destination instead.
-   */
-  private async continueStory(): Promise<void> {
-    void sound.resume().then(() => {
-      sound.setVolume(this.settings.volume);
-      sound.startBed();
-    });
-    this.ensureSynthetic();
-
-    const next = nextUnplayedLevelId(completedLevelIds(this.progress));
-    if (next === null) {
-      this.showShelf();
-      return;
-    }
-    await this.playStory(next);
+  /** Tears down whatever was being played, so menus start clean. */
+  private endRun(): void {
+    this.clearPlayUi();
+    this.stage.setOsdVisible(false);
+    this.watcherStartedMs = -1;
+    this.world = null;
+    this.level = null;
+    this.scares = null;
+    this.finale = null;
+    if (this.recordingThisRun) this.recorder.discard();
+    this.recordingThisRun = false;
+    sound.unduck();
   }
 
-  private showShop(): void {
-    const render = (): void => {
-      this.setScreen(
-        shopScreen(
-          this.progress,
-          (item: RiteName) => {
-            const before = this.progress.coins;
-            this.progress = buyRite(this.progress, item);
-            // Only treat it as a purchase if coins actually moved, so a
-            // double-click or an unaffordable item cannot bank a free item.
-            if (this.progress.coins !== before) {
-              saveProgress(this.progress);
-              sound.play('gateChime');
-            }
-            render();
-          },
-          () => this.showTitle(),
-        ),
-        'menu',
-        () => this.showTitle(),
-      );
-    };
-    render();
-  }
-
-  private showSettings(onClose: () => void): void {
+  private showSettings(onBack: () => void): void {
     const render = (): void => {
       this.setScreen(
         settingsScreen(
           this.settings,
           {
             change: (next) => {
-              this.settings = { ...this.settings, ...next };
-              saveSettings(this.settings);
-              sound.setVolume(this.settings.volume);
+              this.saveSettingsWith(next);
+              this.applyVolume();
               this.applyBodyClasses();
-              if (next.controls !== undefined) void this.switchControls(next.controls, onClose);
               this.scares?.setOptions({
                 enabled: this.settings.scares,
                 reducedEffects: this.settings.reducedEffects,
                 segmentationAvailable: false,
               });
-              render();
-            },
-            recalibrate: () => void this.runCalibration(() => onClose()),
-            exportSave: () => exportSave(this.progress),
-            importSave: () => {
-              void pickSaveFile()
-                .then((imported) => {
-                  if (imported === null) return;
-                  this.progress = applySaveFile(imported);
-                  toast(this.uiHost, copy.settings.importDone);
-                  sound.play('gateChime');
-                  render();
-                })
-                .catch(() => toast(this.uiHost, copy.settings.importFailed));
+              // A slider is mid-drag while it reports; rebuilding the screen
+              // under it would drop the drag.
+              const onlyVolume = Object.keys(next).every((k) => k === 'volume' || k === 'musicVolume' || k === 'sfxVolume');
+              if (!onlyVolume) render();
             },
             resetProgress: () => {
               this.progress = resetProgress();
               toast(this.uiHost, copy.settings.resetDone);
-              sound.play('tapeStop');
-              render();
             },
-            close: onClose,
+            back: onBack,
           },
-          totalCandles(this.progress),
-          this.recorder.available,
-          this.durability,
+          { thermalUnlocked: filterUnlocked('thermal', totalCandles(this.progress)), canRecord: this.recorder.available },
         ),
         'menu',
-        onClose,
+        onBack,
       );
     };
     render();
   }
 
   private showShelf(): void {
+    this.endRun();
     sound.startTheme();
-    this.clearPlayUi();
-    this.stage.setOsdVisible(false);
     this.setScreen(
       shelfScreen(
         this.progress,
@@ -386,7 +318,6 @@ export class App {
           playLevel: (id) => void this.playStory(id),
           playDaily: () => void this.playDaily(),
           playEndless: () => void this.playEndless(),
-          shop: () => this.showShop(),
           back: () => this.showTitle(),
         },
         dayNumber(),
@@ -396,38 +327,15 @@ export class App {
     );
   }
 
-  // ------------------------------------------------------------ face sources
-
-  /**
-   * U10 - the first run always starts in Assist, instantly. If the player
-   * asked for the camera we start it *in parallel* and swap it in when it is
-   * ready, so the permission prompt never blocks the first Wick.
-   */
-  private async beginFirstRun(wantCamera: boolean): Promise<void> {
-    void sound.resume().then(() => {
-      sound.setVolume(this.settings.volume);
-      sound.startBed();
-    });
-
-    this.ensureSynthetic();
-    if (wantCamera) {
-      this.showCameraExplainer();
-      return;
-    }
-    this.settings = { ...this.settings, controls: 'assist' };
-    saveSettings(this.settings);
-    await this.playStory(TAPES[0]?.levelIds[0] ?? '01-1');
-  }
-
-  private showCameraExplainer(error?: string): void {
+  private showCameraScreen(error?: string): void {
     this.setScreen(
       cameraScreen(
-        () => void this.enableCamera(),
+        () => void this.enableCamera(() => this.showShelf()),
         () => {
-          this.settings = { ...this.settings, controls: 'assist' };
-          saveSettings(this.settings);
-          void this.playStory(TAPES[0]?.levelIds[0] ?? '01-1');
+          this.useAssist();
+          this.showShelf();
         },
+        () => this.showTitle(),
         error,
       ),
       'camera',
@@ -435,98 +343,87 @@ export class App {
     );
   }
 
-  /**
-   * @param onDone where to go once the camera is live and calibrated. Defaults
-   *   to the first level, which is right for the opening funnel (U10) and wrong
-   *   for the Settings screen - turning the camera on from Settings used to
-   *   restart the game.
-   */
-  private async enableCamera(onDone?: () => void): Promise<void> {
-    const cam = new WebcamFaceSource({ lowPower: this.settings.lowPower }, this.cal);
+  // ------------------------------------------------------------ face sources
+
+  private useAssist(): void {
+    this.saveSettingsWith({ controls: 'assist' });
+    this.ensureSynthetic();
+    this.source = this.synthetic;
+    this.stage.setVideo(null);
+    this.lastConsumedFrameT = -1;
+  }
+
+  private useCamera(): void {
+    if (this.webcam === null) return;
+    this.saveSettingsWith({ controls: 'face' });
+    this.source = this.webcam;
+    this.stage.setVideo(this.webcam.info().video);
+    this.lastConsumedFrameT = -1;
+  }
+
+  /** Starts the camera, then calibrates, then `onDone`. */
+  private async enableCamera(onDone: () => void): Promise<void> {
+    const cam = new WebcamFaceSource({}, this.cal);
     try {
       await cam.start();
     } catch (err) {
       const reason = err instanceof CameraError ? err.reason : 'unknown';
-      this.showCameraExplainer(copy.camera[reason] ?? copy.camera.unknown);
+      this.showCameraScreen(copy.camera[reason]);
       return;
     }
     this.webcam = cam;
-    this.source = cam;
-    this.settings = { ...this.settings, controls: 'face' };
-    saveSettings(this.settings);
-    this.stage.setVideo(cam.info().video);
-    await this.runCalibration(onDone ?? (() => void this.playStory(TAPES[0]?.levelIds[0] ?? '01-1')));
+    this.useCamera();
+    await this.runCalibration(onDone);
   }
 
   private ensureSynthetic(): void {
     if (this.synthetic !== null) return;
-    // Scoped to the game canvas, not `this.host` - which is the shared parent
-    // of *both* the canvas and every DOM menu (How to Play, Shop, Settings,
-    // the Ossuary, a long Results screen...). `onWheel` calls
-    // `e.preventDefault()` unconditionally, and a wheel event fired while the
-    // mouse is over a menu still bubbles up through that shared ancestor, so
-    // attaching here used to kill scrolling on every panel in the game, for
-    // the rest of the session, the moment Assist mode started once - which
-    // for most players is immediately, since U10 starts every first-time
-    // player in Assist regardless of whether they have a camera.
+    // Scoped to the game canvas, not the shared parent of the canvas and the
+    // menus: `onWheel` calls `preventDefault()`, and attaching it higher once
+    // killed scrolling on every menu for the rest of the session.
     this.assistInput.attach(this.stageHost);
     this.synthetic = new SyntheticFaceSource(this.assistInput, config.render.aspect, this.cal);
     void this.synthetic.start();
     if (this.source === null) this.source = this.synthetic;
   }
 
-  private async switchControls(mode: 'face' | 'assist', onDone?: () => void): Promise<void> {
-    this.lastConsumedFrameT = -1;
-    this.watcherStartedMs = -1;
-    if (mode === 'assist') {
-      this.ensureSynthetic();
-      this.source = this.synthetic;
-      this.stage.setVideo(null);
-      return;
-    }
-    if (this.webcam !== null) {
-      this.source = this.webcam;
-      this.stage.setVideo(this.webcam.info().video);
-      return;
-    }
-    await this.enableCamera(onDone);
-  }
-
   // ------------------------------------------------------------- calibration
 
   /**
-   * Four steps (SPEC section 7), run against whichever source is live. In Assist
-   * the synthetic face simply holds each pose, so the same code calibrates both
-   * and the maths is exercised either way.
+   * Two steps (OVERHAUL 3.1): hold still while a ring fills, then open your
+   * mouth. Brows and blink use their configured minimum ranges.
    */
   private async runCalibration(onDone: () => void): Promise<void> {
     const cam = this.webcam;
     if (cam === null) {
-      // Assist needs no calibration: the canonical face *is* the calibration.
       this.cal = defaultCalibration();
       this.synthetic?.setCalibration(this.cal);
       onDone();
       return;
     }
 
+    const run = ++this.calibrationRun;
+    const back = (): void => {
+      this.calibrationRun++;
+      this.showTitle();
+    };
     const view = calibrationScreen(
       () => {
+        this.calibrationRun++;
         this.cal = defaultCalibration(cam.info().aspect);
         cam.setCalibration(this.cal);
         onDone();
       },
       () => void this.runCalibration(onDone),
+      back,
     );
-    this.setScreen(view.node, 'calibrate');
+    this.setScreen(view.node, 'calibrate', back);
 
     const steps = [
-      { prompt: copy.calibration.sit, ms: config.calibration.holdMs },
-      { prompt: copy.calibration.wide, ms: 1800 },
-      { prompt: copy.calibration.brows, ms: 1500 },
-      { prompt: copy.calibration.blink, ms: 1500 },
+      { prompt: copy.calibration.hold, ms: config.calibration.holdMs },
+      { prompt: copy.calibration.open, ms: config.calibration.openMs },
     ] as const;
-
-    const collectors = [new CalibrationCollector(), new CalibrationCollector(), new CalibrationCollector(), new CalibrationCollector()];
+    const collectors = [new CalibrationCollector(), new CalibrationCollector()];
     const aspect = cam.info().aspect;
 
     for (let i = 0; i < steps.length; i++) {
@@ -535,8 +432,8 @@ export class App {
       if (step === undefined || collector === undefined) continue;
       view.setPrompt(step.prompt);
       view.setError(null);
-
-      const ok = await this.collectFor(collector, step.ms, aspect, view.setProgress, view.setError);
+      const ok = await this.collectFor(collector, step.ms, aspect, (f) => view.setProgress((i + f) / steps.length), view.setError);
+      if (run !== this.calibrationRun) return;
       if (!ok) {
         view.setError(copy.calibration.noFace);
         return;
@@ -552,14 +449,13 @@ export class App {
     this.cal = buildCalibration({
       neutral,
       widePeak: collectors[1]?.peakBlend() ?? neutral.blend,
-      browPeak: collectors[2]?.peakBlend() ?? neutral.blend,
-      blinkPeak: collectors[3]?.peakBlend() ?? neutral.blend,
+      browPeak: neutral.blend,
+      blinkPeak: neutral.blend,
       aspect,
     });
     cam.setCalibration(this.cal);
     this.synthetic?.setCalibration(this.cal);
     view.setPrompt(copy.calibration.done);
-    sound.play('gateChime');
     onDone();
   }
 
@@ -571,15 +467,20 @@ export class App {
     onProgress: (f: number) => void,
     onError: (t: string | null) => void,
   ): Promise<boolean> {
+    const run = this.calibrationRun;
     return new Promise((resolve) => {
       const started = performance.now();
       let sawFace = false;
       let lastT = -1;
 
       const tick = (): void => {
+        if (run !== this.calibrationRun) {
+          resolve(false);
+          return;
+        }
         const now = performance.now();
         const elapsed = now - started;
-        onProgress(elapsed / durationMs);
+        onProgress(Math.min(1, elapsed / durationMs));
 
         const raw: RawFrame | null = this.webcam?.latestRaw() ?? null;
         const face = raw?.faces[0];
@@ -604,40 +505,11 @@ export class App {
 
   // -------------------------------------------------------------- starting a run
 
-  private riteTunables(): Tunables {
-    const t = defaultTunables();
-    const r = this.progress.rites;
-    if (r.includes('steadyWicks')) {
-      t.wickMaxStepDownFh *= config.rites.steadyWicksMultiple;
-      t.wickMaxGapFh *= config.rites.steadyWicksMultiple;
-      t.wickSpeedMultiple = config.rites.steadyWicksSpeedMultiple;
-    }
-    if (r.includes('mawSense')) t.mawFearRadiusMultiple = config.rites.mawSenseRadiusMultiple;
-    if (r.includes('tallowShell')) t.dripShieldCount = config.rites.tallowShellCount;
-    if (r.includes('secondChance')) t.secondChanceCount = config.rites.secondChanceCount;
-    if (r.includes('lanternOil')) {
-      t.lightRadiusMultiple = config.rites.lanternOilMultiple;
-      t.snuffTimeMultiple = config.rites.lanternOilSnuffMultiple;
-    }
-    if (r.includes('ironNerve')) {
-      t.composureDrainMultiple = config.rites.ironNerveMultiple;
-      t.blocksYawn = true;
-    }
-    if (r.includes('wardingSalt')) {
-      t.crawlerSpeedMultiple = config.rites.wardingSaltSpeedMultiple;
-      t.crawlerTouchMultiple = config.rites.wardingSaltTouchMultiple;
-      t.crawlerWardCount = config.rites.wardingSaltWardCount;
-    }
-    return t;
-  }
-
   /**
-   * The fix for the tracking regression (docs/OVERHAUL.md section 7). From
-   * 0455ab0 on, a returning player's primary button was CONTINUE, which went
-   * straight into a level on the synthetic Assist face and never started the
-   * camera - so the face on screen stopped following the player's own face.
-   * Every route into a level now honours the chosen controls: in face mode
-   * with no live camera, the camera (and calibration) comes first.
+   * Every route into a level honours the chosen controls: in face mode with no
+   * live camera, the camera (and calibration) comes first. Without this, from
+   * 0455ab0 on, a returning player went straight into a level on the
+   * synthetic Assist face and the game stopped following their own face.
    */
   private needsCamera(): boolean {
     return this.settings.controls === 'face' && this.webcam === null;
@@ -649,7 +521,7 @@ export class App {
       return;
     }
     try {
-      this.startLevel(await loadLevel(id), false);
+      this.startLevel(await loadLevel(id), { endless: false, insert: true });
     } catch (err) {
       toast(this.uiHost, `Could not load tape ${id}.`);
       // eslint-disable-next-line no-console
@@ -663,7 +535,7 @@ export class App {
       await this.enableCamera(() => void this.playDaily());
       return;
     }
-    this.startLevel(generateDaily(dayNumber()), false);
+    this.startLevel(generateDaily(dayNumber()), { endless: false, insert: true });
   }
 
   private async playEndless(): Promise<void> {
@@ -671,44 +543,41 @@ export class App {
       await this.enableCamera(() => void this.playEndless());
       return;
     }
-    this.startLevel(generateEndless(), true);
+    this.startLevel(generateEndless(), { endless: true, insert: true });
   }
 
-  private startLevel(level: Level, endless: boolean): void {
+  /**
+   * Sets up a run. With `insert`, the tape insert plays first (2 s, or until a
+   * key on the very first tape); without it - a retry - play starts at once.
+   */
+  private startLevel(level: Level, opts: { endless: boolean; insert: boolean }): void {
     this.ensureSynthetic();
     this.clearPlayUi();
 
-    // Every route into a level has to start the audio, not just the title
-    // button. A returning player who went title -> shelf -> level got a
-    // completely silent game, because the only `resume()` calls were on the
-    // paths through the notice and the play button. Both calls are idempotent.
+    // Every route into a level has to start the audio, not just the title.
     void sound.resume().then(() => {
-      sound.setVolume(this.settings.volume);
+      this.applyVolume();
       sound.startBed();
     });
 
     this.level = level;
     this.stage.setWatcherVariant(level.tape);
-    // The menu music gives way to the tape's own bed.
     sound.stopTheme();
-    // Decision D12: the first daily attempt is the one that counts, so a replay
-    // is practice. Derived here rather than set by the caller, because setting
-    // it before `startLevel` left it stale if a run was abandoned.
+    // Decision D12: the first daily attempt is the one that counts.
     this.practiceRun = level.mode === 'daily' && this.progress.daily?.day === dayNumber();
-    this.tunables = this.riteTunables();
     this.reactions.reset();
     this.lines.reset();
     this.lastConsumedFrameT = -1;
     this.lowestSeen = 1;
-    this.crashAtMs = performance.now();
+    this.watcherStartedMs = -1;
 
     this.world = new World({
       level,
-      tunables: this.tunables,
+      tunables: defaultTunables(),
       // Daily runs share a seed so everyone gets the same cast of Wicks.
       seed: level.mode === 'daily' ? level.index * 7919 + 13 : (Date.now() & 0xffff) + 1,
       survivors: survivorMap(this.progress),
-      endless,
+      endless: opts.endless,
     });
 
     this.scares = new ScareDirector(level, {
@@ -721,18 +590,34 @@ export class App {
 
     this.stage.setOsdVisible(true);
     this.setScreen(null, 'playing');
-
-    this.hudView = hud();
+    this.hudView = hud(() => this.pause());
     this.uiHost.appendChild(this.hudView.node);
 
-    this.introNode = levelIntro(level);
-    this.uiHost.appendChild(this.introNode);
-    setTimeout(() => {
-      this.introNode?.remove();
-      this.introNode = null;
-    }, 2600);
+    if (!opts.insert) {
+      this.beginPlay();
+      return;
+    }
+    const firstRun = !this.settings.howToPlaySeen;
+    this.overlay = tapeInsert(level, { firstRun, assist: this.source === this.synthetic });
+    this.uiHost.appendChild(this.overlay);
+    if (firstRun) {
+      this.saveSettingsWith({ howToPlaySeen: true });
+      this.overlay.addEventListener('pointerdown', () => this.beginPlay());
+    }
+    this.insertUntilMs = firstRun ? Infinity : performance.now() + config.flow.tapeInsertMs;
+    this.phase = 'inserting';
+  }
 
-    // U8 - start the rolling buffer only if the player opted in.
+  /** The insert is over (or skipped): the tape runs. */
+  private beginPlay(): void {
+    if (this.world === null) return;
+    this.overlay?.remove();
+    this.overlay = null;
+    this.phase = 'playing';
+    this.crashAtMs = performance.now();
+    this.lastRenderMs = performance.now();
+
+    // U8 - the rolling buffer starts only if the player opted in.
     this.recordingThisRun = false;
     if (this.settings.recording && this.recorder.available) {
       this.portrait.reset();
@@ -742,9 +627,33 @@ export class App {
         audioContext: sound.context,
       });
     }
-
     sound.unduck();
     this.frameTimes = [];
+  }
+
+  /** Retry, from the results or the pause screen: 0.8 s of rewind, then play. */
+  private rewindAndRestart(): void {
+    const level = this.level;
+    if (level === null) return;
+    this.setScreen(null, 'rewinding');
+    this.clearPlayUi();
+    void this.recorder.stop();
+    this.recordingThisRun = false;
+    sound.play('tapeStop');
+    this.overlay = rewindOverlay();
+    this.uiHost.appendChild(this.overlay);
+    window.setTimeout(() => {
+      if (this.phase !== 'rewinding') return;
+      this.startLevel(level, { endless: level.mode === 'endless', insert: false });
+    }, config.flow.rewindMs);
+  }
+
+  /** Removes the in-game overlays. They live outside `currentScreen`. */
+  private clearPlayUi(): void {
+    this.hudView?.node.remove();
+    this.hudView = null;
+    this.overlay?.remove();
+    this.overlay = null;
   }
 
   // -------------------------------------------------------------------- loop
@@ -762,11 +671,18 @@ export class App {
     // Assist produces a frame on demand; the webcam pushes them asynchronously.
     if (this.source === this.synthetic && this.synthetic !== null) this.synthetic.tick(now);
 
+    if (this.phase === 'inserting') {
+      // The picture settles behind the label; nothing moves on the face yet.
+      if (now >= this.insertUntilMs) this.beginPlay();
+      else this.renderFrame(now, dtMs);
+      return;
+    }
+
     if (this.phase !== 'playing') {
-      // Pause and Results are see-through, so the stage under them stays live.
-      // Every other menu is opaque: drawing the whole stage and its post-process
-      // under it only took frame time away from the tracker.
-      const seeThrough = this.phase === 'paused' || this.phase === 'results';
+      // Pause, Results and the rewind are see-through, so the stage under them
+      // stays live. Every other screen is opaque: drawing the stage and its
+      // post-process under it only took frame time from the tracker.
+      const seeThrough = this.phase === 'paused' || this.phase === 'results' || this.phase === 'rewinding';
       if (seeThrough && this.world !== null && this.level !== null) this.renderFrame(now, 0);
       return;
     }
@@ -775,11 +691,8 @@ export class App {
     const level = this.level;
     if (world === null || level === null) return;
 
-    // `latest()` returns the same frame object until the tracker produces a new
-    // one, and tracking runs at 20-30 Hz against a 60 Hz render loop. Pushing
-    // the same frame repeatedly would collapse `frameA` onto `frameB`, which
-    // destroys the terrain interpolation and - worse - makes the measured
-    // face-centre speed permanently zero, disabling the quake entirely.
+    // `latest()` returns the same frame until the tracker produces a new one.
+    // Pushing it repeatedly would collapse the terrain interpolation.
     const frame = this.source?.latest() ?? null;
     if (frame !== null && frame.t !== this.lastConsumedFrameT) {
       this.lastConsumedFrameT = frame.t;
@@ -802,15 +715,8 @@ export class App {
       this.crashAtMs = now;
     }
 
-    // One snapshot per frame, passed down. It was being rebuilt four times a
-    // frame - for the HUD, the end check, the renderer and the clip capture -
-    // and each rebuild filters the Wick list and maps the whole roster, so at
-    // 60 fps that was a lot of garbage for no new information.
     const snap = world.snapshot();
-
-    this.hudView?.update(world.composureState.fraction, world.composureState.mood);
-    this.hudView?.setLossBudget(snap.lossesRemaining);
-    this.hudView?.setHint(this.hintText(world, now));
+    this.hudView?.setTracking(this.trackingLost(world, now));
 
     this.renderParity = !this.renderParity;
     if (!this.trackerStarved() || this.renderParity) {
@@ -821,6 +727,12 @@ export class App {
 
     if (snap.over) this.finishRun();
   };
+
+  /** Loading, or the face left the frame: "TRACKING…" with a Pause button. */
+  private trackingLost(world: World, now: number): boolean {
+    if (this.source !== this.webcam) return false;
+    return !world.faceSeen || now - this.lastFaceAtMs > config.face.lostTrackingPauseMs;
+  }
 
   /** True while a live camera is being out-run by the renderer. */
   private trackerStarved(): boolean {
@@ -867,13 +779,7 @@ export class App {
     }
 
     world.setFace(frame);
-    this.reactions.update(
-      face.blend,
-      face.scale,
-      world.faceSpeedFhPerS,
-      now,
-      config.quake.speedFhPerS,
-    );
+    this.reactions.update(face.blend, face.scale, world.faceSpeedFhPerS, now, config.quake.speedFhPerS);
   }
 
   /** ms since the Watcher arrived, or null once it has finished. */
@@ -885,23 +791,6 @@ export class App {
       return null;
     }
     return elapsed;
-  }
-
-  private hintText(world: World, now: number): string | null {
-    if (!world.faceSeen) return copy.hud.noFace;
-    if (this.source === this.webcam && now - this.lastFaceAtMs > config.face.lostTrackingPauseMs) {
-      return copy.pause.lostTracking;
-    }
-    // The Assist control reminder used to live only on the pause screen, so a
-    // mouse-and-keyboard player - the default for a first-time player, U10 -
-    // had nothing on screen telling them what any key did while actually
-    // playing. `crashAtMs` doubles as the level's start time (set in
-    // `startLevel`); shown for the first few seconds of a level and then out
-    // of the way, same as it already fades once the player pauses once.
-    if (this.source === this.synthetic && now - this.crashAtMs < config.hud.assistHintMs) {
-      return copy.hud.assistHint;
-    }
-    return null;
   }
 
   /** Turns world events into sound, Wick lines and screen effects. */
@@ -916,14 +805,11 @@ export class App {
           sound.play('gateChime');
           this.say('saved', e.wick, now);
           break;
-        case 'lost': {
+        case 'lost':
           sound.play(e.cause === 'maw' ? 'gulp' : 'flameOut');
-          // The Ossuary (U7) keeps a Wick's last words, so record what it said.
-          const line = this.say(e.cause === 'maw' ? 'swallowed' : 'lostOther', e.wick, now);
-          e.wick.lastWords = line;
+          this.say(e.cause === 'maw' ? 'swallowed' : 'lostOther', e.wick, now);
           this.stage.addShake(e.cause === 'maw' ? 0.02 : 0.01, this.cal);
           break;
-        }
         case 'offering':
           sound.play('offering');
           this.stage.addFlare(e.x, e.y, now);
@@ -958,11 +844,8 @@ export class App {
           this.lines.request({ trigger: 'turn', at: { x: e.x, y: e.y } }, now);
           break;
         case 'stuck':
-          // The only line in the game that is really an instruction. A Wick
-          // pacing a dead end under the chin is otherwise invisible, and
-          // tilting the head - which frees them, and is the premise of the
-          // whole game - is not something a player thinks to try at a problem
-          // they cannot see.
+          // The one line that is really an instruction: tilting frees a Wick
+          // pacing a dead end, and nothing else on screen says so.
           this.lines.request({ trigger: 'stuck', at: { x: e.x, y: e.y } }, now);
           break;
         case 'warded':
@@ -975,12 +858,11 @@ export class App {
           sound.play('skitter');
           break;
         case 'watcher':
-          // Earned, not scheduled: more than half the roster is gone. Honours
-          // Scares off completely - no sound, no face, the tape just ends.
+          // Earned, not scheduled. Honours Scares off completely - no sound, no
+          // face, the tape just ends.
           if (this.settings.scares) {
             this.watcherStartedMs = now;
             sound.watcherSequence(this.stage.watcherLeadMs(this.settings.reducedEffects), this.stage.watcherVoicePitch);
-            this.lines.request({ trigger: 'watcher', priority: 120 }, now);
           }
           break;
         case 'wave':
@@ -1018,9 +900,13 @@ export class App {
     }
   }
 
-  /** Says a line about a specific Wick, and returns the text for the Ossuary. */
-  private say(trigger: 'spawn' | 'saved' | 'swallowed' | 'lostOther', wick: { name: string; title: string | null; body: { x: number; y: number } }, now: number): string | null {
-    const line = this.lines.request(
+  /** Says a line about a specific Wick. */
+  private say(
+    trigger: 'spawn' | 'saved' | 'swallowed' | 'lostOther',
+    wick: { name: string; title: string | null; body: { x: number; y: number } },
+    now: number,
+  ): void {
+    this.lines.request(
       {
         trigger,
         at: { x: wick.body.x, y: wick.body.y },
@@ -1029,16 +915,12 @@ export class App {
       },
       now,
     );
-    return line?.text ?? null;
   }
 
   private onScare(scare: ActiveScare): void {
     if (!this.settings.scares) return;
     if (scare.type === 'stinger' || scare.type === 'figure' || scare.type === 'behindYou') {
       sound.play('stinger');
-      // A small physical jolt alongside the sting - `TapeFx` clamps this to
-      // `config.render.maxShakeFh` and "Reduce effects" disables it outright,
-      // so it never becomes disorienting.
       this.stage.addShake(0.045, this.cal);
     }
     if (scare.type === 'whisper') {
@@ -1050,10 +932,11 @@ export class App {
     const world = this.world;
     const level = this.level;
     if (world === null || level === null) return;
+    const snap = snapshot ?? world.snapshot();
 
     this.stage.render({
       world,
-      snapshot: snapshot ?? world.snapshot(),
+      snapshot: snap,
       level,
       cal: this.cal,
       settings: this.settings,
@@ -1063,7 +946,7 @@ export class App {
       timeMs: now,
       dtMs,
       watcherElapsedMs: this.watcherElapsed(now),
-      showNoFaceHint: !world.faceSeen,
+      mark: tapeMark(level.id, level.mode, snap.wave),
     });
   }
 
@@ -1090,30 +973,17 @@ export class App {
     if (world === null || level === null) return;
 
     const snap = world.snapshot();
-    // Replaying an already-cleared level pays reduced coins, so grinding the
-    // easiest level is not the most efficient way to earn.
-    const alreadyCleared = (this.progress.levels[level.id]?.candles ?? 0) > 0;
-    const result = buildResult(level, snap, world.finalScore(), alreadyCleared);
+    const result = buildResult(level, snap, world.finalScore());
 
     const beforeBest = this.progress.endlessBest.score;
     this.progress = recordRun(
       this.progress,
       result,
-      world.roster.map((w) => ({
-        name: w.name,
-        title: w.title,
-        state: w.state,
-        cause: w.cause,
-        lastWords: w.lastWords,
-      })),
+      world.roster.map((w) => ({ name: w.name, state: w.state })),
     );
     if (level.mode === 'daily' && !this.practiceRun) {
       this.progress = recordDaily(this.progress, dayNumber(), result);
     }
-    // Coins are banked here, which is also the only place they are created.
-    // A failed tape pays nothing (`coinsFor` returns 0), so there is no need
-    // to special-case failure.
-    if (result.coins > 0) this.progress = addCoins(this.progress, result.coins);
     saveProgress(this.progress);
 
     const newBest = level.mode === 'endless' && result.score > beforeBest;
@@ -1121,60 +991,51 @@ export class App {
     sound.play('tapeStop');
     sound.duck();
     void this.recorder.stop();
-
     this.clearPlayUi();
+    this.showResults(result, { newBest, clip: this.recordingThisRun });
+  }
 
-    // A lost tape offers no way forward at all - retry or leave. That is the
-    // entire point of there now being a way to lose.
+  private showResults(result: RunResult, opts: { newBest: boolean; clip: boolean }): void {
+    const level = this.level;
+    if (level === null) return;
+    // A lost tape offers no way forward: try again, or leave.
     const next = result.failed ? null : level.mode === 'story' ? nextLevelId(level.id) : null;
-    // The ending card belongs to the narrative finale, not to whatever happens
-    // to be last on disk. Adding Tape 05 as post-game content moved the credits
-    // onto a bonus level until this was made explicit: finish 04-2 and the
-    // story ends, then Tape 05 is waiting on the shelf.
+    // The ending belongs to the narrative finale, not to whatever is last on disk.
     const endsStory = !result.failed && level.mode === 'story' && isStoryFinale(level.id);
+    const line = result.failed
+      ? (copy.lostLines[Math.floor(Math.random() * copy.lostLines.length)] ?? copy.stampLine['TAPE LOST'])
+      : copy.stampLine[result.stamp];
 
     this.setScreen(
       resultsScreen(
         result,
         {
-          next: endsStory
-            ? () => this.showEnding()
-            : next !== null
-              ? () => void this.playStory(next)
-              : null,
-          retry: () => this.startLevel(level, level.mode === 'endless'),
+          next: endsStory ? () => this.showEnding() : next !== null ? () => void this.playStory(next) : null,
+          retry: () => this.rewindAndRestart(),
           shelf: () => this.showShelf(),
-          shop: () => this.showShop(),
-          copyResult: () => {
-            void copyToClipboard(shareText(result)).then((ok) => {
-              if (ok) toast(this.uiHost, copy.results.copied);
-            });
-          },
-          saveCard: () => {
-            const card = drawResultCard({ result, frame: this.stage.canvas });
-            downloadCanvas(card, cardFilename(result));
-          },
-          saveClip: this.recordingThisRun ? () => this.previewClip(result) : null,
+          mainMenu: () => this.showTitle(),
+          saveClip: opts.clip ? () => this.previewClip(result, opts) : null,
         },
-        { practice: this.practiceRun, newBest, recordingOn: this.settings.recording },
+        { practice: this.practiceRun, newBest: opts.newBest, line },
       ),
       'results',
-      () => this.showShelf(),
+      () => this.showTitle(),
     );
   }
 
   /** U8 - preview before saving, and discard everything on close (invariant 3). */
-  private previewClip(result: RunResult): void {
+  private previewClip(result: RunResult, opts: { newBest: boolean; clip: boolean }): void {
     const blob = this.recorder.buildHighlight(this.crashAtMs);
     if (blob === null) {
-      toast(this.uiHost, 'Nothing was recorded.');
+      this.showResults(result, { ...opts, clip: false });
       return;
     }
     const url = URL.createObjectURL(blob);
     const close = (): void => {
       URL.revokeObjectURL(url);
       this.recorder.discard();
-      this.finishRunScreenAgain(result);
+      this.recordingThisRun = false;
+      this.showResults(result, { ...opts, clip: false });
     };
     this.setScreen(
       clipPreviewScreen(
@@ -1190,48 +1051,35 @@ export class App {
     );
   }
 
-  /** Re-shows results after the clip dialog, without re-recording the run. */
-  private finishRunScreenAgain(result: RunResult): void {
-    const level = this.level;
-    if (level === null) return;
-    const next = level.mode === 'story' ? nextLevelId(level.id) : null;
-    const endsStory = level.mode === 'story' && isStoryFinale(level.id);
-    this.setScreen(
-      resultsScreen(
-        result,
-        {
-          next: endsStory
-            ? () => this.showEnding()
-            : next !== null
-              ? () => void this.playStory(next)
-              : null,
-          retry: () => this.startLevel(level, level.mode === 'endless'),
-          shelf: () => this.showShelf(),
-          shop: () => this.showShop(),
-          copyResult: () => void copyToClipboard(shareText(result)),
-          saveCard: () => downloadCanvas(drawResultCard({ result, frame: this.stage.canvas }), cardFilename(result)),
-          saveClip: null,
-        },
-        { practice: false, newBest: false, recordingOn: this.settings.recording },
-      ),
-      'results',
-      () => this.showShelf(),
-    );
-  }
-
   private showEnding(): void {
     this.progress = { ...this.progress, endingSeen: true };
     saveProgress(this.progress);
-    this.stage.setOsdVisible(false);
-    this.setScreen(endingScreen(() => this.showShelf()), 'ending', () => this.showShelf());
+    this.endRun();
+    this.setScreen(endingScreen(() => this.showTitle()), 'ending', () => this.showTitle());
   }
 
   // ------------------------------------------------------------------- pause
 
   private onGlobalKey = (e: KeyboardEvent): void => {
+    // The very first tape insert waits for any key.
+    if (this.phase === 'inserting' && this.insertUntilMs === Infinity && e.key !== 'Escape') {
+      e.preventDefault();
+      this.beginPlay();
+      return;
+    }
     if (e.key !== 'Escape' && e.key !== 'p' && e.key !== 'P') return;
-
-    if (this.phase === 'playing') {
+    // Already handled by the screen's own focus trap, which may have just
+    // changed the phase - handling it again here would undo that (Esc from
+    // Settings went back to Pause, then straight on into play).
+    if (e.defaultPrevented) return;
+    // The trap only hears keys while focus is inside its screen; this catches
+    // Esc when focus is anywhere else.
+    if (e.key === 'Escape' && this.escape !== null && this.currentScreen !== null) {
+      e.preventDefault();
+      this.escape();
+      return;
+    }
+    if (this.phase === 'playing' || this.phase === 'inserting') {
       e.preventDefault();
       this.pause();
     } else if (this.phase === 'paused') {
@@ -1241,33 +1089,22 @@ export class App {
   };
 
   private pause(): void {
-    const lost = this.source === this.webcam && performance.now() - this.lastFaceAtMs > config.face.lostTrackingPauseMs;
+    if (this.world === null) return;
+    // Pausing during the insert ends it: the tape starts, already paused.
+    if (this.phase === 'inserting') this.beginPlay();
     sound.duck();
     this.setScreen(
       pauseScreen(
         {
           resume: () => this.resume(),
-          restart: () => {
-            if (this.level !== null) this.startLevel(this.level, this.level.mode === 'endless');
-          },
+          restart: () => this.rewindAndRestart(),
           settings: () => this.showSettings(() => this.pause()),
-          shelf: () => this.showShelf(),
-          // An explicit way out. The abandoned run is simply not scored;
-          // everything already earned was written to storage when it was
-          // earned, so there is nothing to lose by leaving.
-          exit: () => {
+          mainMenu: () => {
             sound.play('tapeStop');
             this.showTitle();
           },
-          howToPlay: () => this.showHowToPlay(() => this.pause()),
-          switchAssist: () => {
-            void this.switchControls('assist');
-            this.settings = { ...this.settings, controls: 'assist' };
-            saveSettings(this.settings);
-            this.resume();
-          },
         },
-        lost,
+        { assist: this.source === this.synthetic },
       ),
       'paused',
       () => this.resume(),
@@ -1277,9 +1114,7 @@ export class App {
   private resume(): void {
     sound.unduck();
     this.setScreen(null, 'playing');
-    if (this.hudView !== null && !this.uiHost.contains(this.hudView.node)) {
-      this.uiHost.appendChild(this.hudView.node);
-    }
+    if (this.hudView !== null && !this.uiHost.contains(this.hudView.node)) this.uiHost.appendChild(this.hudView.node);
   }
 
   /** Measured render rate, for AC-7. Read from the debug page and the console. */

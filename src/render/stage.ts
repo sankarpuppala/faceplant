@@ -15,7 +15,7 @@
  * dimmed by their own darkness.
  */
 
-import { Application, Container, Graphics, Sprite, Texture } from 'pixi.js';
+import { Application, Container, Graphics, Rectangle, Sprite, Texture } from 'pixi.js';
 import { SimpleLightmapFilter } from 'pixi-filters';
 import { config } from '../config.ts';
 import type { Calibration } from '../face/calibration.ts';
@@ -61,8 +61,8 @@ export interface RenderInput {
    * whenever Scares are off, so the app does not have to special-case it.
    */
   watcherElapsedMs: number | null;
-  /** Shown when no face has been seen yet. */
-  showNoFaceHint: boolean;
+  /** The OSD's top-right mark, e.g. `T02/3`. */
+  mark: string;
 }
 
 export class Stage {
@@ -136,6 +136,10 @@ export class Stage {
     const w = this.app.renderer.width;
     const h = this.app.renderer.height;
     this.vp = computeViewport(w, h, config.render.aspect);
+    // The tape effects cover the whole frame. Left to itself Pixi filters only
+    // the bounds of what is drawn, and with no camera picture under it (Assist)
+    // that stopped the scanlines, grain and vignette at the Gate's edge.
+    this.taped.filterArea = new Rectangle(0, 0, w, h);
     this.osd.layout(this.vp);
     this.lightMap?.resize(config.render.aspect);
     this.staticKey = '';
@@ -195,7 +199,7 @@ export class Stage {
 
   render(input: RenderInput): void {
     const { world, snapshot, settings, level } = input;
-    const ink = settings.filter === 'ink' || settings.hideMyFace;
+    const ink = settings.filter === 'ink';
     /**
      * Whether the contours should draw *as* the face (full candle colour,
      * near-opaque) rather than as a thin guide laid over real video.
@@ -216,6 +220,7 @@ export class Stage {
     const dtS = input.dtMs / 1000;
 
     this.fx.update(dtS, input.timeMs, reduced);
+    this.fx.setComposure(world.composureState.fraction);
     if (!reduced) this.flickerPhase += dtS * Math.PI * 2 * config.light.flickerHz;
 
     // --- post-process and shake ------------------------------------------
@@ -300,7 +305,15 @@ export class Stage {
     // `osdVisible` is honoured here rather than set: the menus render over a
     // live stage, and an earlier version forced it true every frame, so hiding
     // it for the title screen lasted exactly one frame.
-    this.osd.update(snapshot, level.label, input.timeMs, reduced, level.mode === 'endless');
+    this.osd.update({
+      snap: snapshot,
+      mark: input.mark,
+      rosterSize: level.mode === 'endless' ? snapshot.spawned : level.spawn.count,
+      timeMs: input.timeMs,
+      reducedEffects: reduced,
+      composure: world.composureState.fraction,
+      glitches: settings.scares && !reduced,
+    });
     this.osd.visible = this.osdVisible;
 
     this.app.render();

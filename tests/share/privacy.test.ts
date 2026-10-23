@@ -13,8 +13,6 @@ import { join } from 'node:path';
 import { config } from '../../src/config.ts';
 import { isLocalUrl } from '../../src/privacy.ts';
 import { pickFormat } from '../../src/share/recorder.ts';
-import { CARD_HEIGHT, CARD_WIDTH, cardFilename } from '../../src/share/resultCard.ts';
-import type { RunResult } from '../../src/game/rules.ts';
 
 const ORIGIN = 'https://faceplant.example';
 const BASE = `${ORIGIN}/game/index.html`;
@@ -149,24 +147,3 @@ describe('the clip recorder (U8, decision D9)', () => {
   });
 });
 
-describe('the result card (SPEC 16)', () => {
-  const result: RunResult = {
-    levelId: '02-3', label: 'T02/3', title: 'Timing', mode: 'story', stamp: 'THE MAW AWOKE',
-    spawned: 9, saved: 8, lost: 1, candles: 2, score: 1234, mawWokeCount: 2,
-    offerings: 1, bestProcession: 3, composureLeft: 0.62, composureLow: 0.4,
-    lossesByCause: { maw: 1, void: 0, drip: 0, dark: 0, crawler: 0, moth: 0 },
-    outcomes: ['saved', 'maw'], elapsedMs: 60_000, wave: 0, failed: false, coins: 0, riteSaves: { wardingSalt: 0, ironNerve: 0, tallowShell: 0, secondChance: 0, lanternOil: 0 },
-  };
-
-  it('is the portrait size short-video platforms want', () => {
-    expect(CARD_WIDTH).toBe(1080);
-    expect(CARD_HEIGHT).toBe(1350);
-  });
-
-  it('names the file after the tape, safely', () => {
-    expect(cardFilename(result)).toBe('faceplant-02-3.png');
-    expect(cardFilename({ ...result, mode: 'daily', label: 'DAILY #017' })).toBe('faceplant-daily-017.png');
-    // No path separators or spaces can reach the filename.
-    expect(cardFilename({ ...result, mode: 'daily', label: 'a/b c' })).not.toMatch(/[/\\ ]/);
-  });
-});

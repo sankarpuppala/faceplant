@@ -25,108 +25,21 @@
  * the same script.
  */
 
-import { spawn } from 'node:child_process';
-import { existsSync, mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-
-const BROWSERS = [
-  'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
-  'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
-  'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
-  'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
-];
+import { launch, sleep } from './browser.ts';
 
 const url = process.argv[2] ?? 'http://localhost:5173';
 const seconds = Number(process.argv[3] ?? 12);
 /** `reduced` measures with "Reduce effects" on, to price the post-process. */
 const reduced = process.argv[4] === 'reduced';
-const port = 9333 + Math.floor(Math.random() * 400);
-
-const browser = BROWSERS.find((b) => existsSync(b));
-if (browser === undefined) {
-  console.error('bench:tracking needs Chrome or Edge.');
-  process.exit(2);
-}
-
-const profile = mkdtempSync(join(tmpdir(), 'fp-bench-'));
-const child = spawn(
-  browser,
-  [
-    '--headless=new',
-    `--remote-debugging-port=${port}`,
-    `--user-data-dir=${profile}`,
-    '--use-fake-device-for-media-stream=fps=30',
-    '--use-fake-ui-for-media-stream',
-    '--autoplay-policy=no-user-gesture-required',
-    '--window-size=1280,720',
-    'about:blank',
-  ],
-  { stdio: 'ignore' },
-);
-
-const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
-
-async function pageSocket(): Promise<string> {
-  for (let i = 0; i < 50; i++) {
-    try {
-      const res = await fetch(`http://127.0.0.1:${port}/json/list`);
-      const list = (await res.json()) as { type: string; webSocketDebuggerUrl: string }[];
-      const page = list.find((t) => t.type === 'page');
-      if (page !== undefined) return page.webSocketDebuggerUrl;
-    } catch {
-      /* not up yet */
-    }
-    await sleep(200);
-  }
-  throw new Error('the browser never exposed a page');
-}
-
-class Cdp {
-  private id = 0;
-  private readonly pending = new Map<number, (v: unknown) => void>();
-  private readonly ws: WebSocket;
-  private constructor(ws: WebSocket) {
-    this.ws = ws;
-    ws.addEventListener('message', (ev) => {
-      const msg = JSON.parse(String(ev.data)) as { id?: number; result?: unknown; error?: unknown };
-      if (msg.id === undefined) return;
-      this.pending.get(msg.id)?.(msg.error ?? msg.result);
-      this.pending.delete(msg.id);
-    });
-  }
-  static async open(wsUrl: string): Promise<Cdp> {
-    const ws = new WebSocket(wsUrl);
-    await new Promise((r, j) => {
-      ws.addEventListener('open', r);
-      ws.addEventListener('error', j);
-    });
-    return new Cdp(ws);
-  }
-  send(method: string, params: Record<string, unknown> = {}): Promise<unknown> {
-    const id = ++this.id;
-    this.ws.send(JSON.stringify({ id, method, params }));
-    return new Promise((r) => this.pending.set(id, r));
-  }
-  async eval<T>(expression: string): Promise<T> {
-    const r = (await this.send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true })) as {
-      result?: { value?: T };
-    };
-    return r.result?.value as T;
-  }
-  close(): void {
-    this.ws.close();
-  }
-}
 
 function median(xs: number[]): number {
   const s = [...xs].sort((a, b) => a - b);
   return s[Math.floor(s.length / 2)] ?? 0;
 }
 
+const browser = await launch();
 try {
-  const cdp = await Cdp.open(await pageSocket());
-  await cdp.send('Runtime.enable');
+  const { cdp } = browser;
   // Skip the notice so every revision lands on the same screen.
   await cdp.send('Page.navigate', { url });
   await sleep(1500);
@@ -185,18 +98,9 @@ try {
   if (median(detect) >= 0) console.log(`detect ms  median ${median(detect).toFixed(1)}`);
   console.log(`driven by  ${videoDriven >= seconds / 2 ? 'video frame callback' : 'animation frame (fallback or v1)'}${reduced ? '  [reduce effects on]' : ''}`);
   const overlay = await cdp.eval<string | null>(`document.querySelector('.debug-overlay-text')?.textContent ?? null`);
-  if (overlay !== null) console.log(`
-?debug=1 overlay:
-${overlay}`);
+  if (overlay !== null) console.log(`\n?debug=1 overlay:\n${overlay}`);
   const cam = await cdp.eval<string>(`(() => { const v = window.faceplant.webcam?.info().video; return v ? v.videoWidth + 'x' + v.videoHeight : 'none'; })()`);
   console.log(`camera     ${cam}`);
-  cdp.close();
 } finally {
-  child.kill();
-  await sleep(500);
-  try {
-    rmSync(profile, { recursive: true, force: true });
-  } catch {
-    /* the browser may still hold a lock on Windows; it is a temp dir */
-  }
+  await browser.close();
 }

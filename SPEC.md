@@ -512,18 +512,27 @@ goes back; the focus ring is 2 px `candle` at a 2 px offset.
 7. **DOM overlay** for menus and dialogs.
 
 ### 12.5 Screens
+Rewritten by the horror overhaul (`docs/OVERHAUL.md` §3). Every screen has an
+exit, Main menu is at most two inputs away, and Esc always works;
+`npm run check:flow` walks the real game to prove it.
+
 | Screen | Content |
 |---|---|
-| First-launch notice | 13+, startling moments, flashing-light-safe, "the camera never leaves this device". Buttons: *Continue* / *Continue with scares off* |
-| Title | Black with soft CRT glow. **FACEPLANT** in Special Elite, wide letter-spacing, faint jitter (off in reduced effects). Tagline *Don't open your mouth.* in VT323. Primary *▶ INSERT FACE*; secondary *Play without camera*. Footer: *The camera never leaves this device.* |
-| Camera explainer | One sentence on what the camera is used for and that nothing is uploaded, then the browser prompt |
-| Calibration | §7, with a single candle as the focus point |
-| Tape shelf | VHS spines standing on a shelf, video-store style; each spine has a handwritten-style sticker (Special Elite) and its candles; the selected tape is pulled forward and glows; the Daily Tape has a red sticker `daily #017` |
-| In-game | §12.4 |
-| Pause | VHS `PAUSE ‖` freeze with a slight horizontal tear; Resume, Restart, Settings, Shelf |
-| Results | Freeze-frame with VHS pause distortion; a stamp — *KEPT STILL* (none swallowed), *THE MAW AWOKE* (≥ 1 swallowed), *LIGHTS OUT* (none saved); candles lighting one by one; stats (saved x/y, the Maw woke n×, laughs n); *Next*, *Retry*, *Save clip* (if recording), *Save card*, *Copy result* |
-| Settings | Scares on/off; Effects full/reduced; Filter VHS/INK/THERMAL; Hide my face (forces INK); Controls Face/Assist; Recalibrate; Clip recording off/on; Volume |
-| Ending | Black. *thank you for keeping still.* Credits. |
+| First-launch notice | 13+, startling moments, flashing-light-safe, camera stays on device. A Scares on/off toggle. One button: *Continue* |
+| Title | A dark room, one candle, and a face in the dark whose eyes open after 20 s idle. **FACEPLANT** in IM Fell English SC, *Don't open your mouth.* Buttons: *Insert face* (primary), *Play without camera*, *Settings*; tertiary *Leave* (credits, to black) |
+| Camera | One sentence, then the browser prompt. *Turn on camera*, *Play without camera*, *Back* |
+| Calibration | "Hold still. Look at the candle." while a ring fills, then "Open your mouth.", then done (§7). *Skip*, *Back* |
+| Tape shelf | A row of tape spines with number, name and candles earned; locked tapes are black spines; the selected spine slides out; its chapters below. *Play*, *Back*. No shop |
+| Tape insert | 2 s: the tape's label on masking tape and a tracking settle. The very first tape also shows the face diagram and one sentence, and waits for a key |
+| In-game | §12.4. HUD: `● REC 00:01:12` top-left, `T02/3` top-right, Wick icons bottom-left, Maw lips bottom-right. Composure is shown by the picture: the vignette closes and the grain thickens. A lost or loading face shows `TRACKING…` with a Pause button |
+| Pause | *Resume*, *Restart* (0.8 s rewind), *Settings*, *Main menu* |
+| Results | Stamp *TAPE SAVED* / *TAPE LOST*, one line, the Wick row, the score. *Next tape* or *Try again* (primary), *Tape shelf*, *Main menu*; *Save clip* only when a clip was recorded |
+| Settings | Volume (master, music, sound), Scares, Reduce effects, Camera filter (VHS/INK/THERMAL), Clip recording (opt-in), *Back*; *Erase progress* as a two-tap link |
+| Ending | *thank you for keeping still.* *Main menu* |
+
+Removed by the overhaul: How to Play (replaced by the diagram on the first
+insert), the Ossuary, the shop and coins, the share text, Copy result and Save
+card, save export/import, Hide my face (INK does the same) and Low power.
 
 `docs/design-reference.html` shows the intended look of the title, shelf,
 in-game HUD and results; match its feel, not its pixels.

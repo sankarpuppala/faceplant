@@ -65,8 +65,9 @@ export function button(label: string, onClick: () => void, kind: ButtonKind | st
  * never off screen. Tertiary links go underneath in their own line.
  */
 export function actions(buttons: (HTMLElement | null)[], links: (HTMLElement | null)[] = []): HTMLElement {
+  const row = buttons.some((b) => b !== null) ? el('div', { class: 'actions-row' }, buttons) : null;
   const linkRow = links.some((l) => l !== null) ? el('div', { class: 'links' }, links) : null;
-  return el('div', { class: 'actions' }, [...buttons, linkRow]);
+  return el('div', { class: 'actions' }, [row, linkRow]);
 }
 
 /** A labelled row with a control on the right, used throughout Settings. */
@@ -168,7 +169,9 @@ export function screen(
 const FOCUSABLE = 'button:not([disabled]), [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
 
 export function focusFirst(root: HTMLElement): void {
-  const target = root.querySelector<HTMLElement>(FOCUSABLE);
+  // The first one that is actually showing: focusing a `display: none`
+  // button silently leaves focus on <body>, and then no key reaches the screen.
+  const target = [...root.querySelectorAll<HTMLElement>(FOCUSABLE)].find((n) => n.offsetParent !== null);
   target?.focus();
 }
 

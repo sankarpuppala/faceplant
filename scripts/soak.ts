@@ -22,7 +22,7 @@
  *   - conservation: saved + lost + alive === spawned, and nothing goes backwards
  *   - no NaN or runaway position anywhere, ever
  *   - no Wick stranded when the clock runs out
- *   - score, coins and candles never negative or impossible
+ *   - score and candles never negative or impossible
  *   - the run actually ends
  */
 import { config, defaultTunables } from '../src/config.ts';
@@ -33,7 +33,6 @@ import { generateDaily, generateEndless } from '../src/game/daily.ts';
 import { ALL_LEVEL_IDS } from '../src/game/levelLoader.ts';
 import { parseLevel, type Level } from '../src/game/levelSchema.ts';
 import { buildResult } from '../src/game/rules.ts';
-import { coinsFor } from '../src/game/shop.ts';
 import { World } from '../src/physics/world.ts';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -216,19 +215,6 @@ function run(label: string, level: Level, style: Style, seed: number, endless: b
   const res = buildResult(level, s, world.finalScore());
   if (res.score < 0) note(`${label}: negative score ${res.score}`);
   if (res.candles < 0 || res.candles > 3) note(`${label}: ${res.candles} candles`);
-  const coins = coinsFor({
-    failed: res.failed,
-    saved: res.saved,
-    spawned: res.spawned,
-    candles: res.candles,
-    composureLeft: s.composure.fraction,
-    offerings: s.offerings,
-    mode: endless ? 'endless' : 'story',
-    wave: s.wave,
-    replay: false,
-  });
-  if (coins < 0) note(`${label}: negative coins ${coins}`);
-  if (res.failed && coins !== 0) note(`${label}: a failed run paid ${coins} coins`);
 }
 
 const styles: Style[] = ['statue', 'competent', 'laugher', 'thrasher'];
@@ -261,7 +247,7 @@ for (const seed of [1, 7, 99]) {
 
 console.log(`\n${runs} runs complete.`);
 if (problems.length === 0) {
-  console.log('No conservation breaks, no NaN, no strandings, no mispaid coins.');
+  console.log('No conservation breaks, no NaN, no strandings.');
 } else {
   const counted = new Map<string, number>();
   for (const p of problems) counted.set(p, (counted.get(p) ?? 0) + 1);

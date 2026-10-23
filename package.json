@@ -19,6 +19,7 @@
     "check:privacy": "node --experimental-strip-types scripts/check-privacy.ts",
     "check:flash": "node --experimental-strip-types scripts/check-flash.ts",
     "check:ui": "node --experimental-strip-types scripts/ui-check.ts",
+    "check:flow": "node --experimental-strip-types scripts/walk-flow.ts",
     "bench:tracking": "node --experimental-strip-types scripts/bench-tracking.ts",
     "soak": "node --experimental-strip-types scripts/soak.ts",
     "build": "tsc --noEmit && vite build",

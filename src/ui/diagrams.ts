@@ -1,11 +1,7 @@
 /**
- * The two diagrams on the How to Play screen (added after feedback that the
- * game had no instructions at all).
- *
- * Both are inline SVG built the same way `dom.ts`'s `candleIcon` is - with
- * `createElementNS`, no external image files, matching the tape's own token
- * colours so they look like part of the game rather than a pasted-in manual
- * page.
+ * The face diagram: the whole of the instructions, with one sentence
+ * (OVERHAUL 8), shown on the first tape insert. Inline SVG from the token
+ * palette - no image files.
  */
 
 import { hex, tokens } from '../render/tokens.ts';
@@ -142,100 +138,3 @@ export function faceMapSvg(): SVGSVGElement {
   return root;
 }
 
-/**
- * The flow chart: title to results, with the two side features - the Ossuary
- * and Rites - drawn as clearly-optional branches off the shelf rather than
- * steps in the main loop. That distinction is the whole fix for "what are
- * these for": they are not part of playing a level, they are things you visit
- * between runs.
- */
-export function flowChartSvg(): SVGSVGElement {
-  const root = svg('0 0 760 360', 'diagram flow-diagram');
-
-  const boxFill = hex(tokens.ink);
-  const mainStroke = hex(tokens.candle);
-
-  function box(x: number, y: number, w: number, h: number, text: string, sub: string, accent?: number): SVGGElement {
-    const g = node('g', {});
-    g.appendChild(
-      node('rect', {
-        x,
-        y,
-        width: w,
-        height: h,
-        rx: 6,
-        fill: boxFill,
-        stroke: hex(accent ?? tokens.rot),
-        'stroke-width': accent !== undefined ? 2 : 1.4,
-      }),
-    );
-    g.appendChild(label(x + w / 2, y + h / 2 - (sub ? 6 : -4), text, { size: 14, weight: 'bold' }));
-    if (sub !== '') g.appendChild(label(x + w / 2, y + h / 2 + 14, sub, { color: tokens.boneDim, size: 10 }));
-    return g;
-  }
-
-  function arrow(x1: number, y1: number, x2: number, y2: number, dashed = false): SVGGElement {
-    const g = node('g', { stroke: dashed ? hex(tokens.boneDim) : mainStroke, 'stroke-width': 2, fill: 'none' });
-    if (dashed) g.setAttribute('stroke-dasharray', '4 4');
-    g.setAttribute('opacity', dashed ? '0.6' : '0.85');
-    g.appendChild(node('line', { x1, y1, x2, y2 }));
-    // A simple arrowhead triangle.
-    const angle = Math.atan2(y2 - y1, x2 - x1);
-    const ah = 7;
-    const ax = x2 - ah * Math.cos(angle - 0.4);
-    const ay = y2 - ah * Math.sin(angle - 0.4);
-    const bx = x2 - ah * Math.cos(angle + 0.4);
-    const by = y2 - ah * Math.sin(angle + 0.4);
-    g.appendChild(
-      node('polygon', { points: `${x2},${y2} ${ax},${ay} ${bx},${by}`, fill: dashed ? hex(tokens.boneDim) : mainStroke }),
-    );
-    return g;
-  }
-
-  const row1Y = 26;
-  const bw = 118;
-  const bh = 52;
-  const gap = 24;
-
-  const xs = [20, 20 + bw + gap, 20 + 2 * (bw + gap), 20 + 3 * (bw + gap), 20 + 4 * (bw + gap)];
-
-  root.appendChild(arrow(xs[0]! + bw, row1Y + bh / 2, xs[1]!, row1Y + bh / 2));
-  root.appendChild(arrow(xs[1]! + bw, row1Y + bh / 2, xs[2]!, row1Y + bh / 2));
-  root.appendChild(arrow(xs[2]! + bw, row1Y + bh / 2, xs[3]!, row1Y + bh / 2));
-  root.appendChild(arrow(xs[3]! + bw, row1Y + bh / 2, xs[4]!, row1Y + bh / 2));
-
-  root.appendChild(box(xs[0]!, row1Y, bw, bh, 'TITLE', 'Insert Face', tokens.candle));
-  root.appendChild(box(xs[1]!, row1Y, bw, bh, 'CALIBRATE', 'or Assist mode'));
-  root.appendChild(box(xs[2]!, row1Y, bw, bh, 'SHELF', 'pick a tape'));
-  root.appendChild(box(xs[3]!, row1Y, bw, bh, 'LEVEL', 'play!', tokens.rec));
-  root.appendChild(box(xs[4]!, row1Y, bw, bh, 'RESULTS', 'candles + score'));
-
-  // Results loops back to Level (Retry / Next) and forward to Shelf.
-  const loopY = row1Y + bh + 34;
-  root.appendChild(
-    arrow(xs[4]! + bw / 2, row1Y + bh, xs[4]! + bw / 2, loopY),
-  );
-  root.appendChild(arrow(xs[4]! + bw / 2, loopY, xs[3]! + bw / 2, loopY));
-  root.appendChild(arrow(xs[3]! + bw / 2, loopY, xs[3]! + bw / 2, row1Y + bh));
-  root.appendChild(label(xs[3]! + bw, loopY - 6, 'retry / next level', { color: tokens.boneDim, size: 10 }));
-
-  root.appendChild(arrow(xs[4]! + bw, row1Y + bh / 2 + 10, xs[2]! + bw + gap / 2, row1Y + bh + 70, true));
-  root.appendChild(label((xs[4]! + xs[2]! + bw) / 2 + 10, row1Y + bh + 86, 'back to the shelf', { color: tokens.boneDim, size: 10 }));
-
-  // Shelf's two optional side branches: the Ossuary and Rites.
-  const row2Y = row1Y + bh + 120;
-  root.appendChild(arrow(xs[2]! + bw * 0.3, row1Y + bh, xs[2]! + bw * 0.1, row2Y, true));
-  root.appendChild(arrow(xs[2]! + bw * 0.7, row1Y + bh, xs[2]! + bw * 1.3, row2Y, true));
-
-  root.appendChild(box(xs[2]! - bw * 0.35, row2Y, bw, bh, 'OSSUARY', 'memorial - optional', tokens.boneDim));
-  root.appendChild(box(xs[2]! + bw * 0.65, row2Y, bw, bh, 'RITES', 'spend candles - optional', tokens.boneDim));
-
-  root.appendChild(
-    label(xs[2]! + bw / 2, row2Y + bh + 22, 'Neither is a level. Both are places to visit between runs.', {
-      color: tokens.boneDim,
-      size: 11,
-    }),
-  );
-
-  return root;
-}

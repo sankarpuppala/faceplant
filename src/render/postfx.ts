@@ -189,6 +189,23 @@ export class TapeFx {
     }
   }
 
+  /**
+   * Composure is shown by the picture, not a bar (OVERHAUL 3.1): as it falls
+   * the vignette closes in and the grain thickens. Both move smoothly with
+   * composure, which changes over seconds, so neither can flash.
+   *
+   * @param fraction composure, 0..1
+   */
+  setComposure(fraction: number): void {
+    const strain = 1 - Math.min(1, Math.max(0, fraction));
+    const c = config.render.composureImage;
+    this.crt.vignetting = c.vignetteFraction[0] + (c.vignetteFraction[1] - c.vignetteFraction[0]) * strain;
+    this.crt.vignettingAlpha = c.vignetteAlpha[0] + (c.vignetteAlpha[1] - c.vignetteAlpha[0]) * strain;
+    this.reducedCrt.vignetting = this.crt.vignetting;
+    this.reducedCrt.vignettingAlpha = this.crt.vignettingAlpha;
+    this.film.noise = c.grainFraction[0] + (c.grainFraction[1] - c.grainFraction[0]) * strain;
+  }
+
   /** Adds screen shake, in pixels. Clamped so it can never become disorienting. */
   addShake(px: number, maxPx: number): void {
     this.shake = Math.min(maxPx, this.shake + px);

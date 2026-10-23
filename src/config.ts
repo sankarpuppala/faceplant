@@ -28,6 +28,8 @@ export const config = {
 
   calibration: {
     holdMs: 2000,
+    /** How long the "Open your mouth." step samples, ms. */
+    openMs: 1800,
     /** Reject the neutral hold if the face centre moves more than this, in FH. */
     maxJitterFh: 0.03,
     /** Floor on the measured jawOpen range, so a shy aah cannot make the Maw hair-trigger. 0..1 fraction. */
@@ -112,17 +114,26 @@ export const config = {
    * see and understand; being quietly stuck is not.
    */
   hud: {
-    /**
-     * How long the Assist control reminder stays on screen at the start of a
-     * level, ms.
-     *
-     * It used to only exist on the pause screen - a player using the mouse
-     * and keyboard (the default for a first-time player, U10) had nothing on
-     * screen telling them Space opens the Maw or that the wheel tilts, and
-     * would have had to stop and pause to find out. Shown for a few seconds
-     * and then it gets out of the way.
-     */
-    assistHintMs: 7000,
+    /** The OSD's Wick row stops growing here; the Long Tape can spawn far more. */
+    maxWickIconsCount: 20,
+    /** Below this composure (0..1 fraction) the OSD starts showing things it should not. */
+    glitchBelowComposureFraction: 0.3,
+    /** How long one OSD glitch lasts, ms: a few frames, read before it is gone. */
+    glitchMs: 90,
+    /** Gap between OSD glitches, ms, chosen at random in this range. */
+    glitchGapMs: [4000, 9000] as const,
+  },
+
+  title: {
+    /** The face behind the title opens its eyes after this long with no input, ms. */
+    eyesOpenAfterIdleMs: 20_000,
+  },
+
+  flow: {
+    /** The tape label and tracking settle before a level starts, ms (OVERHAUL 3). */
+    tapeInsertMs: 2000,
+    /** Retry: the rewind, ms. */
+    rewindMs: 800,
   },
 
   trapped: {
@@ -195,6 +206,8 @@ export const config = {
   },
 
   crawler: {
+    /** With a ward tunable set, a warded Crawler retreats across the face this long, ms. */
+    wardRetreatMs: 7000,
     /**
      * Size was raised from 0.04 so a Crawler reads as a threat rather than
      * background furniture, and that stands.
@@ -436,83 +449,7 @@ export const config = {
     lossesAllowed: 12,
   },
 
-  /**
-   * Coins: the shop currency, earned by finishing levels.
-   *
-   * Separate from candles on purpose. Candles are a *rating* - how well you
-   * played a given level, like stars - and spending them would mean your score
-   * going down when you bought something. Coins are earnings, so they can be
-   * spent without erasing the record of how you did.
-   */
-  coins: {
-    /** Just for finishing a level without losing the tape. */
-    perClear: 20,
-    perSavedWick: 5,
-    /** Per candle earned, so playing well pays better. */
-    perCandle: 15,
-    /** Nobody lost at all. */
-    flawlessBonus: 40,
-    /** Multiplied by composure remaining as a fraction of max. */
-    composureBonus: 30,
-    /** U2 - rewarding the risky play. */
-    perOffering: 10,
-    /** A first clear pays more than a replay, so grinding one easy level is poor. */
-    replayMultiple: 0.35,
-    /** The Long Tape pays per wave survived. */
-    perEndlessWave: 25,
-  },
 
-  /** U9 - RITES: candles spent on small permanent help. */
-  /**
-   * What the shop sells.
-   *
-   * These were measured, and six of the seven items changed *nothing*: a
-   * headless sweep of fifteen levels found that over a whole playthrough,
-   * owning any of Steady Feet, Lantern Oil, Warding Salt, The Wider Door or
-   * Iron Nerve saved exactly zero extra Wicks. They were insurance against
-   * failures that do not happen - falling in a gap, going out in the dark,
-   * missing the Gate by a hair - while 94% of real deaths were Crawlers and
-   * Drips, which only one item touched and that one imperceptibly.
-   *
-   * Every item now counters something that actually kills, and does so
-   * visibly: `world.riteSaves` counts the flames each one saved, and the
-   * results screen reports it, because a permanent passive buff you cannot
-   * see is indistinguishable from an item that does nothing.
-   */
-  rites: {
-    costCandles: { steadyWicks: 6, mawSense: 10, tallowShell: 14, secondChance: 20 },
-    /** steadyWicks multiplies maxStepDownFh and maxGapFh... */
-    steadyWicksMultiple: 1.45,
-    /** ...and how fast they walk, which is the part the player can see. */
-    steadyWicksSpeedMultiple: 1.18,
-    /**
-     * mawSense multiplies how far out a Wick notices an open Maw.
-     *
-     * This replaces "Rite of Patience", which spaced out the spawns. Measured,
-     * that item was not merely useless but actively harmful: spreading the
-     * roster out left each Wick alone with the hazards for longer, and owning
-     * it cost four extra Wicks over a playthrough. Selling the player a
-     * downgrade is worse than selling them nothing.
-     */
-    mawSenseRadiusMultiple: 1.7,
-    /** tallowShell: how many Drips each Wick survives. */
-    tallowShellCount: 1,
-    /** secondChance returns this many lost Wicks per run to the lantern. */
-    secondChanceCount: 1,
-    /** lanternOil: multiplies every light radius... */
-    lanternOilMultiple: 1.25,
-    /** ...and how long a Moth or the Dark needs to put that flame out. */
-    lanternOilSnuffMultiple: 2,
-    /** ironNerve: multiplies composure drain; below 1 is a benefit. */
-    ironNerveMultiple: 0.45,
-    /** wardingSalt: slows Crawlers and lengthens their time-to-kill... */
-    wardingSaltSpeedMultiple: 0.7,
-    wardingSaltTouchMultiple: 1.8,
-    /** ...and turns each one back this many times before it can feed... */
-    wardingSaltWardCount: 1,
-    /** ...sending it back across the face for this long when it does. */
-    wardingSaltRetreatMs: 7000,
-  },
 
   lines: {
     minGapMs: 2500,
@@ -549,6 +486,16 @@ export const config = {
     trackerPriorityHz: 25,
     /** Only throttle while rendering above this rate, fps, so it never drops below 30. */
     throttleAboveFps: 50,
+    /**
+     * Composure drawn as the picture (OVERHAUL 3.1). Each pair is the value at
+     * full composure and at none: CRT vignette size (0..1 fraction) and
+     * darkness (alpha), and film grain strength (0..1 fraction).
+     */
+    composureImage: {
+      vignetteFraction: [0.3, 0.62] as const,
+      vignetteAlpha: [0.6, 0.97] as const,
+      grainFraction: [0.1, 0.32] as const,
+    },
     /** Declared maximum flash rate per effect, in Hz. WCAG 2.3.1 requires <= 3. */
     effects: {
       scanlines: { maxFlashHz: 0 },
@@ -566,13 +513,30 @@ export const config = {
        * - only its screen shake is suppressed, via the `shake` entry.
        */
       watcher: { maxFlashHz: 2 },
+      /** The OSD's one-frame glitches below 30 % composure: a text swap, at most one per 4 s. */
+      osdGlitch: { maxFlashHz: 0.25 },
+      /** The primary button's hover flicker (tokens.css, 625 ms period). */
+      buttonFlicker: { maxFlashHz: 1.6 },
+      /** "TRACKING…" and "Press any key" (tokens.css, 2 s period). */
+      promptBlink: { maxFlashHz: 0.5 },
     },
     /**
      * Effects that "Reduce effects" disables entirely. Every effect with a
      * non-zero maxFlashHz must appear here; `npm run check:flash` enforces it.
      * The REC dot is held solid rather than removed, which is why it is listed.
      */
-    reducedEffectsDisables: ['flicker', 'aberration', 'wobble', 'shake', 'scanlines', 'recDot', 'watcher'],
+    reducedEffectsDisables: [
+      'flicker',
+      'aberration',
+      'wobble',
+      'shake',
+      'scanlines',
+      'recDot',
+      'watcher',
+      'osdGlitch',
+      'buttonFlicker',
+      'promptBlink',
+    ],
     shakeDecayPerS: 6,
     maxShakeFh: 0.06,
   },
