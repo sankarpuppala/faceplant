@@ -21,7 +21,7 @@ import { SHOP_ITEMS, type ShopItemId } from '../game/shop.ts';
 import type { FilterName, Settings } from '../storage/settings.ts';
 import { shareText } from '../share/shareText.ts';
 import { copy } from './copy.ts';
-import { button, candleIcon, candleRow, el, field, screen, segmented, slider, toggle } from './dom.ts';
+import { button, candleIcon, candleRow, el, field, flameIcon, screen, segmented, slider, toggle } from './dom.ts';
 import { backdrop } from './backdrop.ts';
 import { faceMapSvg } from './diagrams.ts';
 import {
@@ -121,6 +121,7 @@ export function titleScreen(actions: TitleActions, state: TitleState): HTMLEleme
 
   const node = screen('FACEPLANT', [
     el('div', { class: 'title-block' }, [
+      flameIcon(),
       wordmark,
       el('p', { class: 'tagline', text: copy.title.tagline }),
     ]),

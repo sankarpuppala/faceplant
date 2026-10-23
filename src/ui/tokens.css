@@ -602,6 +602,7 @@ body.reduced-effects .jitter { animation: none; }
    quiet tray of places to visit. */
 
 .title-block { display: flex; flex-direction: column; gap: 6px; margin-bottom: 4px; }
+.title-flame { width: clamp(20px, 2.8vw, 32px); margin: 0 auto 2px; display: block; }
 
 .title-actions {
   display: flex;

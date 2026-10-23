@@ -158,6 +158,33 @@ export function trapFocus(root: HTMLElement, onEscape?: () => void): () => void 
   return () => root.removeEventListener('keydown', onKey);
 }
 
+/**
+ * A single flame, no candle body - the title screen's "one candle, one word,
+ * one instruction" (docs/design-reference.html). Gently flickers via the same
+ * `.bd-flame` keyframes the entry backdrop uses, so it is one flicker
+ * language across the whole front door, not two.
+ */
+export function flameIcon(): SVGSVGElement {
+  const ns = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(ns, 'svg');
+  svg.setAttribute('viewBox', '0 0 12 24');
+  svg.setAttribute('aria-hidden', 'true');
+  svg.setAttribute('class', 'title-flame');
+
+  const g = document.createElementNS(ns, 'g');
+  g.setAttribute('class', 'bd-flame');
+  const flame = document.createElementNS(ns, 'path');
+  flame.setAttribute('d', 'M6 1c1.8 3 3 4.3 3 6a3 3 0 0 1-6 0c0-1.7 1.2-3 3-6z');
+  flame.setAttribute('fill', '#FFB547');
+  g.appendChild(flame);
+  const core = document.createElementNS(ns, 'path');
+  core.setAttribute('d', 'M6 4.2c.9 1.5 1.4 2.1 1.4 3a1.4 1.4 0 0 1-2.8 0c0-.9.5-1.5 1.4-3z');
+  core.setAttribute('fill', '#FF6A2B');
+  g.appendChild(core);
+  svg.appendChild(g);
+  return svg;
+}
+
 /** The lit/unlit candle icon used on the shelf and the results screen. */
 export function candleIcon(lit: boolean): SVGSVGElement {
   const ns = 'http://www.w3.org/2000/svg';
