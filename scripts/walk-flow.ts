@@ -62,6 +62,12 @@ const press = (label: string) => async (): Promise<void> => {
   if (!(await click(cdp, label))) problems.push(`no "${label}" button on ${await phase(cdp)}`);
 };
 
+// Any uncaught error in the page fails the walk, wherever it happens.
+cdp.on('Runtime.exceptionThrown', (p) => {
+  const d = (p as { exceptionDetails?: { text?: string; exception?: { description?: string } } }).exceptionDetails;
+  problems.push(`page error: ${d?.exception?.description ?? d?.text ?? 'unknown'}`);
+});
+
 try {
   await cdp.send('Page.navigate', { url });
   for (let i = 0; i < 80; i++) {

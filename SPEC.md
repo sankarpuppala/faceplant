@@ -570,12 +570,35 @@ repeats within a level; ≥ 60 lines in `src/game/lines.ts`, tagged by trigger.
 ---
 
 ## 14. Audio
+Rewritten by the horror overhaul (`docs/OVERHAUL.md` §6). Scary is not loud:
+silence, anticipation, low frequency and timing.
 
-Bed: low tape hiss and a slow drone (CC0). Wicks: tiny pitched babble
-squeaks generated with jsfxr (no voice acting). Gulp, flame-out hiss, Gate
-chime, Crawler skitter, flick *boing*, results candle-lighting tones, scare
-stingers. Web Audio with a master limiter (invariant 6). Every file listed in
-`docs/CREDITS.md`.
+**Mix.** ambient, music, sfx and scare buses → master → compressor →
+limiter at −6 dBFS → hard ceiling at −6 dBFS → output. The scare bus is muted
+with Scares off. `duckFor` pulls the other buses down under a scare. Settings
+has master, music (music + ambient) and sound (sfx + scare) volumes.
+
+**Library** (`src/audio/samples.ts`). Every sound is synthesised in plain JS
+DSP and rendered once into a buffer: drone, room tone with wind, tape hiss,
+wood creak, close breathing, whispers (forward and reversed), heartbeat, the
+three scream layers, sub boom, metal scrape, tape stop, rewind, VHS insert,
+candle snuff, wet gulp, the Maw's groan, a soft bell, a low piano note, the
+UI click and clunk, and a music-box tine. Each is normalised to −14 LUFS, or
+quieter where its peak would pass −6 dBFS; scare sounds attack over ≥ 30 ms.
+`tests/audio/samples.test.ts` measures all of it. (The brief asked for CC0
+recordings; the sound sites and an encoder were not reachable from the build
+machine, so nothing was imported. Any sound can be replaced by a recording
+later: the mixer asks the library for a buffer by name.)
+
+**Behaviour.** Title: a detuned music box over the drone; on every third
+pass one note is wrong; a creak somewhere every 20–40 s. Level: drone, room
+tone and hiss. As composure falls the drone's filter opens and it rises; a
+heartbeat comes in below 40 %, whispers below 25 %, and the room tone is gone
+below 15 %. The Maw opening is a quiet wet groan; a swallowed Wick is a gulp
+and a muffled snuff; a saved Wick is a soft bell. Once per level, a creak far
+to one side and a breath, and nothing after (scare bus). The tape inserts,
+rewinds on retry and stops at the end; results land on one low piano note.
+The Wicks' own small sounds (squeaks, thuds, flicks) are oscillator glue.
 
 ---
 

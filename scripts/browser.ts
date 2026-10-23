@@ -24,16 +24,25 @@ export const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeou
 export class Cdp {
   private id = 0;
   private readonly pending = new Map<number, (v: unknown) => void>();
+  private readonly listeners = new Map<string, ((params: unknown) => void)[]>();
   private readonly ws: WebSocket;
 
   private constructor(ws: WebSocket) {
     this.ws = ws;
     ws.addEventListener('message', (ev) => {
-      const msg = JSON.parse(String(ev.data)) as { id?: number; result?: unknown; error?: unknown };
-      if (msg.id === undefined) return;
+      const msg = JSON.parse(String(ev.data)) as { id?: number; method?: string; params?: unknown; result?: unknown; error?: unknown };
+      if (msg.id === undefined) {
+        if (msg.method !== undefined) for (const cb of this.listeners.get(msg.method) ?? []) cb(msg.params);
+        return;
+      }
       this.pending.get(msg.id)?.(msg.error ?? msg.result);
       this.pending.delete(msg.id);
     });
+  }
+
+  /** Listens for a protocol event, e.g. `Runtime.exceptionThrown`. */
+  on(method: string, cb: (params: unknown) => void): void {
+    this.listeners.set(method, [...(this.listeners.get(method) ?? []), cb]);
   }
 
   static async open(wsUrl: string): Promise<Cdp> {

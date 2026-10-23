@@ -1,11 +1,8 @@
 /**
  * The menu theme, as data.
  *
- * The title screen was silent until a level started. The game is a cursed
- * camcorder tape and a tape that plays *nothing* while you sit on its label
- * is not atmospheric, it is just empty. This is the music that plays under
- * the title, the shelf and the shop: a slow music-box lullaby over a low
- * pad that never quite resolves.
+ * The music that plays under the title and the shelf: a slow music-box
+ * lullaby over the drone, a low pad that never quite resolves.
  *
  * It is synthesized, like every sound in the game (`sound.ts`), so there is no
  * file to license, host or download - CLAUDE.md invariant 10 is satisfied by
@@ -15,8 +12,7 @@
  * Key and mood: A minor, with the chord progression Am - F - Dm - E. The last
  * chord is E *major* (a G sharp), the dominant, which pulls hard back to A and
  * is exactly the chord a lullaby uses right before it turns out to be a threat.
- * On every second pass the closing phrase slips a semitone flat, so the loop
- * is never quite the same loop twice.
+ * On every third pass one note is wrong.
  */
 
 export const THEME_BPM = 52;
@@ -63,24 +59,16 @@ export function chordStartsAt(beat: number): boolean {
 }
 
 /**
- * The melody note for a beat, or null for a rest. On odd passes the last four
- * beats drop a semitone: the lullaby going slightly wrong.
+ * The melody note for a beat, or null for a rest. On every third pass one
+ * note - the one on the dominant - comes out a semitone sharp (OVERHAUL 6.3):
+ * the lullaby going wrong once, and then going right again as if it had not.
  */
+export const WRONG_NOTE_BEAT = 26;
+
 export function melodyAt(beat: number): number | null {
   const inLoop = ((beat % THEME_BEATS) + THEME_BEATS) % THEME_BEATS;
   const note = THEME_MELODY[inLoop] ?? null;
   if (note === null) return null;
   const pass = Math.floor(beat / THEME_BEATS);
-  const closing = inLoop >= THEME_BEATS - 4;
-  return pass % 2 === 1 && closing ? note - 1 : note;
-}
-
-/** A slow breath of wind through the room, every sixteen beats. */
-export function windSwellAt(beat: number): boolean {
-  return beat % 16 === 4;
-}
-
-/** A far-off whisper, once per loop, right after the dominant arrives. */
-export function whisperAt(beat: number): boolean {
-  return beat % THEME_BEATS === 26;
+  return pass % 3 === 2 && inLoop === WRONG_NOTE_BEAT ? note + 1 : note;
 }

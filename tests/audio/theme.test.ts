@@ -18,8 +18,7 @@ import {
   chordStartsAt,
   melodyAt,
   midiToHz,
-  whisperAt,
-  windSwellAt,
+  WRONG_NOTE_BEAT,
 } from '../../src/audio/theme.ts';
 
 describe('the menu theme score', () => {
@@ -64,33 +63,26 @@ describe('the menu theme score', () => {
     expect([...foreign]).toEqual([8]);
   });
 
-  it('goes slightly wrong on every second pass', () => {
-    const closing = THEME_BEATS - 4;
-    let differs = 0;
-    for (let b = closing; b < THEME_BEATS; b++) {
-      const first = melodyAt(b);
-      const second = melodyAt(b + THEME_BEATS);
-      if (first !== null) {
-        expect(second).toBe(first - 1);
-        differs++;
+  it('gets one note wrong on every third pass, and only then (OVERHAUL 6.3)', () => {
+    const wrong = (pass: number): number[] => {
+      const out: number[] = [];
+      for (let b = 0; b < THEME_BEATS; b++) {
+        const first = melodyAt(b);
+        const now = melodyAt(b + THEME_BEATS * pass);
+        if (first !== now) out.push(b);
       }
-    }
-    expect(differs).toBeGreaterThan(0);
-    // The third pass is the first again.
-    for (let b = 0; b < THEME_BEATS; b++) expect(melodyAt(b + THEME_BEATS * 2)).toBe(melodyAt(b));
+      return out;
+    };
+    expect(wrong(1)).toEqual([]);
+    expect(wrong(2)).toEqual([WRONG_NOTE_BEAT]);
+    expect(wrong(3)).toEqual([]);
+    expect(wrong(5)).toEqual([WRONG_NOTE_BEAT]);
+    // A semitone sharp: close enough to be the same tune, wrong enough to notice.
+    expect(melodyAt(WRONG_NOTE_BEAT + THEME_BEATS * 2)).toBe((melodyAt(WRONG_NOTE_BEAT) ?? 0) + 1);
   });
 
   it('is deterministic - the same beat is always the same note', () => {
     for (let b = 0; b < THEME_BEATS * 3; b++) expect(melodyAt(b)).toBe(melodyAt(b));
-  });
-
-  it('has its wind and its whisper, and not constantly', () => {
-    const beats = Array.from({ length: THEME_BEATS * 4 }, (_, i) => i);
-    const winds = beats.filter(windSwellAt).length;
-    const whispers = beats.filter(whisperAt).length;
-    expect(winds).toBeGreaterThan(0);
-    expect(whispers).toBe(4);
-    expect(winds).toBeLessThan(beats.length / 4);
   });
 
   it('converts MIDI to the right frequencies', () => {

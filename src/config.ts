@@ -548,6 +548,26 @@ export const config = {
     defaultVolume: 0.7,
     squeakMinHz: 520,
     squeakMaxHz: 1180,
+    /**
+     * Composure in the sound (OVERHAUL 6.3). As it falls the drone's low-pass
+     * opens across this range, Hz, and the drone rises by up to this many dB;
+     * the heartbeat comes in below one fraction, whispers below the next, and
+     * the room tone is gone below the last - the silence is the warning.
+     */
+    composure: {
+      droneFilterHz: [260, 1900] as const,
+      droneRiseGainDb: 6,
+      heartbeatBelowFraction: 0.4,
+      whispersBelowFraction: 0.25,
+      roomGoneBelowFraction: 0.15,
+    },
+    /** A creak somewhere in the house while the title is up, every this-many seconds. */
+    titleCreakGapSeconds: [20, 40] as const,
+    /**
+     * The once-a-level fake-out (a creak and a breath, nothing after) lands at
+     * a random point in this part of the level, as fractions of its length.
+     */
+    fakeOutWindowFraction: [0.3, 0.7] as const,
   },
 
   clip: {

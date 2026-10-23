@@ -45,7 +45,7 @@ import { loadProgress, recordDaily, recordRun, resetProgress, saveProgress, surv
 import { applySystemPreferences, loadSettings, saveSettings, storageAvailable, type Settings } from './storage/settings.ts';
 import { requestPersistent } from './storage/durability.ts';
 import { copy } from './ui/copy.ts';
-import { el, focusFirst, toast, trapFocus } from './ui/dom.ts';
+import { el, focusFirst, setUiSounds, toast, trapFocus } from './ui/dom.ts';
 import { installGrain } from './ui/grain.ts';
 import {
   calibrationScreen,
@@ -144,6 +144,9 @@ export class App {
    * onto the shelf a few seconds later when the abandoned run finished.
    */
   private calibrationRun = 0;
+  /** When this level's one fake-out plays (OVERHAUL 6.3), world ms; -1 once it has. */
+  private fakeOutAtMs = -1;
+  private lastComposureSent = -1;
   /** The current screen's Esc. Also run from the window, so Esc works wherever focus is. */
   private escape: (() => void) | null = null;
 
@@ -158,6 +161,8 @@ export class App {
     this.progress = loadProgress();
     this.applyBodyClasses();
     installGrain();
+    // A soft tape click as focus moves, a heavy clunk on confirm (OVERHAUL 2.4).
+    setUiSounds({ focus: () => sound.play('uiFocus'), confirm: () => sound.play('uiConfirm') });
   }
 
   async start(): Promise<void> {
@@ -213,7 +218,8 @@ export class App {
   }
 
   private applyVolume(): void {
-    sound.setVolume(this.settings.volume);
+    sound.setVolumes({ master: this.settings.volume, music: this.settings.musicVolume, sfx: this.settings.sfxVolume });
+    sound.setScaresEnabled(this.settings.scares);
   }
 
   private saveSettingsWith(next: Partial<Settings>): void {
@@ -271,6 +277,7 @@ export class App {
     this.finale = null;
     if (this.recordingThisRun) this.recorder.discard();
     this.recordingThisRun = false;
+    sound.stopBed();
     sound.unduck();
   }
 
@@ -588,6 +595,9 @@ export class App {
     });
     const finaleAt = level.scares.find((s) => s.type === 'faceLooksBack')?.atMs ?? -1;
     this.finale = finaleAt < 0 ? null : new FaceLooksBack(finaleAt, this.settings.scares);
+    const [lo, hi] = config.audio.fakeOutWindowFraction;
+    this.fakeOutAtMs = level.timeLimitS * 1000 * (lo + Math.random() * (hi - lo));
+    this.lastComposureSent = -1;
 
     this.stage.setOsdVisible(true);
     this.setScreen(null, 'playing');
@@ -599,6 +609,7 @@ export class App {
       return;
     }
     const firstRun = !this.settings.howToPlaySeen;
+    sound.play('tapeInsert');
     this.overlay = tapeInsert(level, { firstRun, assist: this.source === this.synthetic });
     this.uiHost.appendChild(this.overlay);
     if (firstRun) {
@@ -640,7 +651,7 @@ export class App {
     this.clearPlayUi();
     void this.recorder.stop();
     this.recordingThisRun = false;
-    sound.play('tapeStop');
+    sound.play('tapeRewind');
     this.overlay = rewindOverlay();
     this.uiHost.appendChild(this.overlay);
     window.setTimeout(() => {
@@ -707,6 +718,7 @@ export class App {
     if (scare !== null) this.onScare(scare);
 
     this.drainEvents(world, now);
+    this.updateSound(world);
     this.lines.setMood(world.composureState.mood);
     this.lines.tick(now);
 
@@ -728,6 +740,20 @@ export class App {
 
     if (snap.over) this.finishRun();
   };
+
+  /** Composure into the bed, and the level's one fake-out when its time comes. */
+  private updateSound(world: World): void {
+    const c = Math.round(world.composureState.fraction * 100) / 100;
+    if (c !== this.lastComposureSent) {
+      sound.setComposure(c);
+      this.lastComposureSent = c;
+    }
+    if (this.fakeOutAtMs >= 0 && world.elapsedMs >= this.fakeOutAtMs) {
+      this.fakeOutAtMs = -1;
+      // Scares off: the scare bus is muted, so this is silent - and never sent.
+      if (this.settings.scares && !world.failed) sound.fakeOut();
+    }
+  }
 
   /** Loading, or the face left the frame: "TRACKING…" with a Pause button. */
   private trackingLost(world: World, now: number): boolean {
@@ -879,8 +905,10 @@ export class App {
     const req = (trigger: Parameters<LineDirector['request']>[0]['trigger']): void => {
       this.lines.request({ trigger, ...(at === undefined ? {} : { at }) }, now);
     };
-    if (world.mawState.justOpened) req('mawOpen');
-    else if (world.mawState.justClosed) req('mawClosed');
+    if (world.mawState.justOpened) {
+      sound.play('mawOpen');
+      req('mawOpen');
+    } else if (world.mawState.justClosed) req('mawClosed');
     else if (r.laughing) req('laughing');
     else if (r.gasp) req('gasp');
     else if (r.browsUp) req('browsUp');
@@ -990,6 +1018,7 @@ export class App {
     const newBest = level.mode === 'endless' && result.score > beforeBest;
 
     sound.play('tapeStop');
+    sound.play('resultsNote');
     sound.duck();
     void this.recorder.stop();
     this.clearPlayUi();
