@@ -315,7 +315,7 @@ describe('invariant 5: Scares off means the Watcher never happens', () => {
     // The guard must appear inside the handler, before anything is triggered.
     const handler = src.slice(at, at + 600);
     const guardAt = handler.indexOf('this.settings.scares');
-    const soundAt = handler.indexOf("sound.play('watcherShout')");
+    const soundAt = handler.indexOf('sound.watcherSequence(');
     const startAt = handler.indexOf('this.watcherStartedMs = now');
 
     expect(guardAt, 'the watcher handler does not check settings.scares').toBeGreaterThan(-1);
@@ -325,10 +325,15 @@ describe('invariant 5: Scares off means the Watcher never happens', () => {
     expect(guardAt).toBeLessThan(startAt);
   });
 
-  it('the shout exists and is the only thing that plays it', () => {
+  it('the scare sequence exists and is the only thing that plays it', () => {
+    // The scream used to be `sound.play('watcherShout')` fired the instant the
+    // event arrived - half a second before the face did. It is now a scheduled
+    // sequence (heartbeat, drone, whispers, a hole of silence, then the
+    // scream) timed to the picture. Still exactly one call site, and that
+    // call site is the one behind the Scares-off guard above.
     const src = appCode();
-    const plays = [...src.matchAll(/sound\.play\('watcherShout'\)/g)];
-    expect(plays).toHaveLength(1);
+    expect([...src.matchAll(/sound\.watcherSequence\(/g)]).toHaveLength(1);
+    expect([...src.matchAll(/sound\.play\('watcherShout'\)/g)]).toHaveLength(0);
   });
 
   it('the world still fails the tape with scares off - only the scare is skipped', () => {

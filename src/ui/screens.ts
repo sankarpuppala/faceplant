@@ -22,6 +22,7 @@ import type { FilterName, Settings } from '../storage/settings.ts';
 import { shareText } from '../share/shareText.ts';
 import { copy } from './copy.ts';
 import { button, candleIcon, candleRow, el, field, screen, segmented, slider, toggle } from './dom.ts';
+import { backdrop } from './backdrop.ts';
 import { faceMapSvg } from './diagrams.ts';
 import {
   iconCoin,
@@ -43,7 +44,7 @@ import {
 // ------------------------------------------------------------------- notice --
 
 export function noticeScreen(onContinue: (scares: boolean) => void): HTMLElement {
-  return screen(copy.notice.heading, [
+  const node = screen(copy.notice.heading, [
     el('h2', { text: copy.notice.heading }),
     el('ul', { class: 'notice-list' }, copy.notice.items.map((t) => el('li', { text: t }))),
     el('div', { class: 'row' }, [
@@ -51,6 +52,9 @@ export function noticeScreen(onContinue: (scares: boolean) => void): HTMLElement
       button(copy.notice.continueNoScares, () => onContinue(false), 'btn'),
     ]),
   ]);
+  // The first thing anyone ever sees. It was text on flat black.
+  node.insertBefore(backdrop('notice'), node.firstChild);
+  return node;
 }
 
 // -------------------------------------------------------------------- title --
@@ -115,7 +119,7 @@ export function titleScreen(actions: TitleActions, state: TitleState): HTMLEleme
     button(copy.title.settings, actions.settings, 'btn quiet'),
   ]);
 
-  return screen('FACEPLANT', [
+  const node = screen('FACEPLANT', [
     el('div', { class: 'title-block' }, [
       wordmark,
       el('p', { class: 'tagline', text: copy.title.tagline }),
@@ -146,6 +150,9 @@ export function titleScreen(actions: TitleActions, state: TitleState): HTMLEleme
       el('p', { class: 'small dim', text: copy.title.footer }),
     ]),
   ]);
+  node.insertBefore(backdrop('title'), node.firstChild);
+  node.classList.add('has-backdrop');
+  return node;
 }
 
 // ---------------------------------------------------------------- how to play --

@@ -41,7 +41,7 @@ import {
   SpeechBubble,
 } from './sprites.ts';
 import { tokens } from './tokens.ts';
-import { Watcher, watcherTotalMs } from './watcher.ts';
+import { Watcher, watcherLeadMs, watcherTotalMs } from './watcher.ts';
 
 export interface RenderInput {
   world: World;
@@ -442,6 +442,20 @@ export class Stage {
   /** How long the Watcher animation runs, so the app knows when to stop it. */
   watcherDurationMs(reducedEffects: boolean): number {
     return watcherTotalMs(reducedEffects);
+  }
+
+  /** Which face THE WATCHER wears this tape. */
+  setWatcherVariant(tape: number): void {
+    this.watcher.setVariant(tape);
+  }
+
+  /** The current face's voice register, for the audio side. */
+  get watcherVoicePitch(): number {
+    return this.watcher.current.voicePitch;
+  }
+
+  watcherLeadMs(reducedEffects: boolean): number {
+    return watcherLeadMs(reducedEffects);
   }
 
   setOsdVisible(v: boolean): void {

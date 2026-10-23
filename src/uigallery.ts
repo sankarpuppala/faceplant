@@ -226,7 +226,18 @@ if (params.get('measure') === '1') {
     host.appendChild(node);
 
     const offenders: string[] = [];
+    // The screen itself must not scroll sideways. This is the check that
+    // matters: it is true if anything that is *not* clipped pokes out.
+    if (node.scrollWidth > node.clientWidth + 1) {
+      offenders.push(`screen scrolls sideways +${node.scrollWidth - node.clientWidth}px`);
+    }
+
     for (const elem of node.querySelectorAll<HTMLElement>('*')) {
+      // The backdrop is decoration inside its own overflow: hidden box - fog
+      // banks wider than the screen and an SVG scene cropped by `slice` are
+      // meant to run past the edges and be clipped. Reporting them flagged
+      // every title and notice as overflowing when nothing could scroll.
+      if (elem.closest('.backdrop') !== null) continue;
       const r = elem.getBoundingClientRect();
       if (r.width === 0 && r.height === 0) continue;
       const over = Math.round(r.right - viewport);

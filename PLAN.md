@@ -857,6 +857,92 @@ screenshots as ground truth without controlling for input.
 
 ---
 
+---
+
+### Session: scarier losses, a face per tape, music, and a front door
+
+Requested: scarier music and ghost sound when a tape is lost; a scarier devil
+that looks like a set of reference photos; a different devil per level; a
+less-plain entry page; cover music for the game.
+
+#### What was not done, and why
+
+The reference images were Getty Images, Adobe Stock, Dreamstime and Pinterest
+photographs. They were used as **mood reference only** - gaunt faces, hollow
+eyes, hair over the face, a red horned devil, a mouth of too many teeth - and
+no file from them is in the repository. CLAUDE.md invariant 10 allows only CC0
+or OFL third-party assets, and the project has never shipped a downloaded
+image or sound. Likewise nothing was fetched from the web for "the scariest
+ghost sound" or "cover music": there is no way to verify the licence of an
+arbitrary horror clip, and these are the files most likely to be copyrighted.
+All of it is synthesized or drawn in code (see `docs/CREDITS.md`).
+
+#### Five faces, one per tape
+
+`watcherVariants` (tokens.ts) and `watcherVariantFor(tape)` (watcher.ts):
+the drowned (long hair over the face, hollow sockets with a single pinprick of
+light, blood from the eyes and mouth), the red one (red skin, devil horns,
+blazing slit eyes), the reaper (a black cowl around a pale skull), the burnt
+(charred, ram's horns curling past the ears), and the grinner (seventeen teeth,
+a crown of spikes, blood). Tapes 1-5 each get their own; the Daily and the Long
+Tape wrap round. Each also screams in its own register (`voicePitch`).
+
+Found while looking at the renders rather than guessing: horned and hooded
+faces were cropped off the top of the frame at the climax, so the "devil" was a
+red skull with no horns; they are now drawn at 72% so the thing that defines
+them is in shot. The reaper's hood was the same black as the veil behind it and
+simply vanished; it now has a lit edge.
+
+#### The scare is a shape in time
+
+The old sound was one shout fired the instant the event arrived - half a second
+before the face did. `sound.watcherSequence(leadMs, pitch)` schedules against
+the audio clock, timed to the picture: a quickening heartbeat, a drone built on a
+minor second and a tritone with its filter opening, whispers arriving faster,
+a ~60 ms hole of near-silence, then a scream made of three formant-filtered
+throats with vibrato and soft clipping, a 22 Hz chopped growl, a gliding wail
+over a semitone cluster, a sub hit and a breath. The shout is still the same
+single call site behind the Scares-off guard; the opt-out test was updated for
+the new call name and asserts the same thing.
+
+Invariant 6 is now checked per layer rather than by hand: `tests/audio/
+watcherSound.test.ts` drives the sequence through a fake AudioContext and holds
+every gain envelope to the 30 ms attack floor and the -6 dBFS ceiling, at all
+five pitches and with Reduce effects' longer approach. It is also confirmed
+against a real AudioContext in headless Chrome: no exceptions.
+
+#### Music and the front door
+
+`src/audio/theme.ts` is the score as data; `startTheme()`/`stopTheme()` play it
+under the title and shelf and cut it when a tape starts. A slow music-box
+lullaby in A minor over a low pad, Am-F-Dm-E, whose last chord is the major
+dominant; on every second pass the closing phrase slips a semitone flat. A
+returning player lands on the title with no click yet, and browsers will not
+play until one, so the theme is held and a first-gesture listener releases it.
+
+`src/ui/backdrop.ts`: the notice and title were text on flat black. They are
+now a candle-lit room - dusk light, drifting fog, embers, a row of lit Wicks
+along the floor, and a huge face looking out of the dark behind the wordmark
+whose eyes slowly wake. All loops are 1.4 s or slower, none changes brightness
+sharply, and Reduce effects and `prefers-reduced-motion` stop every one.
+
+`check:ui` flagged six screens after this landed; the cause was the backdrop's
+own decorative layers (fog wider than the screen, an SVG scene cropped by
+`slice`) inside an `overflow: hidden` box, not real overflow. The checker now
+skips `.backdrop` and gained a stricter test - the screen's own `scrollWidth` -
+so real overflow is still caught.
+
+#### Not verified - needs a human
+
+Whether the faces are *frightening*, whether the scream is, and whether the
+theme is pleasant on speakers rather than just correct in a score are
+game-feel judgments that renders and unit tests cannot settle (CLAUDE.md
+section 7). The faces were looked at as rendered images; the audio was verified
+for safety and for running, not for how it sounds. Please play a loss on each
+tape with sound on.
+
+---
+
 **Next session starts with the only thing that matters now: play it.**
 
 1. `npm install && npm run setup && npm run dev`, then play with a camera in a

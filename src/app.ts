@@ -169,6 +169,18 @@ export class App {
     this.lastFrameMs = performance.now();
     requestAnimationFrame(this.loop);
 
+    // A returning player lands straight on the title with no click yet, and a
+    // browser will not play anything until there has been one. The first
+    // gesture of any kind lets the menu music start (`sound.resume` starts a
+    // theme the title asked for while the browser was still saying no).
+    const firstGesture = (): void => {
+      window.removeEventListener('pointerdown', firstGesture);
+      window.removeEventListener('keydown', firstGesture);
+      void sound.resume().then(() => sound.setVolume(this.settings.volume));
+    };
+    window.addEventListener('pointerdown', firstGesture);
+    window.addEventListener('keydown', firstGesture);
+
     if (this.settings.noticeSeen) this.showTitle();
     else this.showNotice();
   }
@@ -222,6 +234,7 @@ export class App {
   }
 
   private showTitle(): void {
+    sound.startTheme();
     this.clearPlayUi();
     this.stage.setOsdVisible(false);
 
@@ -353,6 +366,7 @@ export class App {
   }
 
   private showShelf(): void {
+    sound.startTheme();
     this.clearPlayUi();
     this.stage.setOsdVisible(false);
     this.setScreen(
@@ -640,6 +654,9 @@ export class App {
     });
 
     this.level = level;
+    this.stage.setWatcherVariant(level.tape);
+    // The menu music gives way to the tape's own bed.
+    sound.stopTheme();
     // Decision D12: the first daily attempt is the one that counts, so a replay
     // is practice. Derived here rather than set by the caller, because setting
     // it before `startLevel` left it stale if a run was abandoned.
@@ -891,7 +908,7 @@ export class App {
           // Scares off completely - no sound, no face, the tape just ends.
           if (this.settings.scares) {
             this.watcherStartedMs = now;
-            sound.play('watcherShout');
+            sound.watcherSequence(this.stage.watcherLeadMs(this.settings.reducedEffects), this.stage.watcherVoicePitch);
             this.lines.request({ trigger: 'watcher', priority: 120 }, now);
           }
           break;

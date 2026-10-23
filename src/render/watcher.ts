@@ -60,7 +60,18 @@
 import { Container, FillGradient, Graphics } from 'pixi.js';
 import { config } from '../config.ts';
 import type { Viewport } from '../terrain/mapping.ts';
-import { tokens, watcherTokens } from './tokens.ts';
+import { tokens, watcherTokens, watcherVariants, type WatcherVariant } from './tokens.ts';
+
+/**
+ * Which face a tape gets. Tapes 1-5 each have their own; the Daily and the
+ * Long Tape (tape numbers outside 1-5) wrap round, so they are never blank and
+ * never the same face two days running by accident.
+ */
+export function watcherVariantFor(tape: number): WatcherVariant {
+  const n = watcherVariants.length;
+  const idx = ((Math.round(tape) - 1) % n + n) % n;
+  return watcherVariants[idx] ?? (watcherVariants[0] as WatcherVariant);
+}
 
 export type WatcherPhase = 'staring' | 'approaching' | 'holding' | 'leaving' | 'gone';
 
@@ -82,6 +93,12 @@ function phaseTimes(reducedEffects: boolean): { stare: number; approach: number;
     hold: config.watcher.holdMs,
     leave: config.watcher.leaveMs,
   };
+}
+
+/** Time from the dark falling to the face arriving: when the scream should land. */
+export function watcherLeadMs(reducedEffects: boolean): number {
+  const t = phaseTimes(reducedEffects);
+  return t.stare + t.approach;
 }
 
 export function watcherTotalMs(reducedEffects: boolean): number {
@@ -273,6 +290,16 @@ export class Watcher extends Container {
    * which was the single most obvious thing wrong with the previous face.
    */
   private readonly faceMask = new Graphics();
+  private variant: WatcherVariant = watcherVariantFor(1);
+
+  /** Chooses this tape's face. Call when a level starts. */
+  setVariant(tape: number): void {
+    this.variant = watcherVariantFor(tape);
+  }
+
+  get current(): WatcherVariant {
+    return this.variant;
+  }
 
   constructor() {
     super();
@@ -329,6 +356,7 @@ export class Watcher extends Container {
     for (const g of this.layers) g.clear();
 
     const comp = watcherComposition(vp);
+    const V = this.variant;
     const a = st.alpha;
 
     // --- the dark it brings with it --------------------------------------
@@ -347,10 +375,10 @@ export class Watcher extends Container {
       const ey = vp.offsetY + vp.height * 0.46;
       // A hint of a brow, barely above the veil: enough to know the eyes
       // belong to something, not enough to know what.
-      softBlob(halo, ex, ey, dx * 3.4, dx * 1.7, watcherTokens.shadow, a * 0.5, 8);
+      softBlob(halo, ex, ey, dx * 3.4, dx * 1.7, V.shadow, a * 0.5, 8);
       for (const side of [-1, 1] as const) {
-        softBlob(halo, ex + side * dx, ey, r * 9, r * 7, tokens.ember, a * 0.22 * pulse);
-        detail.circle(ex + side * dx, ey, r).fill({ color: tokens.candle, alpha: a * 0.95 * pulse });
+        softBlob(halo, ex + side * dx, ey, r * 9, r * 7, V.glow, a * 0.22 * pulse);
+        detail.circle(ex + side * dx, ey, r).fill({ color: V.eye, alpha: a * 0.95 * pulse });
       }
       return 0;
     }
@@ -359,12 +387,18 @@ export class Watcher extends Container {
     // It lunges slightly past its final size and settles back, which is what
     // sells the last few inches of the approach.
     const startH = vp.height * 0.22;
+    // A face with horns or a hood is not the face alone, and at full size its
+    // horns are cropped off the top of the frame - a red skull with no horns
+    // is not a devil. Those faces are drawn smaller so the thing that defines
+    // them is in shot; the eyes and mouth still carry the scare.
+    const fit = V.horns !== 'none' || V.hood ? 0.72 : 1;
+    const targetH = comp.headHeightPx * fit;
     let h: number;
     if (st.phase === 'approaching') {
-      h = startH + (comp.headHeightPx - startH) * st.approach;
+      h = startH + (targetH - startH) * st.approach;
     } else {
       const settle = Math.min(1, st.scream * 6);
-      h = comp.headHeightPx * (1 + config.watcher.overshootFraction * (1 - settle));
+      h = targetH * (1 + config.watcher.overshootFraction * (1 - settle));
     }
     const halfW = (h * FACE.widthRatio) / 2;
 
@@ -444,41 +478,117 @@ export class Watcher extends Container {
       // that drops out of the light leaves the lower teeth hanging in void.
       outerRadius: h * 0.66,
       colorStops: [
-        { offset: 0, color: watcherTokens.litBone },
-        { offset: 0.3, color: watcherTokens.midBone },
-        { offset: 0.58, color: watcherTokens.shadow },
-        { offset: 1, color: watcherTokens.rim },
+        { offset: 0, color: V.lit },
+        { offset: 0.3, color: V.mid },
+        { offset: 0.58, color: V.shadow },
+        { offset: 1, color: V.rim },
       ],
       textureSpace: 'global',
     });
+
+    // --- the cowl ---------------------------------------------------------
+    // Behind everything: a black hood the head sits inside, with the folds
+    // picked out as faint rim light so it reads as cloth and not a hole.
+    if (V.hood) {
+      form.moveTo(...pt(0, -1.02));
+      form.quadraticCurveTo(...pt(1.55, -0.62), ...pt(1.5, 0.4));
+      form.quadraticCurveTo(...pt(1.45, 0.95), ...pt(1.3, 1.2));
+      form.lineTo(...pt(-1.3, 1.2));
+      form.quadraticCurveTo(...pt(-1.45, 0.95), ...pt(-1.5, 0.4));
+      form.quadraticCurveTo(...pt(-1.55, -0.62), ...pt(0, -1.02));
+      form.closePath();
+      form.fill({ color: watcherTokens.hood, alpha: a });
+      for (const side of [-1, 1] as const) {
+        for (const k of [0, 1, 2]) {
+          form.moveTo(...pt(side * (0.95 + k * 0.17), -0.7 + k * 0.14));
+          form.quadraticCurveTo(...pt(side * (1.25 + k * 0.1), 0.1), ...pt(side * (1.15 + k * 0.15), 1.1));
+        }
+      }
+      form.stroke({ width: Math.max(1, h * 0.004), color: V.glow, alpha: a * 0.3 });
+      // The edge of the cowl catches light, or it is simply a hole in the screen.
+      form.moveTo(...pt(0, -1.02));
+      form.quadraticCurveTo(...pt(1.55, -0.62), ...pt(1.5, 0.4));
+      form.moveTo(...pt(0, -1.02));
+      form.quadraticCurveTo(...pt(-1.55, -0.62), ...pt(-1.5, 0.4));
+      form.stroke({ width: Math.max(1.5, h * 0.006), color: V.glow, alpha: a * 0.45 });
+    }
 
     // --- horns ------------------------------------------------------------
     // Drawn before the head so they read as growing out of it. Asymmetric,
     // because symmetry looks designed and this should not. At the climax they
     // are cropped by the top of the frame, which is correct: you are too close.
-    for (const [side, len, curl] of [
-      [-1, 0.52, 0.5],
-      [1, 0.43, 0.38],
-    ] as const) {
-      const baseU = side * 0.74;
-      form.moveTo(...pt(baseU, -0.34));
-      form.quadraticCurveTo(...pt(side * 1.52, -0.3 - len * 0.6), ...pt(side * (0.96 + curl), -0.3 - len));
-      form.quadraticCurveTo(...pt(side * 1.12, -0.34 - len * 0.34), ...pt(baseU * 0.78, -0.44));
-      form.closePath();
-      form.fill({ color: watcherTokens.shadow, alpha: a });
-      form.stroke({ width: Math.max(1, h * 0.004), color: tokens.ember, alpha: a * 0.34 });
+    const hornStroke = (): void => {
+      form.fill({ color: V.shadow, alpha: a });
+      form.stroke({ width: Math.max(1, h * 0.004), color: V.glow, alpha: a * 0.34 });
+    };
+    if (V.horns === 'devil' || V.horns === 'many') {
+      for (const [side, len, curl] of [
+        [-1, 0.52, 0.5],
+        [1, 0.43, 0.38],
+      ] as const) {
+        const baseU = side * 0.74;
+        form.moveTo(...pt(baseU, -0.34));
+        form.quadraticCurveTo(...pt(side * 1.52, -0.3 - len * 0.6), ...pt(side * (0.96 + curl), -0.3 - len));
+        form.quadraticCurveTo(...pt(side * 1.12, -0.34 - len * 0.34), ...pt(baseU * 0.78, -0.44));
+        form.closePath();
+        hornStroke();
+      }
+    }
+    if (V.horns === 'many') {
+      // A crown of shorter spikes between the two big ones.
+      for (const [u, len] of [
+        [-0.34, 0.3],
+        [0.3, 0.36],
+        [-0.05, 0.22],
+      ] as const) {
+        form.moveTo(...pt(u - 0.1, -0.5));
+        form.quadraticCurveTo(...pt(u - 0.02, -0.62 - len * 0.5), ...pt(u + 0.06 * Math.sign(u || 1), -0.56 - len));
+        form.quadraticCurveTo(...pt(u + 0.06, -0.6), ...pt(u + 0.1, -0.5));
+        form.closePath();
+        hornStroke();
+      }
+    }
+    if (V.horns === 'ram') {
+      // Heavy swept horns that curl back down past the ears.
+      for (const side of [-1, 1] as const) {
+        form.moveTo(...pt(side * 0.58, -0.42));
+        form.quadraticCurveTo(...pt(side * 1.55, -1.0), ...pt(side * 1.78, -0.46));
+        form.quadraticCurveTo(...pt(side * 1.78, -0.04), ...pt(side * 1.42, -0.1));
+        form.quadraticCurveTo(...pt(side * 1.52, -0.3), ...pt(side * 1.5, -0.5));
+        form.quadraticCurveTo(...pt(side * 1.32, -0.74), ...pt(side * 0.84, -0.32));
+        form.closePath();
+        hornStroke();
+        // The ridges, which are what make it horn rather than a black bean.
+        for (const t of [0.25, 0.45, 0.65]) {
+          form.moveTo(...pt(side * (0.9 + t * 0.7), -0.46 - t * 0.28));
+          form.lineTo(...pt(side * (0.99 + t * 0.7), -0.38 - t * 0.2));
+        }
+        form.stroke({ width: Math.max(1, h * 0.003), color: V.glow, alpha: a * 0.22 });
+      }
+    }
+
+    // Long hair behind the head: two heavy curtains falling past the jaw.
+    if (V.hair) {
+      for (const side of [-1, 1] as const) {
+        form.moveTo(...pt(side * 0.18, -0.56));
+        form.quadraticCurveTo(...pt(side * 1.4, -0.52), ...pt(side * 1.3, 1.0));
+        form.lineTo(...pt(side * 0.78, 1.0));
+        form.quadraticCurveTo(...pt(side * 0.98, 0.1), ...pt(side * 0.18, -0.48));
+        form.closePath();
+        form.fill({ color: watcherTokens.hair, alpha: a });
+      }
     }
 
     // A dull halo behind the head, so the silhouette reads against the veil
     // even where the skin gradient has fallen all the way into shadow.
-    softBlob(halo, ox, oy - h * 0.04, halfW * 1.24, h * 0.72, watcherTokens.shadow, a * 0.55, 22);
+    softBlob(halo, ox, oy - h * 0.04, halfW * 1.24, h * 0.72, V.shadow, a * 0.55, 22);
 
     // --- the head ---------------------------------------------------------
     for (const piece of [cranium, mandible]) {
       piece(form);
       form.fill({ fill: skin, alpha: a });
       piece(form);
-      form.stroke({ width: Math.max(1, h * 0.003), color: tokens.ember, alpha: a * 0.1 });
+      form.stroke({ width: Math.max(1, h * 0.003), color: V.glow, alpha: a * 0.1 });
       // The same two shapes are the clip for every highlight below.
       piece(faceMask);
       faceMask.fill({ color: 0xffffff });
@@ -489,28 +599,28 @@ export class Watcher extends Container {
     // to the head by `faceMask`, so nothing hangs in the dark beside it.
     for (const side of [-1, 1] as const) {
       // Brow ridge, outward and above the socket like a real orbital rim.
-      softBlob(lit, ...pt(side * FACE.eyeU * 1.02, FACE.eyeV - 0.115), halfW * 0.44, h * 0.045, watcherTokens.litBone, a * 0.34);
+      softBlob(lit, ...pt(side * FACE.eyeU * 1.02, FACE.eyeV - 0.115), halfW * 0.44, h * 0.045, V.lit, a * 0.34);
       // Cheekbone: the widest lit plane on the face.
-      softBlob(lit, ...pt(side * 0.72, FACE.cheekV - 0.02), halfW * 0.3, h * 0.07, watcherTokens.litBone, a * 0.28);
+      softBlob(lit, ...pt(side * 0.72, FACE.cheekV - 0.02), halfW * 0.3, h * 0.07, V.lit, a * 0.28);
       // Temple, hollowed rather than lit - a skull is concave here.
-      softBlob(lit, ...pt(side * 0.88, -0.3), halfW * 0.3, h * 0.12, watcherTokens.rim, a * 0.7);
+      softBlob(lit, ...pt(side * 0.88, -0.3), halfW * 0.3, h * 0.12, V.rim, a * 0.7);
       // The hollow under the cheekbone, which is most of what makes a face
       // look starved rather than smooth.
-      softBlob(lit, ...pt(side * 0.6, 0.13), halfW * 0.26, h * 0.06, watcherTokens.rim, a * 0.5);
+      softBlob(lit, ...pt(side * 0.6, 0.13), halfW * 0.26, h * 0.06, V.rim, a * 0.5);
       // And a shadow beside the nose, so the middle of the face has a front.
-      softBlob(lit, ...pt(side * 0.26, 0.02), halfW * 0.12, h * 0.08, watcherTokens.shadow, a * 0.45);
+      softBlob(lit, ...pt(side * 0.26, 0.02), halfW * 0.12, h * 0.08, V.shadow, a * 0.45);
     }
     // Nose bridge and the brow between the sockets: the front of the face.
-    softBlob(lit, ...pt(0, -0.06), halfW * 0.11, h * 0.15, watcherTokens.litBone, a * 0.34);
-    softBlob(lit, ...pt(0, -0.32), halfW * 0.4, h * 0.07, watcherTokens.litBone, a * 0.2);
+    softBlob(lit, ...pt(0, -0.06), halfW * 0.11, h * 0.15, V.lit, a * 0.34);
+    softBlob(lit, ...pt(0, -0.32), halfW * 0.4, h * 0.07, V.lit, a * 0.2);
     // The jaw, lit wherever the jaw now is. Without these the mandible falls
     // out of the gradient as it drops and the bottom row of teeth reads as
     // floating in the dark with nothing holding them up.
-    softBlob(lit, ...pt(0, FACE.chinV - 0.06 + d), halfW * 0.34, h * 0.055, watcherTokens.litBone, a * 0.3);
+    softBlob(lit, ...pt(0, FACE.chinV - 0.06 + d), halfW * 0.34, h * 0.055, V.lit, a * 0.3);
     for (const side of [-1, 1] as const) {
-      softBlob(lit, ...pt(side * 0.44, FACE.chinV - 0.1 + d), halfW * 0.26, h * 0.045, watcherTokens.litBone, a * 0.22);
+      softBlob(lit, ...pt(side * 0.44, FACE.chinV - 0.1 + d), halfW * 0.26, h * 0.045, V.lit, a * 0.22);
       // The ramus, running up to the hinge by the ear.
-      softBlob(lit, ...pt(side * 0.7, FACE.jawV - 0.08 + d * 0.8), halfW * 0.14, h * 0.09, watcherTokens.midBone, a * 0.35);
+      softBlob(lit, ...pt(side * 0.7, FACE.jawV - 0.08 + d * 0.8), halfW * 0.14, h * 0.09, V.mid, a * 0.35);
     }
 
     // --- cracks, lit from inside -----------------------------------------
@@ -527,14 +637,14 @@ export class Watcher extends Container {
       lit.lineTo(...pt(bx, by));
       lit.lineTo(...pt(cx, cy));
     }
-    lit.stroke({ width: Math.max(1, h * 0.0045), color: tokens.ember, alpha: a * 0.45 * pulse });
+    lit.stroke({ width: Math.max(1, h * 0.0045), color: V.glow, alpha: a * 0.45 * pulse });
 
     // --- eye sockets ------------------------------------------------------
     // Angled almonds, not circles. A round socket reads as a cartoon eye; the
     // outer corner has to sit higher than the inner one or the face has no
     // expression at all.
-    const socketRx = halfW * FACE.socketU;
-    const socketRy = h * FACE.socketV;
+    const socketRx = halfW * FACE.socketU * V.socketScale;
+    const socketRy = h * FACE.socketV * V.socketScale;
     for (const side of [-1, 1] as const) {
       /** Socket-local coordinates: +su is outward, +sv is down. */
       const sp = (su: number, sv: number): [number, number] =>
@@ -548,27 +658,41 @@ export class Watcher extends Container {
       cavity.closePath();
       cavity.fill({ color: watcherTokens.cavity, alpha: a });
 
-      // The light in the hollow, and a slit of a pupil inside that. On the
-      // `inner` layer, so it sits in the socket rather than under it.
+      // What is in the hollow depends on whose face this is. On the `inner`
+      // layer, so it sits in the socket rather than under it.
       const [ex, ey] = sp(0.05, 0.18);
-      softBlob(inner, ex, ey, socketRx * 0.6, socketRy * 0.5, tokens.ember, a * 0.5 * pulse, 20);
-      inner.circle(ex, ey, socketRx * 0.13).fill({ color: tokens.candle, alpha: a * 0.9 * pulse });
-      inner
-        .ellipse(ex, ey, socketRx * 0.04, socketRy * 0.19)
-        .fill({ color: watcherTokens.cavity, alpha: a * 0.94 });
+      if (V.eyes === 'hollow') {
+        // Nothing but a pinprick, set low and off-centre. It is the absence
+        // that frightens - the eye is a hole with a single point of light.
+        softBlob(inner, ex, ey + socketRy * 0.1, socketRx * 0.34, socketRy * 0.3, V.glow, a * 0.3 * pulse, 14);
+        inner.circle(ex + side * socketRx * 0.12, ey + socketRy * 0.22, Math.max(1.5, socketRx * 0.07)).fill({
+          color: V.eye,
+          alpha: a * (0.8 + 0.2 * pulse),
+        });
+      } else if (V.eyes === 'blaze') {
+        softBlob(inner, ex, ey, socketRx * 0.9, socketRy * 0.75, V.glow, a * 0.9 * pulse, 20);
+        // A hot centre, so the eye is a burning thing and not a tinted one.
+        softBlob(inner, ex, ey, socketRx * 0.45, socketRy * 0.4, V.eye, a * 0.7 * pulse, 16);
+        inner.circle(ex, ey, socketRx * 0.24).fill({ color: V.eye, alpha: a * 0.98 });
+        inner.ellipse(ex, ey, socketRx * 0.045, socketRy * 0.26).fill({ color: watcherTokens.cavity, alpha: a * 0.95 });
+      } else {
+        softBlob(inner, ex, ey, socketRx * 0.6, socketRy * 0.5, V.glow, a * 0.5 * pulse, 20);
+        inner.circle(ex, ey, socketRx * 0.13).fill({ color: V.eye, alpha: a * 0.9 * pulse });
+        inner.ellipse(ex, ey, socketRx * 0.04, socketRy * 0.19).fill({ color: watcherTokens.cavity, alpha: a * 0.94 });
+      }
 
       // --- wax tears ----------------------------------------------------
       // The Wicks' own melt, running out of it. Ties the monster to the game.
       for (let i = 0; i < config.watcher.tearCount; i++) {
         const t = (i + 1) / (config.watcher.tearCount + 1);
         const u = side * (FACE.eyeU + (t - 0.62) * 0.9 * (socketRx / halfW));
-        const run = (0.08 + 0.24 * st.approach) * (0.55 + 0.45 * Math.sin(i * 2.3 + 1));
+        const run = (0.08 + (V.gore ? 0.4 : 0.24) * st.approach) * (0.55 + 0.45 * Math.sin(i * 2.3 + 1));
         const topV = FACE.eyeV + FACE.socketV * 0.72;
         // Tapered almost to nothing, and barely lighter than the face. Drawn
         // as straight-sided rods at any real opacity they read as grey plastic
         // pipes hanging off the skull, which is a very hard look to recover
         // from. A wax run is mostly a change in sheen, not a shape.
-        const wx = Math.max(1, h * 0.006);
+        const wx = Math.max(1, h * (V.gore ? 0.009 : 0.006));
         const [p0x, p0y] = pt(u, topV);
         const [pmx, pmy] = pt(u, topV + run * 0.6);
         const [p1x, p1y] = pt(u, topV + run);
@@ -577,9 +701,9 @@ export class Watcher extends Container {
         detail.lineTo(p1x + wx * 0.22, p1y);
         detail.quadraticCurveTo(pmx + wx * 0.7, pmy, p0x + wx, p0y);
         detail.closePath();
-        detail.fill({ color: tokens.wax, alpha: a * 0.07 });
+        detail.fill({ color: V.gore ? V.blood : tokens.wax, alpha: a * (V.gore ? 0.7 : 0.07) });
         // The bead at the end, which is the only part that reads as wet.
-        detail.circle(p1x, p1y, wx * 0.62).fill({ color: tokens.wax, alpha: a * 0.16 });
+        detail.circle(p1x, p1y, wx * 0.62).fill({ color: V.gore ? V.blood : tokens.wax, alpha: a * (V.gore ? 0.85 : 0.16) });
       }
     }
 
@@ -628,7 +752,7 @@ export class Watcher extends Container {
         ...pt(0, (gapTop + gapBottom) / 2 + 0.03),
         mouthW * 0.86,
         (gapBottom - gapTop) * h * 0.3,
-        tokens.ember,
+        V.glow,
         a * 0.3 * openness,
         24,
       );
@@ -639,7 +763,7 @@ export class Watcher extends Container {
     // set directly against the darkest.
     if (openness > 0.05) {
       const ta = a * Math.min(1, openness * 3);
-      const n = 11;
+      const n = V.teeth;
       const root = Math.max(1, h * 0.004);
       for (let i = 0; i < n; i++) {
         const t = (i + 0.5) / n;
@@ -648,7 +772,7 @@ export class Watcher extends Container {
         const edge = Math.max(0.3, 1 - Math.abs(t - 0.5) * 1.4);
         // Width and length both wander, and the canines are nearly twice the
         // length of their neighbours - an even row reads as a pumpkin.
-        const fang = i === 2 || i === 8 ? 1.75 : 1;
+        const fang = i === 2 || i === n - 3 ? 1.75 : 1;
         const tw = (mouthW * 0.085 * edge * (0.72 + 0.5 * Math.abs(Math.cos(i * 3.1)))) / halfW;
 
         // Upper row, hanging down from the upper lip.
@@ -659,14 +783,14 @@ export class Watcher extends Container {
         detail.lineTo(...pt(tx + tw * 0.26, upTop + th));
         detail.lineTo(...pt(tx + tw, upTop));
         detail.closePath();
-        detail.fill({ color: watcherTokens.tooth, alpha: ta * 0.92 });
+        detail.fill({ color: V.tooth, alpha: ta * 0.92 });
 
         // Lower row, offset by half a tooth so the two rows interlock, and
         // standing on the jaw wherever the jaw has fallen to.
         const b = (i + 1) / n;
         const bx = (-mouthW + mouthW * 2 * b) / halfW;
         const bEdge = Math.max(0.3, 1 - Math.abs(b - 0.5) * 1.4);
-        const bFang = i === 1 || i === 7 ? 1.5 : 1;
+        const bFang = i === 1 || i === n - 4 ? 1.5 : 1;
         const bw = (mouthW * 0.085 * bEdge * (0.72 + 0.5 * Math.abs(Math.sin(i * 2.2)))) / halfW;
         const bh = FACE.toothV * (0.6 + 0.4 * Math.abs(Math.cos(i * 1.9))) * bEdge * bFang;
         const loBase = gapBottom + 0.004;
@@ -675,13 +799,76 @@ export class Watcher extends Container {
         detail.lineTo(...pt(bx + bw * 0.26, loBase - bh));
         detail.lineTo(...pt(bx + bw, loBase));
         detail.closePath();
-        detail.fill({ color: watcherTokens.tooth, alpha: ta * 0.88 });
+        detail.fill({ color: V.tooth, alpha: ta * 0.88 });
       }
       // A soft shadow just inside each lip, where the teeth meet the gum. A
       // straight stroke here read as a metal bar laid across the mouth.
-      softBlob(inner, ...pt(0, gapTop + 0.012), mouthW * 0.95, h * 0.022, watcherTokens.toothRoot, ta * 0.55, 10);
-      softBlob(inner, ...pt(0, gapBottom - 0.012), mouthW * 0.85, h * 0.018, watcherTokens.toothRoot, ta * 0.45, 10);
+      softBlob(inner, ...pt(0, gapTop + 0.012), mouthW * 0.95, h * 0.022, V.toothRoot, ta * 0.55, 10);
+      softBlob(inner, ...pt(0, gapBottom - 0.012), mouthW * 0.85, h * 0.018, V.toothRoot, ta * 0.45, 10);
       void root;
+    }
+
+    // --- blood from the mouth ----------------------------------------------
+    if (V.gore && openness > 0.2) {
+      for (const [side, k] of [
+        [-1, 0],
+        [1, 1],
+        [-1, 2],
+        [1, 3],
+      ] as const) {
+        const u = side * (mouthW / halfW) * (0.55 + 0.12 * k);
+        const top = gapBottom + 0.01;
+        const run = (0.1 + 0.3 * openness) * (0.6 + 0.4 * Math.sin(k * 2.1 + 0.5));
+        const wx = Math.max(1.5, h * 0.011);
+        const [x0, y0] = pt(u, top);
+        const [xm, ym] = pt(u + side * 0.01, top + run * 0.55);
+        const [x1, y1] = pt(u + side * 0.02, top + run);
+        detail.moveTo(x0 - wx, y0);
+        detail.quadraticCurveTo(xm - wx * 0.6, ym, x1 - wx * 0.2, y1);
+        detail.lineTo(x1 + wx * 0.2, y1);
+        detail.quadraticCurveTo(xm + wx * 0.6, ym, x0 + wx, y0);
+        detail.closePath();
+        detail.fill({ color: V.blood, alpha: a * 0.9 });
+        detail.circle(x1, y1, wx * 0.8).fill({ color: V.blood, alpha: a * 0.95 });
+      }
+    }
+
+    // --- the hair in front --------------------------------------------------
+    // Strands falling across the outer face and over the brow, parting at the
+    // middle so the eyes and mouth stay clear. Fixed seeds so it does not
+    // crawl; a slow sway so it is never quite still.
+    if (V.hair) {
+      const strands = 30;
+      for (let k = 0; k < strands; k++) {
+        const side = k % 2 === 0 ? -1 : 1;
+        const r1 = Math.abs(Math.sin(k * 12.9898)) % 1;
+        const r2 = Math.abs(Math.sin(k * 78.233 + 1.7)) % 1;
+        const r3 = Math.abs(Math.sin(k * 37.719 + 4.1)) % 1;
+        const su = side * (0.1 + r1 * 0.5);
+        const sv = FACE.crownV + 0.04 + Math.abs(su) * 0.12;
+        const sway = reducedEffects ? 0 : Math.sin(timeMs / 900 + k) * 0.02;
+        const eu = side * (0.62 + r2 * 0.55) + sway;
+        const ev = 0.3 + r3 * 0.7;
+        const cu = side * (0.95 + r1 * 0.35);
+        const cv = -0.25 + r2 * 0.2;
+        const [x0, y0] = pt(su, sv);
+        const [xc, yc] = pt(cu, cv);
+        const [x1, y1] = pt(eu, ev);
+        detail.moveTo(x0, y0);
+        detail.quadraticCurveTo(xc, yc, x1, y1);
+        detail.stroke({ width: Math.max(1, h * (0.006 + r3 * 0.012)), color: watcherTokens.hair, alpha: a * 0.96, cap: 'round' });
+      }
+      // A few strands lying across the forehead itself, like wet hair.
+      for (let k = 0; k < 7; k++) {
+        const side = k % 2 === 0 ? -1 : 1;
+        const r = Math.abs(Math.sin(k * 51.3 + 0.4)) % 1;
+        const [x0, y0] = pt(side * (0.05 + r * 0.1), FACE.crownV + 0.05);
+        const [xc, yc] = pt(side * (0.4 + r * 0.2), -0.34);
+        const [x1, y1] = pt(side * (0.78 + r * 0.1), -0.12 + r * 0.1);
+        detail.moveTo(x0, y0);
+        detail.quadraticCurveTo(xc, yc, x1, y1);
+        detail.stroke({ width: Math.max(1, h * 0.007), color: watcherTokens.hair, alpha: a * 0.92, cap: 'round' });
+      }
     }
 
     // --- it closes in on the edges too ------------------------------------
