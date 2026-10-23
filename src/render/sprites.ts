@@ -341,7 +341,11 @@ export function drawMoth(g: Graphics, m: Moth, ctx: DrawContext): void {
   g.circle(p.x + r * 0.1, p.y - r * 0.45, r * 0.1).fill({ color: tokens.ember, alpha: 0.9 });
 }
 
-/** Reusable speech bubble (SPEC section 12.7 - one at a time). */
+/**
+ * Reusable speech bubble (SPEC section 12.7 - one at a time). Wicks whisper in
+ * lowercase (OVERHAUL 4), so the bubble is Inter italic: the engraved small
+ * caps of the label face would set every whisper in capitals.
+ */
 export class SpeechBubble extends Container {
   private readonly bg = new Graphics();
   private readonly caption: Text;
@@ -351,7 +355,8 @@ export class SpeechBubble extends Container {
     this.caption = new Text({
       text: '',
       style: new TextStyle({
-        fontFamily: fonts.label,
+        fontFamily: fonts.ui,
+        fontStyle: 'italic',
         fontSize: 15,
         fill: tokens.bone,
         align: 'center',

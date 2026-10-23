@@ -31,6 +31,7 @@ import { dayNumber, generateDaily, generateEndless } from './game/daily.ts';
 import { isStoryFinale, loadLevel, nextLevelId } from './game/levelLoader.ts';
 import type { Level } from './game/levelSchema.ts';
 import { LineDirector } from './game/lineDirector.ts';
+import { WHISPER_LINE } from './game/lines.ts';
 import { displayName } from './game/names.ts';
 import { buildResult, filterUnlocked, type RunResult } from './game/rules.ts';
 import { FaceLooksBack, finaleBlendOverride, ScareDirector, type ActiveScare } from './game/scares.ts';
@@ -924,7 +925,7 @@ export class App {
       this.stage.addShake(0.045, this.cal);
     }
     if (scare.type === 'whisper') {
-      this.lines.request({ trigger: 'idle', text: 'it can see us.', priority: 75 }, performance.now());
+      this.lines.request({ trigger: 'idle', text: WHISPER_LINE, priority: 75 }, performance.now());
     }
   }
 

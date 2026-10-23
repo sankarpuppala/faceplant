@@ -367,15 +367,24 @@ describe('Wick lines (SPEC 12.6, 12.7)', () => {
     }
   });
 
-  it('keeps the Wick voice: lowercase, and never gory', () => {
-    const banned = /\b(blood|bloody|gore|die|kill|corpse|murder)\b/i;
+  it('keeps the Wick voice: lowercase whispers, no shouting, never gory (OVERHAUL 4)', () => {
+    const banned = /(blood|bloody|gore|die|kill|corpse|murder)/i;
     for (const l of LINES) {
       expect(l.text, `"${l.text}" reads as gory`).not.toMatch(banned);
-      // Allowed: fully upper-case shouts like "THE MAW STIRS". Not allowed:
-      // ordinary sentence capitalisation, which breaks the whisper voice.
-      const first = l.text[0] ?? '';
-      const isShout = l.text === l.text.toUpperCase();
-      expect(isShout || first === first.toLowerCase(), `"${l.text}" is sentence-capitalised`).toBe(true);
+      // Whispers: no capitals at all (the old voice shouted "THE MAW STIRS"),
+      // and no exclamation marks.
+      expect(l.text, `"${l.text}" is not lowercase`).toBe(l.text.toLowerCase());
+      expect(l.text, `"${l.text}" shouts`).not.toContain('!');
+    }
+  });
+
+  it('no level, daily or Long Tape line shouts either', () => {
+    for (const level of loadAll()) {
+      for (const l of level.lines) {
+        expect(l.text, `${level.id}: "${l.text}" is not lowercase`).toBe(l.text.toLowerCase());
+        expect(l.text, `${level.id}: "${l.text}" shouts`).not.toContain('!');
+      }
+      expect(level.hint ?? '', `${level.id} hint shouts`).not.toContain('!');
     }
   });
 

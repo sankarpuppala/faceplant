@@ -3,7 +3,7 @@
   "tape": 3,
   "index": 1,
   "label": "T03/1",
-  "title": "The Conga Line",
+  "title": "The Procession",
   "timeLimitS": 75,
   "spawn": {
     "x": -1.42,
@@ -67,23 +67,23 @@
   "lines": [
     {
       "atMs": 1500,
-      "text": "form a line. a dignified line."
+      "text": "stay in a line. stay close."
     },
     {
       "atMs": 9000,
-      "text": "this is not a dignified line."
+      "text": "do not let go of the one in front."
     },
     {
       "atMs": 18000,
-      "text": "do not laugh at the queue. the queue can hear you."
+      "text": "do not make a sound. it can hear you."
     },
     {
       "atMs": 32000,
-      "text": "the queue is now a religion."
+      "text": "the line is long now. so is the dark."
     },
     {
       "atMs": 48000,
-      "text": "the queue has elected a leader. it is barnaby."
+      "text": "barnaby is at the front. barnaby is not afraid."
     }
   ],
   "candles": {
@@ -92,5 +92,5 @@
     "3": 10
   },
   "mode": "story",
-  "hint": "eleven of them, fast. the procession brightens as they get through."
+  "hint": "eleven of them, close together. the light grows with the line."
 }

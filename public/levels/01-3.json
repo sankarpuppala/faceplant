@@ -3,7 +3,7 @@
   "tape": 1,
   "index": 3,
   "label": "T01/3",
-  "title": "The Cliffs Moved",
+  "title": "The Ledges",
   "timeLimitS": 80,
   "spawn": {
     "x": 1.42,
@@ -87,15 +87,15 @@
   "lines": [
     {
       "atMs": 2000,
-      "text": "the cliffs are the ledges. the ledges are your brows."
+      "text": "the ledges are its brows."
     },
     {
       "atMs": 16000,
-      "text": "raise them and we fly. we would rather not fly."
+      "text": "if they rise, we fall."
     },
     {
       "atMs": 40000,
-      "text": "the cliffs moved!"
+      "text": "the cliffs moved."
     }
   ],
   "candles": {
@@ -104,5 +104,5 @@
     "3": 6
   },
   "mode": "story",
-  "hint": "your eyebrows are ledges. raising them throws them."
+  "hint": "your brows are ledges. raise them and they fall."
 }
