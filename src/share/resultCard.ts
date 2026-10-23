@@ -11,7 +11,7 @@
  */
 
 import type { RunResult } from '../game/rules.ts';
-import { hex, tokens } from '../render/tokens.ts';
+import { fonts, hex, tokens } from '../render/tokens.ts';
 import { gameUrl, outcomeRow } from './shareText.ts';
 
 export const CARD_WIDTH = 1080;
@@ -88,7 +88,7 @@ export function drawResultCard(opts: CardOptions): HTMLCanvasElement {
   ctx.save();
   ctx.translate(CARD_WIDTH / 2, frameH - 90);
   ctx.rotate((-5 * Math.PI) / 180);
-  ctx.font = '64px "Special Elite", "Courier New", serif';
+  ctx.font = `64px ${fonts.label}`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   const stampW = ctx.measureText(result.stamp).width + 64;
@@ -105,7 +105,7 @@ export function drawResultCard(opts: CardOptions): HTMLCanvasElement {
   ctx.textAlign = 'center';
   ctx.textBaseline = 'alphabetic';
   ctx.fillStyle = hex(tokens.bone);
-  ctx.font = '72px "Special Elite", "Courier New", serif';
+  ctx.font = `72px ${fonts.label}`;
   ctx.letterSpacing = '14px';
   ctx.fillText('FACEPLANT', CARD_WIDTH / 2, y);
   ctx.letterSpacing = '0px';

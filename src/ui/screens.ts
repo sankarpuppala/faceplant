@@ -48,8 +48,8 @@ export function noticeScreen(onContinue: (scares: boolean) => void): HTMLElement
     el('h2', { text: copy.notice.heading }),
     el('ul', { class: 'notice-list' }, copy.notice.items.map((t) => el('li', { text: t }))),
     el('div', { class: 'row' }, [
-      button(copy.notice.continue, () => onContinue(true), 'btn primary'),
-      button(copy.notice.continueNoScares, () => onContinue(false), 'btn'),
+      button(copy.notice.continue, () => onContinue(true), 'primary'),
+      button(copy.notice.continueNoScares, () => onContinue(false), 'secondary'),
     ]),
   ]);
   // The first thing anyone ever sees. It was text on flat black.
@@ -105,18 +105,18 @@ export function titleScreen(actions: TitleActions, state: TitleState): HTMLEleme
   const primaryLabel = state.returning ? copy.title.continueLabel : copy.title.play;
 
   const secondary = el('div', { class: 'title-secondary' }, [
-    state.returning ? button(copy.title.shelf, actions.shelf, 'btn') : null,
-    button(copy.title.howToPlay, actions.howToPlay, 'btn'),
-    state.returning ? button(copy.title.shop, actions.shop, 'btn') : null,
-    state.returning ? null : button(copy.title.playNoCamera, actions.playNoCamera, 'btn'),
+    state.returning ? button(copy.title.shelf, actions.shelf, 'secondary') : null,
+    button(copy.title.howToPlay, actions.howToPlay, 'secondary'),
+    state.returning ? button(copy.title.shop, actions.shop, 'secondary') : null,
+    state.returning ? null : button(copy.title.playNoCamera, actions.playNoCamera, 'secondary'),
   ]);
 
   // Shop sits with the other real buttons rather than in the quiet tray. As a
   // dim underlined link labelled "The Pedlar" it was effectively invisible -
   // a player who asked for a shop could not find it.
   const tray = el('div', { class: 'title-tray' }, [
-    button(copy.title.ossuary, actions.ossuary, 'btn quiet'),
-    button(copy.title.settings, actions.settings, 'btn quiet'),
+    button(copy.title.ossuary, actions.ossuary, 'tertiary'),
+    button(copy.title.settings, actions.settings, 'tertiary'),
   ]);
 
   const node = screen('FACEPLANT', [
@@ -127,7 +127,7 @@ export function titleScreen(actions: TitleActions, state: TitleState): HTMLEleme
     ]),
 
     el('div', { class: 'title-actions' }, [
-      button(primaryLabel, actions.play, 'btn primary big'),
+      button(primaryLabel, actions.play, 'primary'),
       secondary,
     ]),
 
@@ -250,7 +250,7 @@ export function howToPlayScreen(onClose: () => void): HTMLElement {
     controls,
 
     el('p', { class: 'small dim centered', text: copy.howTo.again }),
-    el('div', { class: 'row' }, [button(copy.howTo.close, onClose, 'btn primary')]),
+    el('div', { class: 'row' }, [button(copy.howTo.close, onClose, 'primary')]),
   ]);
 }
 
@@ -263,8 +263,8 @@ export function cameraScreen(onAllow: () => void, onSkip: () => void, error?: st
     el('p', { class: 'small', text: copy.camera.body }),
     error === undefined ? null : el('p', { class: 'small', style: 'color:var(--rec)', text: error }),
     el('div', { class: 'row' }, [
-      button(copy.camera.allow, onAllow, 'btn primary'),
-      button(copy.camera.skip, onSkip, 'btn'),
+      button(copy.camera.allow, onAllow, 'primary'),
+      button(copy.camera.skip, onSkip, 'secondary'),
     ]),
     el('p', { class: 'small dim', text: copy.title.footer }),
   ]);
@@ -284,7 +284,7 @@ export function calibrationScreen(onSkip: () => void, onRetry: () => void): Cali
   const error = el('p', { class: 'small', style: 'color:var(--rec);min-height:1.5em' });
   const bar = el('i');
   const wrap = el('div', { class: 'composure' }, [bar]);
-  const retry = button(copy.calibration.again, onRetry, 'btn');
+  const retry = button(copy.calibration.again, onRetry, 'secondary');
   retry.style.display = 'none';
 
   const node = screen(copy.calibration.heading, [
@@ -297,7 +297,7 @@ export function calibrationScreen(onSkip: () => void, onRetry: () => void): Cali
     prompt,
     wrap,
     error,
-    el('div', { class: 'row' }, [retry, button(copy.calibration.skip, onSkip, 'btn quiet')]),
+    el('div', { class: 'row' }, [retry, button(copy.calibration.skip, onSkip, 'tertiary')]),
   ]);
 
   return {
@@ -414,8 +414,8 @@ export function shelfScreen(progress: Progress, actions: ShelfActions, dayNumber
     el('div', { class: 'row' }, [
       // The shelf is where you are between runs with coins in hand, so the
       // shop belongs here too, not only on the title screen.
-      button(copy.title.shop, actions.shop, 'btn'),
-      button(copy.shelf.back, actions.back, 'btn quiet'),
+      button(copy.title.shop, actions.shop, 'secondary'),
+      button(copy.shelf.back, actions.back, 'tertiary'),
     ]),
   ]);
 
@@ -470,17 +470,17 @@ export function pauseScreen(actions: PauseActions, lostTracking: boolean): HTMLE
     el('h2', { class: 'osd-text', text: copy.pause.heading }),
     lostTracking ? el('p', { class: 'small dim', text: copy.pause.lostTracking }) : null,
     el('div', { class: 'row' }, [
-      button(copy.pause.resume, actions.resume, 'btn primary'),
+      button(copy.pause.resume, actions.resume, 'primary'),
       lostTracking && actions.switchAssist !== undefined
-        ? button(copy.pause.switchAssist, actions.switchAssist, 'btn')
+        ? button(copy.pause.switchAssist, actions.switchAssist, 'secondary')
         : null,
-      button(copy.pause.restart, actions.restart, 'btn'),
-      button(copy.title.howToPlay, actions.howToPlay, 'btn'),
-      button(copy.pause.settings, actions.settings, 'btn'),
+      button(copy.pause.restart, actions.restart, 'secondary'),
+      button(copy.title.howToPlay, actions.howToPlay, 'secondary'),
+      button(copy.pause.settings, actions.settings, 'secondary'),
     ]),
     el('div', { class: 'row' }, [
-      button(copy.pause.shelf, actions.shelf, 'btn'),
-      button(copy.pause.exit, actions.exit, 'btn'),
+      button(copy.pause.shelf, actions.shelf, 'secondary'),
+      button(copy.pause.exit, actions.exit, 'secondary'),
     ]),
     el('p', { class: 'small dim', text: copy.pause.exitHint }),
     el('p', { class: 'small dim', text: copy.hud.assistHint }),
@@ -606,9 +606,9 @@ export function resultsScreen(
           el('h3', { text: copy.results.shareTitle }),
           el('pre', { class: 'sharetext', text: shareText(result) }),
           el('div', { class: 'row start' }, [
-            button(copy.results.copy, actions.copyResult, 'btn quiet'),
-            button(copy.results.card, actions.saveCard, 'btn quiet'),
-            actions.saveClip === null ? null : button(copy.results.clip, actions.saveClip, 'btn quiet'),
+            button(copy.results.copy, actions.copyResult, 'tertiary'),
+            button(copy.results.card, actions.saveCard, 'tertiary'),
+            actions.saveClip === null ? null : button(copy.results.clip, actions.saveClip, 'tertiary'),
           ]),
           // U8 - say what the clip actually is, since "save clip" could mean
           // the whole attempt and this one is the six seconds that matter.
@@ -620,15 +620,15 @@ export function resultsScreen(
         el('div', { class: 'row' }, [
           // A lost tape offers no way forward: the only ways out are to try
           // again or leave. `next` is null in that case, set by the caller.
-          actions.next === null ? null : button(copy.results.next, actions.next, 'btn primary'),
+          actions.next === null ? null : button(copy.results.next, actions.next, 'primary'),
           button(
             result.failed ? copy.results.retryFailed : copy.results.retry,
             actions.retry,
-            result.failed ? 'btn primary' : 'btn',
+            result.failed ? 'primary' : 'secondary',
           ),
-          button(copy.results.shelf, actions.shelf, 'btn'),
+          button(copy.results.shelf, actions.shelf, 'secondary'),
           // Straight after a payout is the moment someone most wants to spend.
-          result.coins > 0 ? button(copy.title.shop, actions.shop, 'btn') : null,
+          result.coins > 0 ? button(copy.title.shop, actions.shop, 'secondary') : null,
         ]),
       ]),
     ],
@@ -644,8 +644,8 @@ export function clipPreviewScreen(url: string, onSave: () => void, onDiscard: ()
     el('p', { class: 'small dim', text: copy.results.clipHint }),
     el('div', { class: 'clip-preview' }, [video]),
     el('div', { class: 'row' }, [
-      button(copy.results.save, onSave, 'btn primary'),
-      button(copy.results.discard, onDiscard, 'btn'),
+      button(copy.results.save, onSave, 'primary'),
+      button(copy.results.discard, onDiscard, 'secondary'),
     ]),
   ]);
 }
@@ -715,7 +715,7 @@ export function settingsScreen(
         copy.settings.hideFaceHint,
       ).node,
       field(copy.settings.controls, controlsSeg.node),
-      field(copy.settings.recalibrate, button(copy.settings.recalibrate, actions.recalibrate, 'btn')),
+      field(copy.settings.recalibrate, button(copy.settings.recalibrate, actions.recalibrate, 'secondary')),
       canRecord
         ? toggle(
             copy.settings.recording,
@@ -753,8 +753,8 @@ export function settingsScreen(
             : copy.settings.durabilityBestEffort,
     }),
     el('div', { class: 'row' }, [
-      button(copy.settings.exportSave, actions.exportSave, 'btn'),
-      button(copy.settings.importSave, actions.importSave, 'btn'),
+      button(copy.settings.exportSave, actions.exportSave, 'secondary'),
+      button(copy.settings.importSave, actions.importSave, 'secondary'),
     ]),
     el('p', { class: 'small dim', text: copy.settings.exportHint }),
 
@@ -764,7 +764,7 @@ export function settingsScreen(
     el('p', { class: 'small dim', text: copy.settings.resetHint }),
     el('div', { class: 'row' }, [resetControl(actions.resetProgress)]),
 
-    el('div', { class: 'row' }, [button(copy.settings.close, actions.close, 'btn primary')]),
+    el('div', { class: 'row' }, [button(copy.settings.close, actions.close, 'primary')]),
   ]);
 }
 
@@ -779,7 +779,7 @@ function resetControl(onConfirm: () => void): HTMLElement {
   const render = (confirming: boolean): void => {
     host.replaceChildren();
     if (!confirming) {
-      host.appendChild(button(copy.settings.resetProgress, () => render(true), 'btn'));
+      host.appendChild(button(copy.settings.resetProgress, () => render(true), 'secondary'));
       return;
     }
     host.appendChild(el('span', { class: 'small', style: 'color:var(--rec)', text: copy.settings.resetConfirm }));
@@ -787,9 +787,9 @@ function resetControl(onConfirm: () => void): HTMLElement {
       button(copy.settings.resetConfirmYes, () => {
         onConfirm();
         render(false);
-      }, 'btn'),
+      }, 'secondary'),
     );
-    host.appendChild(button(copy.settings.resetConfirmNo, () => render(false), 'btn quiet'));
+    host.appendChild(button(copy.settings.resetConfirmNo, () => render(false), 'tertiary'));
   };
 
   render(false);
@@ -832,7 +832,7 @@ export function ossuaryScreen(progress: Progress, onBack: () => void): HTMLEleme
           el('h3', { text: 'Veterans' }),
           el('p', { class: 'small dim', text: survivors.map(([n, runs]) => `${n} (${runs} runs)`).join(' · ') }),
         ]),
-    el('div', { class: 'row' }, [button(copy.ossuary.back, onBack, 'btn primary')]),
+    el('div', { class: 'row' }, [button(copy.ossuary.back, onBack, 'primary')]),
   ]);
 }
 
@@ -859,7 +859,7 @@ export function shopScreen(
     const action = owned
       ? el('span', { class: 'owned-tag', text: copy.shop.owned })
       : (() => {
-          const b = button(`${copy.shop.buy} · ${copy.shop.cost(item.costCoins)}`, () => onBuy(item.id), 'btn');
+          const b = button(`${copy.shop.buy} · ${copy.shop.cost(item.costCoins)}`, () => onBuy(item.id), 'secondary');
           b.disabled = !affordable;
           if (!affordable) b.title = copy.shop.cantAfford;
           return b;
@@ -884,7 +884,7 @@ export function shopScreen(
     el('p', { class: 'small dim centered', text: copy.shop.blurb }),
     progress.coinsEarned === 0 ? el('p', { class: 'small dim centered', text: copy.shop.empty }) : null,
     rows,
-    el('div', { class: 'row' }, [button(copy.shop.back, onBack, 'btn primary')]),
+    el('div', { class: 'row' }, [button(copy.shop.back, onBack, 'primary')]),
   ]);
 }
 
@@ -895,7 +895,7 @@ export function endingScreen(onBack: () => void): HTMLElement {
   return screen('Ending', [
     el('p', { class: 'tagline', style: 'font-size:clamp(20px,4vw,38px)', text: copy.ending.line }),
     el('p', { class: 'small dim', text: copy.ending.credits }),
-    el('div', { class: 'row' }, [button(copy.ending.again, onBack, 'btn quiet')]),
+    el('div', { class: 'row' }, [button(copy.ending.again, onBack, 'tertiary')]),
   ]);
 }
 

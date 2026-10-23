@@ -165,7 +165,7 @@ export function flowChartSvg(): SVGSVGElement {
         height: h,
         rx: 6,
         fill: boxFill,
-        stroke: hex(accent ?? tokens.dusk),
+        stroke: hex(accent ?? tokens.rot),
         'stroke-width': accent !== undefined ? 2 : 1.4,
       }),
     );

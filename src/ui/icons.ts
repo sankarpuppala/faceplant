@@ -50,7 +50,7 @@ const C = {
   mold: hex(tokens.mold),
   bone: hex(tokens.bone),
   dim: hex(tokens.boneDim),
-  dusk: hex(tokens.dusk),
+  rot: hex(tokens.rot),
   ink: hex(tokens.ink),
 } as const;
 
@@ -77,7 +77,7 @@ export function iconMaw(): SVGSVGElement {
 /** A Wick lost any other way: a puff of smoke over a dead candle. */
 export function iconSmoke(): SVGSVGElement {
   const s = svg('Lost');
-  add(s, 'rect', { x: 9, y: 13, width: 6, height: 9, rx: 1, fill: C.dusk });
+  add(s, 'rect', { x: 9, y: 13, width: 6, height: 9, rx: 1, fill: C.rot });
   add(s, 'path', {
     d: 'M12 11c-2 0-2.4-1.6-1-2.4-1.8-.4-1.4-2.6.6-2.4-.8-1.6 1.4-2.6 2.4-1.2 1-1 2.8 0 2.2 1.4 1.8.2 1.8 2.4 0 2.6.8 1.2-.6 2.2-2 1.6',
     fill: 'none',
@@ -91,7 +91,7 @@ export function iconSmoke(): SVGSVGElement {
 /** A Wick still walking. */
 export function iconPending(): SVGSVGElement {
   const s = svg('Still walking');
-  add(s, 'rect', { x: 9, y: 11, width: 6, height: 11, rx: 1, fill: C.dusk });
+  add(s, 'rect', { x: 9, y: 11, width: 6, height: 11, rx: 1, fill: C.rot });
   add(s, 'circle', { cx: 12, cy: 7, r: 2, fill: 'none', stroke: C.dim, 'stroke-width': '1.2' });
   return s;
 }
@@ -122,7 +122,7 @@ export function iconMoth(): SVGSVGElement {
   add(s, 'ellipse', { cx: 17.5, cy: 11, rx: 4.5, ry: 6, fill: C.bone, 'fill-opacity': '0.85' });
   add(s, 'ellipse', { cx: 6.5, cy: 11, rx: 4.5, ry: 6, fill: 'none', stroke: C.ember, 'stroke-opacity': '0.5' });
   add(s, 'ellipse', { cx: 17.5, cy: 11, rx: 4.5, ry: 6, fill: 'none', stroke: C.ember, 'stroke-opacity': '0.5' });
-  add(s, 'ellipse', { cx: 12, cy: 12, rx: 1.8, ry: 6, fill: C.dusk });
+  add(s, 'ellipse', { cx: 12, cy: 12, rx: 1.8, ry: 6, fill: C.rot });
   add(s, 'path', { d: 'M11 6l-1.6-3M13 6l1.6-3', stroke: C.ember, 'stroke-width': '1.2', 'stroke-linecap': 'round' });
   return s;
 }
@@ -139,7 +139,7 @@ export function iconDark(): SVGSVGElement {
   add(s, 'circle', { cx: 12, cy: 12, r: 10, fill: '#000' });
   add(s, 'circle', { cx: 12, cy: 12, r: 4, fill: C.candle, 'fill-opacity': '0.35' });
   add(s, 'circle', { cx: 12, cy: 12, r: 2, fill: C.candle });
-  add(s, 'circle', { cx: 12, cy: 12, r: 9.2, fill: 'none', stroke: C.dusk, 'stroke-width': '1.2' });
+  add(s, 'circle', { cx: 12, cy: 12, r: 9.2, fill: 'none', stroke: C.rot, 'stroke-width': '1.2' });
   return s;
 }
 
@@ -147,7 +147,7 @@ export function iconVoid(): SVGSVGElement {
   const s = svg('Fell');
   add(s, 'path', { d: 'M12 3v11', stroke: C.dim, 'stroke-width': '1.6', 'stroke-linecap': 'round' });
   add(s, 'path', { d: 'M8 11l4 5 4-5', fill: 'none', stroke: C.dim, 'stroke-width': '1.6', 'stroke-linecap': 'round' });
-  add(s, 'path', { d: 'M4 20h16', stroke: C.dusk, 'stroke-width': '2', 'stroke-dasharray': '3 3' });
+  add(s, 'path', { d: 'M4 20h16', stroke: C.rot, 'stroke-width': '2', 'stroke-dasharray': '3 3' });
   return s;
 }
 
@@ -236,7 +236,7 @@ export function iconIronNerve(): SVGSVGElement {
 
 export function iconSecondFlame(): SVGSVGElement {
   const s = svg('The Second Flame');
-  add(s, 'rect', { x: 4, y: 13, width: 5, height: 9, rx: 1, fill: C.dusk });
+  add(s, 'rect', { x: 4, y: 13, width: 5, height: 9, rx: 1, fill: C.rot });
   add(s, 'rect', { x: 15, y: 13, width: 5, height: 9, rx: 1, fill: C.wax });
   add(s, 'path', { d: 'M17.5 5.5c1.6 2.5 2.6 3.6 2.6 5a2.6 2.6 0 0 1-5.2 0c0-1.4 1-2.5 2.6-5z', fill: C.candle });
   add(s, 'path', { d: 'M6.5 11.5A5 5 0 0 1 12 4', fill: 'none', stroke: C.candle, 'stroke-width': '1.4', 'stroke-dasharray': '2 2' });
@@ -257,9 +257,9 @@ export function iconCoin(): SVGSVGElement {
 
 export function iconShelf(): SVGSVGElement {
   const s = svg('The Shelf');
-  add(s, 'rect', { x: 3, y: 4, width: 4, height: 15, rx: 1, fill: C.dusk, stroke: C.dim, 'stroke-width': '0.8' });
+  add(s, 'rect', { x: 3, y: 4, width: 4, height: 15, rx: 1, fill: C.rot, stroke: C.dim, 'stroke-width': '0.8' });
   add(s, 'rect', { x: 8.5, y: 4, width: 4, height: 15, rx: 1, fill: C.ink, stroke: C.candle, 'stroke-width': '1' });
-  add(s, 'rect', { x: 14, y: 4, width: 4, height: 15, rx: 1, fill: C.dusk, stroke: C.dim, 'stroke-width': '0.8' });
+  add(s, 'rect', { x: 14, y: 4, width: 4, height: 15, rx: 1, fill: C.rot, stroke: C.dim, 'stroke-width': '0.8' });
   add(s, 'path', { d: 'M2 20h20', stroke: C.wax, 'stroke-width': '2', 'stroke-linecap': 'round' });
   return s;
 }
@@ -277,7 +277,7 @@ export function iconOssuary(): SVGSVGElement {
 /** The composure bar, as a picture. */
 export function iconComposure(): SVGSVGElement {
   const s = svg('Composure');
-  add(s, 'rect', { x: 2, y: 9, width: 20, height: 6, rx: 1, fill: C.ink, stroke: C.dusk, 'stroke-width': '1' });
+  add(s, 'rect', { x: 2, y: 9, width: 20, height: 6, rx: 1, fill: C.ink, stroke: C.rot, 'stroke-width': '1' });
   add(s, 'rect', { x: 3, y: 10, width: 9, height: 4, fill: C.candle });
   add(s, 'path', { d: 'M15 6.5l2 2-2 2M19 6.5l2 2-2 2', fill: 'none', stroke: C.rec, 'stroke-width': '1.3', 'stroke-linecap': 'round' });
   return s;
@@ -301,7 +301,7 @@ export function iconStepWalk(): SVGSVGElement {
 
 export function iconStepBridge(): SVGSVGElement {
   const s = svg('Your face is the bridge');
-  add(s, 'path', { d: 'M1 11h5M18 11h5', stroke: C.dusk, 'stroke-width': '2.4', 'stroke-linecap': 'round' });
+  add(s, 'path', { d: 'M1 11h5M18 11h5', stroke: C.rot, 'stroke-width': '2.4', 'stroke-linecap': 'round' });
   add(s, 'path', { d: 'M6 11c3-3 9-3 12 0', fill: 'none', stroke: C.candle, 'stroke-width': '1.8' });
   add(s, 'rect', { x: 10.8, y: 6.4, width: 2.4, height: 4, rx: 0.6, fill: C.wax });
   add(s, 'circle', { cx: 12, cy: 5, r: 1.3, fill: C.candle });
@@ -315,8 +315,8 @@ export function iconStepLose(): SVGSVGElement {
   add(s, 'circle', { cx: 3.5, cy: 12.4, r: 1.5, fill: C.candle });
   add(s, 'rect', { x: 7.5, y: 14, width: 3, height: 7, rx: 0.8, fill: C.wax });
   add(s, 'circle', { cx: 9, cy: 12.4, r: 1.5, fill: C.candle });
-  add(s, 'rect', { x: 13, y: 14, width: 3, height: 7, rx: 0.8, fill: C.dusk });
-  add(s, 'rect', { x: 18.5, y: 14, width: 3, height: 7, rx: 0.8, fill: C.dusk });
+  add(s, 'rect', { x: 13, y: 14, width: 3, height: 7, rx: 0.8, fill: C.rot });
+  add(s, 'rect', { x: 18.5, y: 14, width: 3, height: 7, rx: 0.8, fill: C.rot });
   add(s, 'path', { d: 'M12.5 2.5h9.5M17.2 2.5v3', stroke: C.rec, 'stroke-width': '1.2', 'stroke-opacity': '0.6' });
   add(s, 'path', {
     d: 'M17.2 5.5a4.2 4.2 0 0 0-4.2 4.2c0 1.6.9 2.2.9 3.3h6.6c0-1.1.9-1.7.9-3.3a4.2 4.2 0 0 0-4.2-4.2z',

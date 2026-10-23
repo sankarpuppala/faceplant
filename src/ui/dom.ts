@@ -7,7 +7,21 @@
  * keeps Tab inside it. Every screen gets that for free.
  */
 
+import { hex, tokens } from '../render/tokens.ts';
+
 export type Attrs = Record<string, string | number | boolean | undefined>;
+
+/**
+ * Interface sounds (OVERHAUL 2.4): a soft tape click when focus moves, a heavy
+ * mechanical clunk on confirm. The audio module registers them at boot, so
+ * this file - and the UI gallery, which has no audio - never imports sound.
+ */
+const uiSounds: { focus: () => void; confirm: () => void } = { focus: () => undefined, confirm: () => undefined };
+
+export function setUiSounds(s: { focus: () => void; confirm: () => void }): void {
+  uiSounds.focus = s.focus;
+  uiSounds.confirm = s.confirm;
+}
 
 export function el<K extends keyof HTMLElementTagNameMap>(
   tag: K,
@@ -30,10 +44,29 @@ export function el<K extends keyof HTMLElementTagNameMap>(
   return node;
 }
 
-export function button(label: string, onClick: () => void, cls = 'btn'): HTMLButtonElement {
+/** The three button kinds (OVERHAUL 2.4). One system, used everywhere. */
+export type ButtonKind = 'primary' | 'secondary' | 'tertiary';
+
+export function button(label: string, onClick: () => void, kind: ButtonKind | string = 'secondary'): HTMLButtonElement {
+  // Older call sites pass a class string; the three kinds are the only ones
+  // the stylesheet knows.
+  const cls = kind.startsWith('btn') ? kind : `btn ${kind}`;
   const b = el('button', { class: cls, type: 'button' }, [label]);
-  b.addEventListener('click', onClick);
+  b.addEventListener('click', () => {
+    uiSounds.confirm();
+    onClick();
+  });
+  b.addEventListener('focus', () => uiSounds.focus());
   return b;
+}
+
+/**
+ * The sticky action row at the foot of a screen: equal widths, centred, and
+ * never off screen. Tertiary links go underneath in their own line.
+ */
+export function actions(buttons: (HTMLElement | null)[], links: (HTMLElement | null)[] = []): HTMLElement {
+  const linkRow = links.some((l) => l !== null) ? el('div', { class: 'links' }, links) : null;
+  return el('div', { class: 'actions' }, [...buttons, linkRow]);
 }
 
 /** A labelled row with a control on the right, used throughout Settings. */
@@ -58,13 +91,17 @@ export function segmented<T extends string>(
 
   for (const opt of options) {
     const b = el('button', {
-      class: 'btn',
+      class: 'seg',
       type: 'button',
       'aria-pressed': opt.value === current ? 'true' : 'false',
       disabled: opt.disabled === true,
       title: opt.disabled === true ? 'Locked' : undefined,
     }, [opt.label]);
-    b.addEventListener('click', () => onPick(opt.value));
+    b.addEventListener('click', () => {
+      uiSounds.confirm();
+      onPick(opt.value);
+    });
+    b.addEventListener('focus', () => uiSounds.focus());
     buttons.set(opt.value, b);
     node.appendChild(b);
   }
@@ -112,25 +149,34 @@ export function slider(label: string, value: number, onChange: (v: number) => vo
   return field(label, input);
 }
 
-/** A full-screen overlay. `variant` controls whether the stage shows through. */
+/**
+ * A full-screen overlay. `variant` controls whether the stage shows through;
+ * `footer` is the screen's action row, placed after the panel so it can stick
+ * to the bottom edge of the scrolling layer.
+ */
 export function screen(
   title: string,
   body: (Node | string | null | undefined)[],
   variant: 'solid' | 'transparent' | 'clear' = 'solid',
+  footer: HTMLElement | null = null,
 ): HTMLElement {
   const cls = variant === 'solid' ? 'layer' : `layer ${variant}`;
   const panel = el('div', { class: 'panel' }, body);
-  return el('div', { class: cls, role: 'dialog', 'aria-modal': 'true', 'aria-label': title }, [panel]);
+  return el('div', { class: cls, role: 'dialog', 'aria-modal': 'true', 'aria-label': title }, [panel, footer]);
 }
 
+const FOCUSABLE = 'button:not([disabled]), [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+
 export function focusFirst(root: HTMLElement): void {
-  const target = root.querySelector<HTMLElement>(
-    'button:not([disabled]), [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
-  );
+  const target = root.querySelector<HTMLElement>(FOCUSABLE);
   target?.focus();
 }
 
-/** Keeps Tab inside a dialog, and routes Escape to a handler. */
+/**
+ * Keeps Tab inside a dialog, routes Escape to a handler, and lets the arrow
+ * keys walk focus the way Tab does (OVERHAUL 2.4) - except inside a slider,
+ * where they belong to the slider.
+ */
 export function trapFocus(root: HTMLElement, onEscape?: () => void): () => void {
   const onKey = (e: KeyboardEvent): void => {
     if (e.key === 'Escape' && onEscape !== undefined) {
@@ -138,11 +184,18 @@ export function trapFocus(root: HTMLElement, onEscape?: () => void): () => void 
       onEscape();
       return;
     }
-    if (e.key !== 'Tab') return;
-    const items = [
-      ...root.querySelectorAll<HTMLElement>('button:not([disabled]), [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'),
-    ].filter((n) => n.offsetParent !== null);
+    const arrow = e.key === 'ArrowDown' || e.key === 'ArrowRight' ? 1 : e.key === 'ArrowUp' || e.key === 'ArrowLeft' ? -1 : 0;
+    if (e.key !== 'Tab' && arrow === 0) return;
+    if (arrow !== 0 && document.activeElement instanceof HTMLInputElement) return;
+    const items = [...root.querySelectorAll<HTMLElement>(FOCUSABLE)].filter((n) => n.offsetParent !== null);
     if (items.length === 0) return;
+    if (arrow !== 0) {
+      e.preventDefault();
+      const at = items.indexOf(document.activeElement as HTMLElement);
+      const next = items[(at + arrow + items.length) % items.length];
+      next?.focus();
+      return;
+    }
     const first = items[0];
     const last = items[items.length - 1];
     if (first === undefined || last === undefined) return;
@@ -175,11 +228,11 @@ export function flameIcon(): SVGSVGElement {
   g.setAttribute('class', 'bd-flame');
   const flame = document.createElementNS(ns, 'path');
   flame.setAttribute('d', 'M6 1c1.8 3 3 4.3 3 6a3 3 0 0 1-6 0c0-1.7 1.2-3 3-6z');
-  flame.setAttribute('fill', '#FFB547');
+  flame.setAttribute('fill', hex(tokens.candle));
   g.appendChild(flame);
   const core = document.createElementNS(ns, 'path');
   core.setAttribute('d', 'M6 4.2c.9 1.5 1.4 2.1 1.4 3a1.4 1.4 0 0 1-2.8 0c0-.9.5-1.5 1.4-3z');
-  core.setAttribute('fill', '#FF6A2B');
+  core.setAttribute('fill', hex(tokens.ember));
   g.appendChild(core);
   svg.appendChild(g);
   return svg;
@@ -199,17 +252,17 @@ export function candleIcon(lit: boolean): SVGSVGElement {
   body.setAttribute('width', '6');
   body.setAttribute('height', '14');
   body.setAttribute('rx', '1');
-  body.setAttribute('fill', lit ? '#EADCC0' : '#3a3342');
+  body.setAttribute('fill', lit ? hex(tokens.wax) : hex(tokens.rot));
   svg.appendChild(body);
 
   if (lit) {
     const flame = document.createElementNS(ns, 'path');
     flame.setAttribute('d', 'M6 1c1.8 3 3 4.3 3 6a3 3 0 0 1-6 0c0-1.7 1.2-3 3-6z');
-    flame.setAttribute('fill', '#FFB547');
+    flame.setAttribute('fill', hex(tokens.candle));
     svg.appendChild(flame);
     const core = document.createElementNS(ns, 'path');
     core.setAttribute('d', 'M6 4.2c.9 1.5 1.4 2.1 1.4 3a1.4 1.4 0 0 1-2.8 0c0-.9.5-1.5 1.4-3z');
-    core.setAttribute('fill', '#FF6A2B');
+    core.setAttribute('fill', hex(tokens.ember));
     svg.appendChild(core);
   }
   return svg;

@@ -455,26 +455,40 @@ crisp white text of a camcorder on-screen display. The ruins look like burnt
 paper silhouettes with amber rim light. Quiet, cinematic, a little funny.
 
 ### 12.2 Tokens (`src/render/tokens.ts` and `src/ui/tokens.css`)
+Revised by the horror overhaul (`docs/OVERHAUL.md` §2.1): less cosy, more damp
+and wrong.
+
 | Token | Value | Use |
 |---|---|---|
-| `void` | `#07060A` | Darkness, backgrounds |
-| `ink` | `#15121B` | Panels, ruins fill |
-| `dusk` | `#2B2236` | Raised panels, shadows with colour |
-| `bone` | `#EDE6D6` | OSD and UI text |
-| `boneDim` | `#9E968A` | Secondary text |
-| `candle` | `#FFB547` | Flames, light, primary accent, candle icons |
-| `ember` | `#FF6A2B` | Flame cores, highlights |
-| `rec` | `#E0322B` | REC dot, the Maw indicator only |
+| `void` | `#050407` | Everything |
+| `ink` | `#0E0C11` | Panels (barely lifted) |
+| `rot` | `#1B1714` | Raised panels, ruins: warm, dirty, not purple |
+| `bone` | `#E6DFCF` | Text |
+| `boneDim` | `#8C8578` | Secondary text (5.6:1 on `void`, 4.9:1 on `rot`) |
+| `candle` | `#F2A93B` | The ONE accent: primary button, flames, focus |
+| `ember` | `#C4521F` | Flame core, hover |
+| `blood` | `#8E1B17` | Loss stamp, Maw indicator. Never a full-screen red flash |
+| `rec` | `#D8302A` | REC dot only |
+| `static` | `#B9C2C9` at 8 % | Grain and noise overlays |
 | `mold` | `#5F6E4C` | Crawlers |
-| `chalk` | `#FFB547` at 35 % | Face contour line |
+| `wax` | `#EADCC0` | Wick bodies, tape labels |
+| `chalk` | `candle` at 35 % | Face contour line |
 
-UI text must meet 4.5:1 contrast against its background (bone on void is
-well above this; check `boneDim` uses).
+UI text must meet 4.5:1 contrast against its background.
 
 ### 12.3 Type (self-hosted, OFL)
-- **VT323** — camcorder OSD, timestamps, counters, the tagline.
-- **Special Elite** — tape labels, the title, lore on ruins, Wick lines.
-- **Inter** — settings, notices and any text longer than two lines.
+- **IM Fell English SC** — the wordmark, stamps, tape labels, headings.
+- **VT323** — camcorder OSD, timestamps, counters, buttons, the tagline.
+- **Inter** — settings, notices and any text longer than two lines; 16 px minimum.
+
+### 12.3.1 Buttons (`docs/OVERHAUL.md` §2.4)
+One system everywhere. **Primary**: `candle` fill, `void` text, VT323
+uppercase, 56 px tall, at least 220 px wide, a ≤ 2 Hz flicker on hover.
+**Secondary**: transparent, 1 px `bone` 40 % border, same size as the primary
+in its row. **Tertiary**: an underlined-on-hover text link with a 44 px hit
+area. Buttons in a row are equal width with a 16 px gap, centred, in a sticky
+footer that is never off screen. Arrows/Tab move focus, Enter confirms, Esc
+goes back; the focus ring is 2 px `candle` at a 2 px offset.
 
 ### 12.4 Render stack (bottom to top)
 1. **Video**: mirrored webcam frame graded by the active filter — VHS

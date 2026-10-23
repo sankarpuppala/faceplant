@@ -57,6 +57,7 @@ import {
 } from './storage/durability.ts';
 import { copy } from './ui/copy.ts';
 import { el, focusFirst, toast, trapFocus } from './ui/dom.ts';
+import { installGrain } from './ui/grain.ts';
 import {
   calibrationScreen,
   cameraScreen,
@@ -146,6 +147,7 @@ export class App {
     this.settings = applySystemPreferences(loadSettings());
     this.progress = loadProgress();
     this.applyBodyClasses();
+    installGrain();
   }
 
   async start(): Promise<void> {

@@ -5,17 +5,29 @@
  */
 
 export const tokens = {
-  void: 0x07060a,
-  ink: 0x15121b,
-  dusk: 0x2b2236,
-  bone: 0xede6d6,
-  boneDim: 0x9e968a,
-  candle: 0xffb547,
-  ember: 0xff6a2b,
-  rec: 0xe0322b,
+  void: 0x050407,
+  ink: 0x0e0c11,
+  /** Raised panels and ruins: warm, dirty, not purple. */
+  rot: 0x1b1714,
+  bone: 0xe6dfcf,
+  boneDim: 0x8c8578,
+  /** The one accent: primary button, flames, focus. */
+  candle: 0xf2a93b,
+  ember: 0xc4521f,
+  /** Loss stamp and the Maw. Dark, and never a full-screen flash. */
+  blood: 0x8e1b17,
+  /** The REC dot. */
+  rec: 0xd8302a,
+  /** Crawlers. */
   mold: 0x5f6e4c,
+  /** Wick bodies. */
   wax: 0xeadcc0,
+  /** Grain and noise overlays, used at `staticAlpha`. */
+  static: 0xb9c2c9,
 } as const;
+
+/** `static` is only ever drawn at this alpha (OVERHAUL 2.1). */
+export const staticAlpha = 0.08;
 
 export type TokenName = keyof typeof tokens;
 
@@ -55,7 +67,7 @@ export const chalk = { color: tokens.candle, alpha: 0.35 } as const;
 
 export const fonts = {
   osd: '"VT323", "Courier New", monospace',
-  label: '"Special Elite", "Courier New", serif',
+  label: '"IM Fell English SC", "Times New Roman", serif',
   ui: '"Inter", system-ui, sans-serif',
 } as const;
 

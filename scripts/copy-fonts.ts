@@ -25,7 +25,7 @@ interface FontSpec {
 
 const FONTS: FontSpec[] = [
   { pkg: '@fontsource/vt323', file: 'vt323-latin-400-normal.woff2', as: 'vt323-latin-400-normal.woff2' },
-  { pkg: '@fontsource/special-elite', file: 'special-elite-latin-400-normal.woff2', as: 'special-elite-latin-400-normal.woff2' },
+  { pkg: '@fontsource/im-fell-english-sc', file: 'im-fell-english-sc-latin-400-normal.woff2', as: 'im-fell-english-sc-latin-400-normal.woff2' },
   { pkg: '@fontsource/inter', file: 'inter-latin-400-normal.woff2', as: 'inter-latin-400-normal.woff2' },
   { pkg: '@fontsource/inter', file: 'inter-latin-600-normal.woff2', as: 'inter-latin-600-normal.woff2' },
 ];

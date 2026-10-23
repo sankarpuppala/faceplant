@@ -1,4 +1,12 @@
-/* SPEC section 12.2 / 12.3. Values must match src/render/tokens.ts. */
+/*
+ * The FACEPLANT design system (docs/OVERHAUL.md section 2, SPEC section 12).
+ * Colour values must match src/render/tokens.ts - tests/game/game.test.ts
+ * checks the two files agree.
+ *
+ * Found tape in a dead person's house: near-black, warm dirt instead of
+ * purple, one amber accent (candle) and red kept for the Maw, the REC dot and
+ * the loss stamp. Square corners everywhere; nothing is a rounded "card".
+ */
 
 @font-face {
   font-family: 'VT323';
@@ -7,8 +15,8 @@
   font-display: swap;
 }
 @font-face {
-  font-family: 'Special Elite';
-  src: url('../../public/fonts/special-elite-latin-400-normal.woff2') format('woff2');
+  font-family: 'IM Fell English SC';
+  src: url('../../public/fonts/im-fell-english-sc-latin-400-normal.woff2') format('woff2');
   font-weight: 400;
   font-display: swap;
 }
@@ -26,46 +34,44 @@
 }
 
 :root {
-  --void: #07060a;
-  --ink: #15121b;
-  --dusk: #2b2236;
-  --bone: #ede6d6;
-  --bone-dim: #9e968a;
-  --candle: #ffb547;
-  --ember: #ff6a2b;
-  --rec: #e0322b;
+  --void: #050407;
+  --ink: #0e0c11;
+  --rot: #1b1714;
+  --bone: #e6dfcf;
+  --bone-dim: #8c8578;
+  --candle: #f2a93b;
+  --ember: #c4521f;
+  --blood: #8e1b17;
+  --rec: #d8302a;
   --mold: #5f6e4c;
   --wax: #eadcc0;
+  /* Grain and noise overlays, at 8 %. */
+  --static: rgba(185, 194, 201, 0.08);
+
+  /* Hairlines: bone at 12 % for panels, 40 % for secondary buttons. */
+  --line: rgba(230, 223, 207, 0.12);
+  --line-strong: rgba(230, 223, 207, 0.4);
 
   --osd: 'VT323', 'Courier New', monospace;
-  --label: 'Special Elite', 'Courier New', serif;
+  --label: 'IM Fell English SC', 'Times New Roman', serif;
   --ui: 'Inter', system-ui, sans-serif;
 
-  /*
-   * One spacing scale, so the interface has a rhythm instead of forty
-   * hand-picked paddings. Every gap in a screen should be one of these.
-   */
+  /* One spacing scale. Every gap is one of these. */
   --s1: 4px;
   --s2: 8px;
   --s3: 12px;
-  --s4: 18px;
-  --s5: 26px;
-  --s6: 38px;
-  --gap: clamp(10px, 1.6vw, 20px);
+  --s4: 16px;
+  --s5: 24px;
+  --s6: 36px;
   --pad-screen: clamp(16px, 3vw, 36px);
 
-  /* Surfaces, so a panel is not six different near-blacks. */
-  --surface: #110e17;
-  --surface-raised: #181320;
-  --line: #241e2e;
-  --line-bright: #39304a;
+  /* Button system (OVERHAUL 2.4). */
+  --btn-h: 56px;
+  --btn-w: 220px;
+  --hit-min: 44px;
 
-  --radius: 3px;
-  --radius-lg: 6px;
-
-  /* The tape's own glow, reused wherever something is live or selected. */
-  --glow-candle: 0 0 24px -6px rgba(255, 181, 71, 0.55);
-  --glow-rec: 0 0 26px -6px rgba(224, 50, 43, 0.5);
+  /* Set at runtime by src/ui/grain.ts: a canvas-generated noise tile. */
+  --grain: none;
 
   color-scheme: dark;
 }
@@ -79,7 +85,7 @@ html, body {
   color: var(--bone);
   font-family: var(--ui);
   font-size: 16px;
-  line-height: 1.55;
+  line-height: 1.5;
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
 }
@@ -90,208 +96,300 @@ html, body {
 #stage-host { position: absolute; inset: 0; }
 #stage-host canvas { display: block; width: 100%; height: 100%; }
 
+/* ---- the CRT frame (OVERHAUL 2.3) ------------------------------------- */
+
+/*
+ * Every full screen is a `.layer`: a scrolling column with the content
+ * centred when it fits, and the action row stuck to the bottom edge so it is
+ * never off screen and never on top of the text.
+ */
 .layer {
   position: absolute;
   inset: 0;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  /*
-   * `place-items: center` was centring the panel, which is right until the
-   * panel is taller than the viewport: a centred grid item overflows in
-   * *both* directions, and the half above the top edge cannot be scrolled
-   * back to. The results screen lost its stamp off the top and its Next /
-   * Retry / Shelf buttons off the bottom, with no way to reach either.
-   *
-   * Start-aligned plus an auto block margin is the fix: the margin absorbs
-   * free space and centres the panel when it fits, and collapses to nothing
-   * when it does not, so tall screens simply scroll from the top.
-   */
-  justify-items: center;
-  align-items: start;
-  padding: var(--pad-screen);
-  background:
-    radial-gradient(ellipse 70% 60% at 50% 42%, rgba(255, 181, 71, 0.06), transparent 70%),
-    var(--void);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--pad-screen) var(--pad-screen) 0;
+  background: var(--void);
   overflow-y: auto;
   overscroll-behavior: contain;
+  isolation: isolate;
 }
-.layer > * { margin-block: auto; }
+/* Content first; the margin centres it when there is room and collapses when
+   there is not, so a tall screen scrolls from the top instead of clipping. */
+.layer > .panel { margin-block: auto; }
 
-/*
- * The menus are supposed to be the same cursed tape the game is played on,
- * and they were a flat black page with text on it - all of the analog-horror
- * atmosphere lived in the Pixi stage and none of it reached the interface.
- *
- * This is a *static* texture: scanlines, a vignette and a warm bloom at the
- * top. Nothing moves and nothing flashes, so it costs no flash budget (
- * CLAUDE.md invariant 4) and cannot trigger anything; "Reduce effects" still
- * drops it to a plain vignette, because the point of that setting is fewer
- * things happening on screen.
- */
+/* Scanlines (6 %) and the vignette: the glass of the set. */
+.layer::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 5;
+  background:
+    repeating-linear-gradient(to bottom, rgba(0, 0, 0, 0.06) 0 1px, transparent 1px 3px),
+    radial-gradient(ellipse 115% 90% at 50% 48%, transparent 62%, rgba(0, 0, 0, 0.04) 78%, rgba(0, 0, 0, 0.55) 100%);
+}
+/* Grain: the canvas tile, drifting a few pixels on a slow step. It moves but
+   never flashes: a texture at 8 %, not a change in brightness. */
 .layer::after {
+  content: '';
+  position: fixed;
+  inset: -64px;
+  pointer-events: none;
+  z-index: 6;
+  background-image: var(--grain);
+  background-size: 192px 192px;
+  animation: grain 1.6s steps(6) infinite;
+}
+@keyframes grain {
+  0% { transform: translate(0, 0); }
+  20% { transform: translate(-23px, 17px); }
+  40% { transform: translate(31px, -9px); }
+  60% { transform: translate(-13px, -29px); }
+  80% { transform: translate(19px, 27px); }
+  100% { transform: translate(0, 0); }
+}
+/* Reduce effects keeps grain and vignette only: no scanlines, nothing moving. */
+body.reduced-effects .layer::before {
+  background: radial-gradient(ellipse 115% 90% at 50% 48%, transparent 62%, rgba(0, 0, 0, 0.55) 100%);
+}
+body.reduced-effects .layer::after { animation: none; }
+@media (prefers-reduced-motion: reduce) { .layer::after { animation: none; } }
+
+/* See-through layers sit over the live stage (pause, results). */
+.layer.transparent { background: rgba(5, 4, 7, 0.78); }
+/* In-play overlays: no frame, no background, clicks fall through. */
+.layer.clear { background: none; pointer-events: none; overflow: visible; }
+.layer.clear::before, .layer.clear::after { display: none; }
+.layer.clear > * { pointer-events: auto; }
+
+.panel {
+  position: relative;
+  z-index: 4;
+  width: min(640px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  text-align: center;
+  padding-bottom: var(--s5);
+}
+.panel.wide { width: min(980px, 100%); }
+.panel.left { text-align: left; }
+
+/* A raised surface: hairline, square, a little dust. Never a rounded card. */
+.box {
+  position: relative;
+  background: var(--ink);
+  border: 1px solid var(--line);
+  padding: var(--s4);
+  text-align: left;
+}
+.box::after {
   content: '';
   position: absolute;
   inset: 0;
   pointer-events: none;
-  z-index: 3;
-  background:
-    repeating-linear-gradient(
-      to bottom,
-      rgba(0, 0, 0, 0.26) 0px,
-      rgba(0, 0, 0, 0.26) 1px,
-      transparent 1px,
-      transparent 3px
-    ),
-    radial-gradient(ellipse 120% 85% at 50% 50%, transparent 52%, rgba(0, 0, 0, 0.62) 100%);
-  mix-blend-mode: multiply;
-}
-.layer.clear::after { display: none; }
-body.reduced-effects .layer::after {
-  background: radial-gradient(ellipse 120% 85% at 50% 50%, transparent 58%, rgba(0, 0, 0, 0.5) 100%);
+  background-image: var(--grain);
+  background-size: 192px 192px;
+  opacity: 0.5;
 }
 
-/* The panel sits above the texture, so text stays crisp. */
-.panel { position: relative; z-index: 4; }
-.layer.transparent { background: rgba(7, 6, 10, 0.72); }
-.layer.clear { background: none; pointer-events: none; }
-.layer.clear > * { pointer-events: auto; }
+/* ---- type -------------------------------------------------------------- */
 
-.panel {
-  width: min(680px, 100%);
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  text-align: center;
-}
-.panel.left { text-align: left; }
-
-/* A label stuck on a tape that has been played too many times: bone, warm at
-   the edges, sitting in its own pool of candlelight. */
+/* Engraved, like a label on a grave (IM Fell English SC). */
 h1.wordmark {
   font-family: var(--label);
   font-weight: 400;
-  font-size: clamp(34px, 8.2vw, 104px);
-  letter-spacing: 0.18em;
+  font-size: clamp(44px, 10vw, 128px);
+  letter-spacing: 0.08em;
   margin: 0;
-  line-height: 1;
+  line-height: 0.95;
+  color: var(--bone);
   text-shadow:
-    0 0 2px rgba(234, 220, 192, 0.45),
-    0 0 38px rgba(255, 181, 71, 0.24),
-    0 0 92px rgba(255, 106, 43, 0.12);
+    1px 0 rgba(216, 48, 42, 0.35),
+    -1px 0 rgba(120, 150, 170, 0.25),
+    0 0 40px rgba(242, 169, 59, 0.14);
 }
 h2 {
   font-family: var(--label);
   font-weight: 400;
-  font-size: clamp(18px, 2.6vw, 26px);
-  letter-spacing: 0.06em;
+  font-size: clamp(26px, 3.2vw, 36px);
+  letter-spacing: 0.04em;
   margin: 0;
+  color: var(--bone);
 }
 h3 {
-  font-family: var(--label);
+  font-family: var(--osd);
   font-weight: 400;
-  font-size: 15px;
-  letter-spacing: 0.06em;
+  font-size: 20px;
+  letter-spacing: 0.08em;
   color: var(--bone-dim);
-  margin: 10px 0 2px;
+  margin: var(--s3) 0 0;
   text-transform: uppercase;
 }
 p { margin: 0; }
 .tagline {
   font-family: var(--osd);
-  font-size: clamp(16px, 2.6vw, 30px);
+  font-size: clamp(22px, 2.8vw, 32px);
   color: var(--candle);
+  letter-spacing: 0.04em;
 }
 .dim { color: var(--bone-dim); }
-/* The level intro's actual win/lose rule, set apart from the flavour hint
-   above it so it reads as the goal rather than more mood text. */
-.objective { color: var(--candle); margin-top: 4px; }
-.small { font-size: 13px; }
-.osd-text { font-family: var(--osd); font-size: clamp(15px, 2vw, 22px); letter-spacing: 0.04em; }
+.objective { color: var(--candle); }
+.small { font-size: 16px; }
+.osd-text { font-family: var(--osd); font-size: clamp(20px, 2.4vw, 26px); letter-spacing: 0.05em; }
 .label-text { font-family: var(--label); }
+.danger-text { color: var(--rec); }
 
-/* ---- controls ---- */
-
-/*
- * Three weights, and the difference has to be obvious at a glance: one thing
- * to press, some things you might press instead, and some things that are
- * only there if you go looking. The middle weight used to be transparent
- * with a near-black border, which reads as disabled rather than secondary.
- */
-.btn {
+/* Masking tape, hand-labelled: tape names and stamps. Clip-path only. */
+.tape-label {
+  display: inline-block;
+  align-self: center;
+  padding: 0.25em 1.1em;
   font-family: var(--label);
-  font-size: clamp(13px, 1.5vw, 17px);
-  border-radius: var(--radius);
-  padding: 0.6em 1.15em;
-  cursor: pointer;
-  border: 1px solid var(--line-bright);
-  background: var(--surface-raised);
-  color: var(--bone);
-  letter-spacing: 0.03em;
-  transition: background 120ms, border-color 120ms, color 120ms, box-shadow 120ms, transform 60ms;
+  font-size: clamp(18px, 2.2vw, 24px);
+  color: var(--rot);
+  background: linear-gradient(100deg, color-mix(in srgb, var(--wax) 82%, var(--rot)), var(--wax) 40%, color-mix(in srgb, var(--wax) 88%, var(--rot)));
+  clip-path: polygon(0 8%, 3% 0, 22% 6%, 47% 1%, 71% 7%, 96% 0, 100% 12%, 98% 52%, 100% 92%, 94% 100%, 66% 95%, 39% 100%, 12% 94%, 2% 100%, 0 70%, 2% 40%);
+  transform: rotate(-1.5deg);
+  opacity: 0.92;
 }
-.btn:hover:not(:disabled) { border-color: var(--candle); color: var(--candle); background: #1f1828; }
-.btn:active:not(:disabled) { transform: translateY(1px); }
+
+/* ---- buttons (OVERHAUL 2.4) ------------------------------------------- */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s2);
+  height: var(--btn-h);
+  min-width: var(--btn-w);
+  padding: 0 var(--s5);
+  border-radius: 0;
+  font-family: var(--osd);
+  font-size: 26px;
+  line-height: 1;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  white-space: nowrap;
+  border: 1px solid var(--line-strong);
+  background: transparent;
+  color: var(--bone);
+  transition: border-color 120ms, color 120ms, background 120ms;
+}
 .btn.primary {
   background: var(--candle);
   border-color: var(--candle);
-  color: #1a1006;
-  font-family: var(--osd);
-  font-size: clamp(18px, 2.4vw, 28px);
-  padding: 0.34em 1.3em;
-  box-shadow: var(--glow-candle);
+  color: var(--void);
 }
-.btn.primary:hover:not(:disabled) {
-  background: var(--ember);
-  border-color: var(--ember);
-  color: #190a02;
-  box-shadow: 0 0 30px -5px rgba(255, 106, 43, 0.6);
-}
-.btn.quiet {
+/* A faint flicker on hover, at 1.6 Hz - under the 2 Hz the brief allows. */
+.btn.primary:hover:not(:disabled) { animation: btn-flicker 625ms ease-in-out infinite; }
+@keyframes btn-flicker { 0%, 100% { opacity: 1; } 50% { opacity: 0.86; } }
+body.reduced-effects .btn.primary:hover { animation: none; }
+.btn.secondary:hover:not(:disabled) { border-color: var(--bone); background: rgba(230, 223, 207, 0.05); }
+.btn.tertiary {
+  height: auto;
+  min-height: var(--hit-min);
+  min-width: 0;
+  padding: 0 var(--s2);
   border: 0;
-  color: var(--bone-dim);
-  text-decoration: underline;
-  text-underline-offset: 4px;
   background: none;
-  font-size: clamp(12px, 1.5vw, 15px);
+  font-family: var(--ui);
+  font-size: 16px;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--bone-dim);
+  text-underline-offset: 4px;
 }
-.btn.quiet:hover { color: var(--bone); }
-.btn:disabled { opacity: 0.4; cursor: not-allowed; }
-.btn[aria-pressed='true'] { background: var(--candle); border-color: var(--candle); color: #1a1006; }
+.btn.tertiary:hover:not(:disabled) { color: var(--bone); text-decoration: underline; }
+.btn.tertiary.danger { color: var(--rec); }
+.btn:disabled { opacity: 0.35; cursor: not-allowed; }
 
 :focus-visible {
   outline: 2px solid var(--candle);
   outline-offset: 2px;
 }
 
-.row { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; align-items: center; }
-.row.start { justify-content: flex-start; }
-.col { display: flex; flex-direction: column; gap: 8px; }
-.spread { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+/*
+ * The action row. Equal widths, 16 px gap, centred, stuck to the bottom of
+ * the screen: never off screen, never on top of the text. Narrow screens
+ * stack it, still equal width.
+ */
+.actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 7;
+  width: calc(100% + 2 * var(--pad-screen));
+  margin: auto calc(-1 * var(--pad-screen)) 0;
+  padding: var(--s5) var(--pad-screen) max(var(--s5), env(safe-area-inset-bottom));
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(var(--btn-w), 1fr);
+  justify-content: center;
+  gap: var(--s4);
+  background: linear-gradient(to bottom, transparent, var(--void) 34%);
+}
+.layer > .panel + .actions { margin-top: 0; }
+.layer.transparent .actions { background: linear-gradient(to bottom, transparent, rgba(5, 4, 7, 0.92) 34%); }
+.actions > .btn { width: 100%; }
+.actions .links { grid-column: 1 / -1; }
+@media (max-width: 760px) {
+  .actions { grid-auto-flow: row; grid-auto-columns: auto; grid-template-columns: minmax(0, 340px); }
+}
+/* Tertiary links, centred under the button row. */
+.links { display: flex; flex-wrap: wrap; justify-content: center; gap: 0 var(--s4); }
 
+.row { display: flex; gap: var(--s4); flex-wrap: wrap; justify-content: center; align-items: center; }
+.row.start { justify-content: flex-start; }
+.col { display: flex; flex-direction: column; gap: var(--s2); }
+.spread { display: flex; justify-content: space-between; align-items: center; gap: var(--s3); }
+
+/* ---- settings rows ----------------------------------------------------- */
+
+/* Label left, control right, the hint on its own line under both. */
 .field {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: 'name control' 'hint hint';
   align-items: center;
-  gap: 10px 14px;
-  padding: 11px 14px;
-  background: var(--ink);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
+  gap: var(--s1) var(--s4);
+  padding: var(--s3) 0;
+  border-bottom: 1px solid var(--line);
   text-align: left;
 }
-.field-label { display: block; min-width: 0; }
-.field-name { font-family: var(--label); font-size: 15px; display: block; }
-.field-hint { display: block; font-size: 12.5px; color: var(--bone-dim); margin-top: 2px; line-height: 1.4; }
-.field-control { justify-self: end; display: flex; align-items: center; }
-
+.field-label { display: contents; }
+.field-name { grid-area: name; font-family: var(--ui); font-size: 17px; color: var(--bone); }
+.field-hint { grid-area: hint; font-size: 16px; color: var(--bone-dim); line-height: 1.4; }
+.field-control { grid-area: control; justify-self: end; display: flex; align-items: center; gap: var(--s2); }
 @media (max-width: 520px) {
-  .field { grid-template-columns: minmax(0, 1fr); }
+  .field { grid-template-columns: minmax(0, 1fr); grid-template-areas: 'name' 'control' 'hint'; }
   .field-control { justify-self: start; }
 }
-.segmented { display: flex; gap: 4px; }
-.segmented .btn { padding: 0.3em 0.7em; font-size: 13px; }
 
-input[type='range'] { accent-color: var(--candle); width: 140px; }
+/* Small square toggles inside a row - not the 56 px button. */
+.segmented { display: flex; border: 1px solid var(--line-strong); }
+.seg {
+  min-height: var(--hit-min);
+  min-width: 64px;
+  padding: 0 var(--s3);
+  border: 0;
+  border-right: 1px solid var(--line);
+  background: none;
+  color: var(--bone-dim);
+  font-family: var(--osd);
+  font-size: 20px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.seg:last-child { border-right: 0; }
+.seg[aria-pressed='true'] { background: var(--candle); color: var(--void); }
+.seg:hover:not(:disabled):not([aria-pressed='true']) { color: var(--bone); }
+.seg:disabled { opacity: 0.35; cursor: not-allowed; }
+
+input[type='range'] { accent-color: var(--candle); width: min(200px, 48vw); height: var(--hit-min); }
 
 /* ---- shelf (SPEC 12.5) ---- */
 
@@ -301,7 +399,7 @@ input[type='range'] { accent-color: var(--candle); width: 140px; }
   position: absolute;
   left: -3%; right: -3%; bottom: -14px;
   height: 14px;
-  background: linear-gradient(#2a2131, #120e16);
+  background: linear-gradient(#1b1714, #0e0c11);
   border-radius: 2px;
   box-shadow: 0 10px 24px -6px #000;
 }
@@ -315,10 +413,10 @@ input[type='range'] { accent-color: var(--candle); width: 140px; }
   width: 11%;
   min-width: 52px;
   height: 100%;
-  background: linear-gradient(90deg, #0b090f 0%, #211c2c 18%, #171320 55%, #0a080e 100%);
+  background: linear-gradient(90deg, #0a0807 0%, #1d1916 18%, #141110 55%, #080605 100%);
   border-radius: 3px 3px 0 0;
   box-shadow:
-    inset 0 0 0 1px #2b2533,
+    inset 0 0 0 1px #2a241f,
     inset 2px 0 0 rgba(255, 255, 255, 0.06),
     inset -4px 0 8px -4px rgba(0, 0, 0, 0.9),
     0 8px 18px -10px #000;
@@ -365,13 +463,13 @@ input[type='range'] { accent-color: var(--candle); width: 140px; }
 }
 .spine .sticker small { font-size: 0.78em; opacity: 0.68; margin-bottom: 0.5em; }
 .spine.daily .sticker {
-  background: linear-gradient(100deg, #c42a24, var(--rec) 40%, #ef4a42 75%, #b8251f);
+  background: linear-gradient(100deg, #a8241f, var(--rec) 40%, #d8302a 75%, #8e1b17);
   color: #fff1ea;
 }
 .spine.endless .sticker {
-  background: linear-gradient(100deg, #231e2b, #2f2839 50%, #211c29);
+  background: linear-gradient(100deg, #1b1714, #24201b 50%, #181412);
   color: var(--candle);
-  box-shadow: inset 0 0 0 1px #4a4154, 0 1px 3px rgba(0, 0, 0, 0.55);
+  box-shadow: inset 0 0 0 1px #3a322b, 0 1px 3px rgba(0, 0, 0, 0.55);
 }
 /* Locked tapes read as unavailable, not as absent. A player has to be able to
    see what is still ahead of them - that is most of why the shelf exists - so
@@ -386,10 +484,10 @@ input[type='range'] { accent-color: var(--candle); width: 140px; }
 .spine.current {
   transform: translateY(-9%);
   box-shadow:
-    inset 0 0 0 1px #3a3342,
+    inset 0 0 0 1px #3a322b,
     inset 2px 0 0 rgba(255, 255, 255, 0.08),
     0 0 0 1px var(--candle),
-    var(--glow-candle),
+    0 0 24px -8px rgba(242, 169, 59, 0.45),
     0 14px 22px -10px #000;
 }
 .spine .candles { display: flex; gap: 2px; height: 16px; }
@@ -397,9 +495,9 @@ input[type='range'] { accent-color: var(--candle); width: 140px; }
 
 .levelgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 8px; width: 100%; }
 .levelcard {
-  border: 1px solid var(--dusk);
+  border: 1px solid var(--rot);
   background: var(--ink);
-  border-radius: var(--radius);
+  border-radius: 0;
   padding: 10px;
   text-align: left;
   cursor: pointer;
@@ -428,16 +526,16 @@ input[type='range'] { accent-color: var(--candle); width: 140px; }
   font-size: clamp(20px, 3.6vw, 40px);
   letter-spacing: 0.04em;
   transform: rotate(-5deg);
-  box-shadow: inset 0 0 0 2px rgba(224, 50, 43, 0.25);
+  box-shadow: inset 0 0 0 2px rgba(216, 48, 42, 0.25);
   opacity: 0.92;
 }
-.stamp.kept { color: var(--candle); border-color: var(--candle); box-shadow: inset 0 0 0 2px rgba(255, 181, 71, 0.25); }
-.stamp.out { color: var(--bone-dim); border-color: var(--bone-dim); box-shadow: inset 0 0 0 2px rgba(158, 150, 138, 0.25); }
+.stamp.kept { color: var(--candle); border-color: var(--candle); box-shadow: inset 0 0 0 2px rgba(242, 169, 59, 0.25); }
+.stamp.out { color: var(--bone-dim); border-color: var(--bone-dim); box-shadow: inset 0 0 0 2px rgba(140, 133, 120, 0.25); }
 .stamp.lost {
   color: var(--rec);
   border-color: var(--rec);
   border-width: 4px;
-  box-shadow: inset 0 0 0 2px rgba(224, 50, 43, 0.35), 0 0 40px -10px rgba(224, 50, 43, 0.5);
+  box-shadow: inset 0 0 0 2px rgba(216, 48, 42, 0.35), 0 0 40px -10px rgba(216, 48, 42, 0.5);
 }
 
 .stats { font-family: var(--osd); font-size: clamp(15px, 2vw, 21px); display: grid; gap: 2px; }
@@ -452,7 +550,7 @@ input[type='range'] { accent-color: var(--candle); width: 140px; }
   background: var(--ink);
   border: 1px solid #221d29;
   padding: 12px 14px;
-  border-radius: var(--radius);
+  border-radius: 0;
   white-space: pre-wrap;
   text-align: left;
   user-select: all;
@@ -484,7 +582,7 @@ input[type='range'] { accent-color: var(--candle); width: 140px; }
 .composure {
   height: 7px;
   background: #140f19;
-  box-shadow: inset 0 0 0 1px #2b2533;
+  box-shadow: inset 0 0 0 1px #2a241f;
   margin-top: 4px;
   overflow: hidden;
 }
@@ -518,7 +616,7 @@ input[type='range'] { accent-color: var(--candle); width: 140px; }
   gap: 10px;
   padding: 8px 12px;
   background: var(--ink);
-  border-left: 2px solid var(--dusk);
+  border-left: 2px solid var(--rot);
   font-family: var(--label);
   font-size: 13px;
 }
@@ -537,7 +635,7 @@ input[type='range'] { accent-color: var(--candle); width: 140px; }
   padding: 11px 13px;
   background: var(--ink);
   border: 1px solid #221d29;
-  border-radius: var(--radius);
+  border-radius: 0;
   text-align: left;
 }
 .rite.owned { border-color: var(--candle); }
@@ -555,7 +653,7 @@ input[type='range'] { accent-color: var(--candle); width: 140px; }
   left: 0; right: 0;
   top: 58%;
   height: 10px;
-  background: linear-gradient(90deg, transparent, rgba(237, 230, 214, 0.1) 20%, rgba(237, 230, 214, 0.03) 60%, transparent);
+  background: linear-gradient(90deg, transparent, rgba(230, 223, 207, 0.1) 20%, rgba(230, 223, 207, 0.03) 60%, transparent);
   pointer-events: none;
 }
 
@@ -566,14 +664,14 @@ input[type='range'] { accent-color: var(--candle); width: 140px; }
   transform: translateX(-50%);
   font-family: var(--osd);
   font-size: 17px;
-  background: rgba(7, 6, 10, 0.86);
-  border: 1px solid var(--dusk);
+  background: rgba(5, 4, 7, 0.86);
+  border: 1px solid var(--rot);
   padding: 7px 14px;
-  border-radius: var(--radius);
+  border-radius: 0;
   pointer-events: none;
 }
 
-.clip-preview { width: min(260px, 60vw); aspect-ratio: 9 / 16; background: #000; border: 1px solid var(--dusk); }
+.clip-preview { width: min(260px, 60vw); aspect-ratio: 9 / 16; background: #000; border: 1px solid var(--rot); }
 .clip-preview video { width: 100%; height: 100%; display: block; }
 
 .jitter { animation: jitter 7s steps(1) infinite; }
@@ -615,7 +713,7 @@ body.reduced-effects .jitter { animation: none; }
   padding: 0.42em 1.9em;
   font-size: clamp(20px, 3vw, 32px);
   letter-spacing: 0.06em;
-  box-shadow: 0 0 34px -8px rgba(255, 181, 71, 0.55);
+  box-shadow: 0 0 34px -8px rgba(242, 169, 59, 0.55);
 }
 .title-secondary { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
 .title-secondary .btn { min-width: 150px; }
@@ -660,7 +758,7 @@ body.reduced-effects .jitter { animation: none; }
   font-size: clamp(17px, 2.2vw, 24px);
   color: var(--candle);
   background: var(--ink);
-  border: 1px solid #3a3342;
+  border: 1px solid #3a322b;
   border-radius: 999px;
   padding: 5px 16px;
 }
@@ -685,8 +783,8 @@ body.reduced-effects .jitter { animation: none; }
   padding: 13px 15px;
   background: var(--ink);
   border: 1px solid var(--line);
-  border-left: 3px solid var(--dusk);
-  border-radius: var(--radius);
+  border-left: 3px solid var(--rot);
+  border-radius: 0;
   text-align: left;
 }
 .shop-row.owned { border-left-color: var(--candle); }
@@ -722,7 +820,7 @@ body.reduced-effects .jitter { animation: none; }
   display: grid;
   place-items: center;
   background: #120e18;
-  border: 1px solid #2b2533;
+  border: 1px solid #2a241f;
   border-radius: 6px;
 }
 .shop-icon .icon { width: 26px; height: 26px; }
@@ -737,12 +835,12 @@ body.reduced-effects .jitter { animation: none; }
   padding: 8px 10px;
   background: #0d0a12;
   border: 1px solid #221d29;
-  border-radius: var(--radius);
+  border-radius: 0;
 }
 .outcome { display: block; line-height: 0; }
 .outcome .icon { width: 20px; height: 20px; }
-.outcome-maw { filter: drop-shadow(0 0 5px rgba(224, 50, 43, 0.65)); }
-.outcome-saved { filter: drop-shadow(0 0 5px rgba(255, 181, 71, 0.5)); }
+.outcome-maw { filter: drop-shadow(0 0 5px rgba(216, 48, 42, 0.65)); }
+.outcome-saved { filter: drop-shadow(0 0 5px rgba(242, 169, 59, 0.5)); }
 .outcome-alive { opacity: 0.45; }
 .outcome-void,
 .outcome-drip,
@@ -764,7 +862,7 @@ body.reduced-effects .jitter { animation: none; }
   color: var(--bone-dim);
   background: var(--ink);
   border: 1px solid #221d29;
-  border-radius: var(--radius);
+  border-radius: 0;
   padding: 9px 12px;
 }
 
@@ -795,7 +893,7 @@ body.reduced-effects .jitter { animation: none; }
   gap: 10px;
   background: var(--ink);
   border: 1px solid #221d29;
-  border-radius: var(--radius);
+  border-radius: 0;
   padding: 13px 14px;
 }
 /* The picture carries the step; the words only confirm it. */
@@ -804,7 +902,7 @@ body.reduced-effects .jitter { animation: none; }
   place-items: center;
   height: 74px;
   background: #0d0a12;
-  border-radius: var(--radius);
+  border-radius: 0;
 }
 .step-art .icon { width: 56px; height: 56px; }
 .step-n {
@@ -825,8 +923,8 @@ body.reduced-effects .jitter { animation: none; }
 .mini-card {
   background: var(--ink);
   border: 1px solid #221d29;
-  border-top: 2px solid var(--dusk);
-  border-radius: var(--radius);
+  border-top: 2px solid var(--rot);
+  border-radius: 0;
   padding: 12px 14px;
   text-align: left;
 }
@@ -837,7 +935,7 @@ body.reduced-effects .jitter { animation: none; }
   height: 52px;
   margin-bottom: 6px;
   background: #0d0a12;
-  border-radius: var(--radius);
+  border-radius: 0;
 }
 .mini-card-art .icon { width: 34px; height: 34px; }
 .mini-card-title {
@@ -858,7 +956,7 @@ kbd.key {
   font-size: 14px;
   color: var(--bone);
   background: #1b1622;
-  border: 1px solid #3a3342;
+  border: 1px solid #3a322b;
   border-bottom-width: 2px;
   border-radius: 3px;
   padding: 2px 9px;
@@ -886,8 +984,8 @@ kbd.key {
 .howto-card {
   flex: 1 1 0;
   background: var(--ink);
-  border: 1px solid var(--dusk);
-  border-radius: var(--radius);
+  border: 1px solid var(--rot);
+  border-radius: 0;
   padding: 12px 14px;
   text-align: left;
 }
@@ -913,7 +1011,7 @@ kbd.key {
   background: #0d0a12;
   border: 1px solid #2b2236;
   border-left: 3px solid var(--candle);
-  border-radius: var(--radius);
+  border-radius: 0;
   text-align: left;
 }
 .rite-saves-title {
@@ -984,7 +1082,7 @@ kbd.key {
   bottom: calc(var(--pad-screen) * -1);
   margin: 0 calc(var(--pad-screen) * -1) calc(var(--pad-screen) * -1);
   padding: var(--s3) var(--pad-screen) var(--pad-screen);
-  background: linear-gradient(to top, var(--void) 55%, rgba(7, 6, 10, 0));
+  background: linear-gradient(to top, var(--void) 55%, rgba(5, 4, 7, 0));
   z-index: 5;
 }
 
@@ -1088,7 +1186,7 @@ body.reduced-effects .bd-embers { display: none; }
   z-index: 1000;
   pointer-events: none;
   background: rgba(0, 0, 0, 0.7);
-  border: 1px solid var(--line-bright);
+  border: 1px solid var(--line-strong);
   padding: var(--s1) var(--s2);
 }
 .debug-overlay-text { margin: 0; font: 16px/1.15 var(--osd); color: var(--candle); }

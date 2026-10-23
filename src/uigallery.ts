@@ -17,6 +17,9 @@ import type { RunResult } from './game/rules.ts';
 import { EMPTY_PROGRESS, type Progress } from './storage/progress.ts';
 import { DEFAULT_SETTINGS, type Settings } from './storage/settings.ts';
 import * as S from './ui/screens.ts';
+import { installGrain } from './ui/grain.ts';
+
+installGrain();
 
 const noop = (): void => undefined;
 

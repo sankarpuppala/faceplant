@@ -1092,7 +1092,8 @@ describe('config hygiene (AC-2) and flash safety (AC-6)', () => {
     const map: Record<string, string> = {
       void: '--void',
       ink: '--ink',
-      dusk: '--dusk',
+      rot: '--rot',
+      blood: '--blood',
       bone: '--bone',
       boneDim: '--bone-dim',
       candle: '--candle',

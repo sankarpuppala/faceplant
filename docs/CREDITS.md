@@ -35,12 +35,14 @@ by `npm run setup:fonts`. **Never loaded from the Google Fonts CDN**
 | File | Family | Licence |
 |---|---|---|
 | `vt323-latin-400-normal.woff2` | VT323 | SIL Open Font License 1.1 (OFL) — © 2011 The VT323 Project Authors |
-| `special-elite-latin-400-normal.woff2` | Special Elite | Apache License 2.0 — Astigmatic (AOETI) |
+| `im-fell-english-sc-latin-400-normal.woff2` | IM Fell English SC | SIL Open Font License 1.1 (OFL) — © Igino Marini, the Fell Types |
 | `inter-latin-400-normal.woff2` | Inter | SIL Open Font License 1.1 (OFL) — © 2016 The Inter Project Authors |
 | `inter-latin-600-normal.woff2` | Inter (semibold) | SIL Open Font License 1.1 (OFL) — © 2016 The Inter Project Authors |
 
 Packaged by [Fontsource](https://fontsource.org/) as `@fontsource/vt323`,
-`@fontsource/special-elite` and `@fontsource/inter`.
+`@fontsource/im-fell-english-sc` and `@fontsource/inter`. IM Fell English
+SC replaced Special Elite (Apache 2.0) in the horror overhaul, so every font
+is now OFL.
 
 ---
 
