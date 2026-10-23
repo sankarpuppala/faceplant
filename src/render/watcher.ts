@@ -1,66 +1,43 @@
 /**
- * THE WATCHER - the jump scare for losing half the roster.
+ * THE WATCHER - what comes when you lose the tape (docs/OVERHAUL.md section 5).
  *
- * Every other scare in the game is scheduled by a level. This one is *earned*:
- * the moment more than half the Wicks are gone, something that has been
- * watching the whole time comes to look at you properly.
+ * Earned, not scheduled: the moment more than half the Wicks are gone. The
+ * timeline is `src/game/watcherBeats.ts`; this draws it:
  *
- * ## Why it is built in four beats
+ *   dying     nothing here - the stage kills the light and the colour.
+ *   behind    a tall, thin shape at the edge of the frame, head tilted, low
+ *             contrast, almost missable. Its eyes catch the light once.
+ *   silence   black.
+ *   lunge     the face fills the frame in 250 ms, jaw juddering.
+ *   tapeDies  the face freezes; the tape tears, rolls and drops to NO SIGNAL.
  *
- * The first version was a horned silhouette that scaled up, and it was not
- * frightening - it arrived fully formed and all at once, so there was nothing
- * to dread and nothing to resolve. A scare is a shape in time, not a picture:
+ * Each loss rolls a new look (`WatcherLook`): tilt, mouth width, which edge
+ * it stands at, how far one eye sits below the other. Five faces, one per tape.
  *
- *   1. **stare**   - two eyes, far off, in a dark that has swallowed the level.
- *                    You can tell something is there. You cannot tell what.
- *   2. **approach** - it closes the distance, and the face assembles out of the
- *                    dark as it comes: form, then sockets, then teeth.
- *   3. **hold**    - it fills the frame and screams, jaw juddering, close
- *                    enough that the mouth covers the bottom of the screen.
- *   4. **leave**   - it withdraws rather than cutting, so the quiet afterwards
- *                    belongs to it too.
+ * ## The face itself
  *
- * ## Why it is drawn the way it is
+ * A *lit* face, not a black shape on black: a gradient from warm bone down to
+ * the rim, with the sockets and mouth cut out as true black, because horror
+ * reads as value contrast. `watcherComposition` frames it from the viewport so
+ * the eyes and the whole screaming mouth stay on screen at any shape - a test
+ * holds it to that. Wax runs from the sockets like the Wicks' own melt.
  *
- * The second version had the right four beats and still looked bad, for two
- * measurable reasons worth recording so they do not come back:
+ * ## Safety (invariants 4, 5, 6)
  *
- *   - **It was framed wrong.** The head was scaled to 2.1x the viewport height
- *     and centred on the skull's geometric middle, which put the crown, the
- *     horns, the jaw, the chin *and the screaming mouth* outside the frame. On
- *     a 1280x720 viewport the mouth began 33px below the bottom edge. At the
- *     climax of the scare the player was looking at two glowing dots and two
- *     nose slits on a black screen. `watcherComposition` now derives the scale
- *     from the frame, and a test asserts it keeps the eyes and the whole mouth
- *     on screen at any viewport shape.
- *   - **It had no values.** The skull was filled near-black on a near-black
- *     veil, so it had no silhouette and no form - only a hairline ember
- *     outline, which was itself off-screen. It is now a *lit* face: a gradient
- *     from warm bone at the centre down to the veil at the rim, with the brow
- *     ridges, cheekbones and nose bridge picked out, and the sockets and mouth
- *     cut out as true black. Horror reads as value contrast, so the brightest
- *     things in the frame (the teeth) sit directly against the darkest (the
- *     throat behind them).
- *
- * It is drawn from the game's own motifs so it reads as *this* game's monster:
- * wax running from the eye sockets like the Wicks' own melt, and ember light
- * in the cracks, as though something is burning inside it.
- *
- * ## Safety (CLAUDE.md invariants 4 and 6) - all of it still holds
- *
- *   - **No flashing.** Every movement is a continuous ramp. The only periodic
- *     motions are a 2 Hz eye pulse and a 2.5 Hz jaw judder, both under the
- *     WCAG 2.3.1 ceiling of 3 Hz, and both are *motion*, not luminance steps.
- *   - **Reduced effects** stretches the approach, removes the shake and the
- *     judder, and keeps the face: being told you failed is not optional.
- *   - **Scares off** means none of this runs. The tape simply ends.
- *   - The shout is limited and attacked in `sound.ts`, not here.
+ *   - No flashing: the lunge is motion; the only periodic motions are a 2 Hz
+ *     eye pulse and a 2.5 Hz jaw judder; NO SIGNAL fades in over 240 ms and is
+ *     dark blue, never red.
+ *   - Reduced effects removes the shake, the judder and the sway.
+ *   - Scares off: the figure, the black, the lunge and NO SIGNAL never draw.
+ *     The picture only fades to black.
  */
 
-import { Container, FillGradient, Graphics } from 'pixi.js';
+import { Container, FillGradient, Graphics, Text, TextStyle } from 'pixi.js';
 import { config } from '../config.ts';
+import { lightDied, lungeScale, watcherBeatAt, type BeatState, type WatcherLook } from '../game/watcherBeats.ts';
 import type { Viewport } from '../terrain/mapping.ts';
-import { tokens, watcherTokens, watcherVariants, type WatcherVariant } from './tokens.ts';
+import { copy } from '../ui/copy.ts';
+import { fonts, tokens, watcherTokens, watcherVariants, type WatcherVariant } from './tokens.ts';
 
 /**
  * Which face a tape gets. Tapes 1-5 each have their own; the Daily and the
@@ -73,65 +50,21 @@ export function watcherVariantFor(tape: number): WatcherVariant {
   return watcherVariants[idx] ?? (watcherVariants[0] as WatcherVariant);
 }
 
-export type WatcherPhase = 'staring' | 'approaching' | 'holding' | 'leaving' | 'gone';
-
-export interface WatcherState {
-  phase: WatcherPhase;
-  /** 0..1 through the approach, after the stare. */
+/** Where the face is in its scream: what the face-drawing code reads. */
+interface FacePose {
+  phase: 'approaching' | 'holding' | 'leaving';
+  /** 0..1, how far it has come in (1 from the lunge on). */
   approach: number;
   /** 0..1 overall opacity. */
   alpha: number;
-  /** 0..1 through the hold, for the scream. */
+  /** 0..1 through the scream. */
   scream: number;
 }
 
-function phaseTimes(reducedEffects: boolean): { stare: number; approach: number; hold: number; leave: number } {
-  // Reduced effects stretches the approach so it looms instead of lunging.
-  return {
-    stare: config.watcher.stareMs,
-    approach: config.watcher.approachMs * (reducedEffects ? 1.9 : 1),
-    hold: config.watcher.holdMs,
-    leave: config.watcher.leaveMs,
-  };
-}
+/** How dark the room gets once the light has died, before the black: 0..1 alpha. */
+const DYING_VEIL_ALPHA = 0.8;
 
-/** Time from the dark falling to the face arriving: when the scream should land. */
-export function watcherLeadMs(reducedEffects: boolean): number {
-  const t = phaseTimes(reducedEffects);
-  return t.stare + t.approach;
-}
-
-export function watcherTotalMs(reducedEffects: boolean): number {
-  const t = phaseTimes(reducedEffects);
-  return t.stare + t.approach + t.hold + t.leave;
-}
-
-export function watcherStateAt(elapsedMs: number, reducedEffects: boolean): WatcherState {
-  const t = phaseTimes(reducedEffects);
-  const total = watcherTotalMs(reducedEffects);
-  if (elapsedMs < 0 || elapsedMs >= total) return { phase: 'gone', approach: 0, alpha: 0, scream: 0 };
-
-  if (elapsedMs < t.stare) {
-    // Only the eyes, and the dark arriving with them.
-    return { phase: 'staring', approach: 0, alpha: elapsedMs / t.stare, scream: 0 };
-  }
-
-  const afterStare = elapsedMs - t.stare;
-  if (afterStare < t.approach) {
-    const k = afterStare / t.approach;
-    // Ease-in: slow at the edge of the dark, then fast. This is what makes it
-    // read as something closing distance rather than a fade-in.
-    return { phase: 'approaching', approach: k * k, alpha: 1, scream: 0 };
-  }
-
-  const afterApproach = afterStare - t.approach;
-  if (afterApproach < t.hold) {
-    return { phase: 'holding', approach: 1, alpha: 1, scream: afterApproach / t.hold };
-  }
-
-  const k = (afterApproach - t.hold) / t.leave;
-  return { phase: 'leaving', approach: 1, alpha: 1 - k, scream: 1 };
-}
+const DEFAULT_LOOK: WatcherLook = { tiltRad: (20 * Math.PI) / 180, mouthWidthMultiple: 1, side: 1, eyeSkewFraction: 0.03 };
 
 // ------------------------------------------------------------- the anatomy ---
 
@@ -291,6 +224,10 @@ export class Watcher extends Container {
    */
   private readonly faceMask = new Graphics();
   private variant: WatcherVariant = watcherVariantFor(1);
+  private look: WatcherLook = DEFAULT_LOOK;
+  /** The render time the lunge ended at: the freeze-frame holds the face there. */
+  private frozenMs = 0;
+  private readonly noSignal = new Text({ text: copy.osd.noSignal, style: new TextStyle({ fontFamily: fonts.osd, fontSize: 48, fill: tokens.bone, letterSpacing: 4 }) });
 
   /** Chooses this tape's face. Call when a level starts. */
   setVariant(tape: number): void {
@@ -299,6 +236,11 @@ export class Watcher extends Container {
 
   get current(): WatcherVariant {
     return this.variant;
+  }
+
+  /** A new look for this loss, so the scare never repeats exactly. */
+  setLook(look: WatcherLook): void {
+    this.look = look;
   }
 
   constructor() {
@@ -316,7 +258,10 @@ export class Watcher extends Container {
       this.inner,
       this.detail,
       this.frame,
+      this.noSignal,
     );
+    this.noSignal.anchor.set(0.5);
+    this.noSignal.visible = false;
     this.lit.mask = this.faceMask;
     this.visible = false;
   }
@@ -337,74 +282,176 @@ export class Watcher extends Container {
 
   hide(): void {
     this.visible = false;
+    this.noSignal.visible = false;
     for (const g of this.layers) g.clear();
   }
 
   /**
-   * @param elapsedMs since the Watcher was summoned.
+   * Draws THE WATCHER at `elapsedMs` into its sequence.
+   *
+   * @param scares false: only the fade to black.
    * @returns the shake to apply this frame, in FH, or 0.
    */
-  draw(elapsedMs: number, vp: Viewport, reducedEffects: boolean, timeMs: number): number {
-    const st = watcherStateAt(elapsedMs, reducedEffects);
-    if (st.phase === 'gone') {
+  draw(elapsedMs: number, vp: Viewport, reducedEffects: boolean, timeMs: number, scares = true): number {
+    const st = watcherBeatAt(elapsedMs, scares);
+    for (const g of this.layers) g.clear();
+    this.noSignal.visible = false;
+    if (st.beat === 'done') {
       this.hide();
       return 0;
     }
-
     this.visible = true;
-    const { veil, halo, form, lit, cavity, inner, detail, frame, faceMask } = this;
-    for (const g of this.layers) g.clear();
+    const full = (alpha: number, color: number = watcherTokens.cavity): void => {
+      this.veil.rect(vp.offsetX, vp.offsetY, vp.width, vp.height).fill({ color, alpha });
+    };
 
+    if (!scares) {
+      // The light dies and the picture goes to black. Nothing else.
+      full(Math.min(1, st.t * 1.15));
+      return 0;
+    }
+
+    switch (st.beat) {
+      case 'dying':
+        // The dark comes in with the light going out, so even with no camera
+        // picture under it (Assist, INK) the room visibly dies. Over 1.2 s.
+        full(lightDied(st, true) * DYING_VEIL_ALPHA);
+        return 0;
+      case 'behind':
+        full(DYING_VEIL_ALPHA);
+        this.drawFigure(st, vp, timeMs);
+        return 0;
+      case 'silence':
+        full(1);
+        return 0;
+      case 'lunge': {
+        this.frozenMs = timeMs;
+        const pose: FacePose = { phase: 'holding', approach: 1, alpha: 1, scream: st.t };
+        return this.drawFace(pose, this.finalHeight(vp) * lungeScale(st.intoMs), vp, reducedEffects, timeMs);
+      }
+      case 'tapeDies': {
+        const pose: FacePose = { phase: 'leaving', approach: 1, alpha: 1, scream: 1 };
+        this.drawFace(pose, this.finalHeight(vp), vp, true, this.frozenMs);
+        this.drawTapeDeath(st, vp);
+        return 0;
+      }
+    }
+  }
+
+  /** The head's final height: the framed size, smaller for horns and hoods so they stay in shot. */
+  private finalHeight(vp: Viewport): number {
+    const V = this.variant;
+    const fit = V.horns !== 'none' || V.hood ? 0.72 : 1;
+    return watcherComposition(vp).headHeightPx * fit;
+  }
+
+  /**
+   * Beat 2: something tall at the edge of the frame. Low contrast - a shape a
+   * little darker than the dark, with a hairline of rim light - a too-thin
+   * neck, the head tilted, and eyes that catch the light once and go out.
+   */
+  private drawFigure(st: BeatState, vp: Viewport, timeMs: number): void {
+    const V = this.variant;
+    const L = this.look;
+    const fade = Math.min(1, st.t / 0.4);
+    const h = vp.height * 0.92;
+    const x = vp.offsetX + vp.width * (L.side < 0 ? 0.07 : 0.93);
+    const base = vp.offsetY + vp.height;
+    const headR = h * 0.075;
+    const neckTop = base - h * 0.78;
+    const headCx = x + Math.sin(L.tiltRad) * headR * 1.3;
+    const headCy = neckTop - headR * 0.9;
+    const g = this.form;
+
+    // Shoulders and body, narrow and long, on a neck far too thin for it.
+    g.moveTo(x - h * 0.11, base);
+    g.quadraticCurveTo(x - h * 0.12, base - h * 0.5, x - h * 0.07, base - h * 0.7);
+    g.lineTo(x - h * 0.012, neckTop);
+    g.lineTo(x + h * 0.012, neckTop);
+    g.lineTo(x + h * 0.07, base - h * 0.7);
+    g.quadraticCurveTo(x + h * 0.12, base - h * 0.5, x + h * 0.11, base);
+    g.closePath();
+    g.fill({ color: V.rim, alpha: 0.85 * fade });
+    // A rim of light down one side: the only reason it reads as a shape.
+    this.halo.moveTo(x + L.side * -h * 0.11, base);
+    this.halo.quadraticCurveTo(x + L.side * -h * 0.12, base - h * 0.5, x + L.side * -h * 0.07, base - h * 0.7);
+    this.halo.stroke({ width: 1.2, color: tokens.boneDim, alpha: 0.12 * fade });
+    // The head again, drawn where it actually is, tilted.
+    const head = this.detail;
+    const c = Math.cos(L.tiltRad);
+    const sn = Math.sin(L.tiltRad);
+    const steps = 24;
+    for (let i = 0; i <= steps; i++) {
+      const a = (i / steps) * Math.PI * 2;
+      const ux = Math.cos(a) * headR * 0.82;
+      const uy = Math.sin(a) * headR * 1.15;
+      const px = headCx + ux * c - uy * sn;
+      const py = headCy + ux * sn + uy * c;
+      if (i === 0) head.moveTo(px, py);
+      else head.lineTo(px, py);
+    }
+    head.closePath();
+    head.fill({ color: V.rim, alpha: 0.9 * fade });
+    head.stroke({ width: 1, color: tokens.boneDim, alpha: 0.1 * fade });
+
+    // The eyes catch the light once: a slow rise and fall over a second, not a flash.
+    const glowT = (st.intoMs - 250) / config.watcher.eyeGlowMs;
+    const glow = glowT <= 0 || glowT >= 1 ? 0 : Math.sin(glowT * Math.PI);
+    if (glow > 0.01) {
+      for (const side of [-1, 1] as const) {
+        const ex = headCx + side * headR * 0.34 * c - (side > 0 ? L.eyeSkewFraction * h * 0.4 : 0) * sn;
+        const ey = headCy - headR * 0.1 + side * headR * 0.34 * sn + (side > 0 ? L.eyeSkewFraction * h * 0.4 : 0);
+        softBlob(this.inner, ex, ey, headR * 0.3, headR * 0.22, V.glow, 0.35 * glow, 10);
+        this.inner.circle(ex, ey, Math.max(1, headR * 0.06)).fill({ color: V.eye, alpha: 0.8 * glow });
+      }
+    }
+    void timeMs;
+  }
+
+  /**
+   * Beat 5: the tape eats itself. Bands of black roll down over the frozen
+   * face and tear it, then the picture drops to dark blue and NO SIGNAL.
+   */
+  private drawTapeDeath(st: BeatState, vp: Viewport): void {
+    const f = this.frame;
+    const at = config.watcher.noSignalAtFraction;
+    const k = Math.min(1, st.t / at);
+    const bands = 6;
+    for (let i = 0; i < bands; i++) {
+      const bh = vp.height * (0.03 + 0.09 * k) * (0.6 + 0.4 * Math.sin(i * 1.7));
+      const y = vp.offsetY + ((((i / bands) + k * 1.4) % 1) * (vp.height + bh)) - bh;
+      f.rect(vp.offsetX, y, vp.width, bh).fill({ color: watcherTokens.cavity, alpha: 0.75 + 0.25 * k });
+      f.rect(vp.offsetX, y + bh, vp.width, Math.max(1, vp.height * 0.003)).fill({ color: tokens.bone, alpha: 0.12 });
+    }
+    if (st.t < at) return;
+    // Dark blue rises over black, never over the face: the face goes first.
+    const n = Math.min(1, (st.t - at) / 0.15);
+    for (const g of [this.halo, this.form, this.lit, this.cavity, this.inner, this.detail, this.frame, this.veil]) g.clear();
+    this.veil.rect(vp.offsetX, vp.offsetY, vp.width, vp.height).fill({ color: watcherTokens.cavity, alpha: 1 });
+    this.veil.rect(vp.offsetX, vp.offsetY, vp.width, vp.height).fill({ color: watcherTokens.noSignal, alpha: n });
+    this.noSignal.visible = n > 0.5;
+    this.noSignal.style.fontSize = Math.max(18, vp.height * 0.06);
+    this.noSignal.position.set(vp.offsetX + vp.width / 2, vp.offsetY + vp.height / 2);
+  }
+
+  /** The face, at height `h`. Returns the shake for this frame, FH. */
+  private drawFace(st: FacePose, h: number, vp: Viewport, reducedEffects: boolean, timeMs: number): number {
+    const { veil, halo, form, lit, cavity, inner, detail, frame, faceMask } = this;
     const comp = watcherComposition(vp);
     const V = this.variant;
     const a = st.alpha;
 
     // --- the dark it brings with it --------------------------------------
-    // Deeper than the game's own darkness, so the level is gone, not dimmed.
     veil.rect(vp.offsetX, vp.offsetY, vp.width, vp.height).fill({ color: watcherTokens.cavity, alpha: a * 0.97 });
 
     // The eye pulse, 2 Hz, declared as the Watcher's flash budget.
     const pulse = 0.7 + 0.3 * Math.sin((timeMs / 1000) * config.watcher.eyePulseHz * Math.PI * 2);
 
-    // --- the stare: eyes only, nothing else legible ----------------------
-    // Small, far off, and low in the frame, as though it is looking up at you.
-    if (st.phase === 'staring') {
-      const r = vp.height * 0.006;
-      const dx = vp.height * 0.052;
-      const ex = comp.originX;
-      const ey = vp.offsetY + vp.height * 0.46;
-      // A hint of a brow, barely above the veil: enough to know the eyes
-      // belong to something, not enough to know what.
-      softBlob(halo, ex, ey, dx * 3.4, dx * 1.7, V.shadow, a * 0.5, 8);
-      for (const side of [-1, 1] as const) {
-        softBlob(halo, ex + side * dx, ey, r * 9, r * 7, V.glow, a * 0.22 * pulse);
-        detail.circle(ex + side * dx, ey, r).fill({ color: V.eye, alpha: a * 0.95 * pulse });
-      }
-      return 0;
-    }
-
-    // --- size -------------------------------------------------------------
-    // It lunges slightly past its final size and settles back, which is what
-    // sells the last few inches of the approach.
-    const startH = vp.height * 0.22;
-    // A face with horns or a hood is not the face alone, and at full size its
-    // horns are cropped off the top of the frame - a red skull with no horns
-    // is not a devil. Those faces are drawn smaller so the thing that defines
-    // them is in shot; the eyes and mouth still carry the scare.
-    const fit = V.horns !== 'none' || V.hood ? 0.72 : 1;
-    const targetH = comp.headHeightPx * fit;
-    let h: number;
-    if (st.phase === 'approaching') {
-      h = startH + (targetH - startH) * st.approach;
-    } else {
-      const settle = Math.min(1, st.scream * 6);
-      h = targetH * (1 + config.watcher.overshootFraction * (1 - settle));
-    }
     const halfW = (h * FACE.widthRatio) / 2;
 
     // A head tilt that grows as it arrives: a face that is level is a portrait,
     // a face that is tilted is looking at you.
-    const tilt = reducedEffects ? 0 : 0.055 * st.approach;
+    const tilt = this.look.tiltRad;
     const sway = reducedEffects ? 0 : Math.sin(timeMs / 260) * h * 0.006;
     const ox = comp.originX + sway;
     // The lift arrives with the face, so the approach is something coming
@@ -648,7 +695,7 @@ export class Watcher extends Container {
     for (const side of [-1, 1] as const) {
       /** Socket-local coordinates: +su is outward, +sv is down. */
       const sp = (su: number, sv: number): [number, number] =>
-        pt(side * (FACE.eyeU + su * (socketRx / halfW)), FACE.eyeV + sv * (socketRy / h));
+        pt(side * (FACE.eyeU + su * (socketRx / halfW)), FACE.eyeV + (side > 0 ? this.look.eyeSkewFraction : 0) + sv * (socketRy / h));
 
       cavity.moveTo(...sp(-0.92, 0.2));
       cavity.quadraticCurveTo(...sp(-0.55, 1.05), ...sp(0.35, 0.92));
@@ -723,7 +770,7 @@ export class Watcher extends Container {
 
     // --- the mouth --------------------------------------------------------
     // The gap the dropped jaw opens, and the whole reason the framing matters.
-    const mouthW = halfW * FACE.mouthU;
+    const mouthW = halfW * FACE.mouthU * this.look.mouthWidthMultiple;
     const gapTop = FACE.upperLipV;
     const gapBottom = FACE.lowerLipV + vOf(jawDrop);
 

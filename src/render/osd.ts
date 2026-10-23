@@ -78,6 +78,8 @@ export class Osd extends Container {
   private glitchUntilMs = 0;
   private nextGlitchAtMs = 0;
   private glitch: 'see' | 'extra' | null = null;
+  /** THE WATCHER's silence: nothing on the OSD but the dot and REC. */
+  private minimal = false;
 
   constructor() {
     super();
@@ -113,6 +115,14 @@ export class Osd extends Container {
     this.lastMawOpen = null;
   }
 
+  setMinimal(on: boolean): void {
+    this.minimal = on;
+    this.mark.visible = !on;
+    this.wicks.visible = !on;
+    this.maw.visible = !on;
+    this.lastRec = '';
+  }
+
   update(input: OsdInput): void {
     const { snap, timeMs } = input;
     const size = this.size;
@@ -123,7 +133,7 @@ export class Osd extends Container {
 
     this.updateGlitch(input);
 
-    const rec = `${this.glitch === 'see' ? 'SEE' : 'REC'} ${formatTimecode(snap.elapsedMs)}`;
+    const rec = this.minimal ? 'REC' : `${this.glitch === 'see' ? 'SEE' : 'REC'} ${formatTimecode(snap.elapsedMs)}`;
     if (rec !== this.lastRec) {
       this.recText.text = rec;
       this.lastRec = rec;

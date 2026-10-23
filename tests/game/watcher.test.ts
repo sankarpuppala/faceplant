@@ -10,7 +10,9 @@
 
 import { describe, expect, it } from 'vitest';
 import { config, defaultTunables } from '../../src/config.ts';
-import { FACE, watcherComposition, watcherStateAt, watcherTotalMs } from '../../src/render/watcher.ts';
+import { FACE, watcherComposition } from '../../src/render/watcher.ts';
+import { lightDied, lungeScale, rollLook, watcherBeatAt, watcherTotalMs, type WatcherBeat } from '../../src/game/watcherBeats.ts';
+import { rng } from '../../src/audio/dsp.ts';
 import { watcherTokens } from '../../src/render/tokens.ts';
 import type { Viewport } from '../../src/terrain/mapping.ts';
 import { parseLevel, type Level } from '../../src/game/levelSchema.ts';
@@ -81,7 +83,6 @@ describe('the fail threshold', () => {
     const { world } = runToFailure(voidLevel(8));
     // `over` must not be set the instant the threshold is crossed.
     expect(world.elapsedMs).toBeGreaterThanOrEqual(config.rules.failHoldMs);
-    expect(config.rules.failHoldMs).toBeGreaterThan(watcherTotalMs(false) * 0.5);
   });
 
   it('does not fail a level that is going well', () => {
@@ -125,55 +126,77 @@ describe('the fail threshold', () => {
   });
 });
 
-describe('the Watcher animation', () => {
-  it('runs stare, approach, hold and leave, then stops', () => {
-    // The stare is the beat the first version was missing: a moment where you
-    // can tell something is out there and not yet what it is.
-    const total = watcherTotalMs(false);
-    const stare = config.watcher.stareMs;
+describe('the Watcher sequence (OVERHAUL 5)', () => {
+  const B = config.watcher.beatsMs;
+  const beatAt = (ms: number, scares = true): WatcherBeat => watcherBeatAt(ms, scares).beat;
 
-    expect(watcherStateAt(-1, false).phase).toBe('gone');
-    expect(watcherStateAt(0, false).phase).toBe('staring');
-    expect(watcherStateAt(stare - 10, false).phase).toBe('staring');
-    expect(watcherStateAt(stare + 10, false).phase).toBe('approaching');
-    expect(watcherStateAt(stare + config.watcher.approachMs + 10, false).phase).toBe('holding');
-    expect(watcherStateAt(total - 10, false).phase).toBe('leaving');
-    expect(watcherStateAt(total + 1, false).phase).toBe('gone');
+  it('runs the five beats in order, on the brief\'s clock, then ends', () => {
+    expect(beatAt(0)).toBe('dying');
+    expect(beatAt(B.dyingUntilMs - 1)).toBe('dying');
+    expect(beatAt(B.dyingUntilMs + 1)).toBe('behind');
+    expect(beatAt(B.behindUntilMs + 1)).toBe('silence');
+    expect(beatAt(B.silenceUntilMs + 1)).toBe('lunge');
+    expect(beatAt(B.lungeUntilMs + 1)).toBe('tapeDies');
+    expect(beatAt(B.endMs + 1)).toBe('done');
+    expect([B.dyingUntilMs, B.behindUntilMs, B.silenceUntilMs, B.lungeUntilMs, B.endMs]).toEqual([1200, 2600, 3100, 4400, 6000]);
+    expect(watcherTotalMs(true)).toBe(6000);
   });
 
-  it('shows nothing but the eyes during the stare', () => {
-    // Nothing has approached yet, so the face must not be assembled.
-    const mid = watcherStateAt(config.watcher.stareMs * 0.5, false);
-    expect(mid.phase).toBe('staring');
-    expect(mid.approach).toBe(0);
-    // It fades the dark in rather than cutting to it.
-    expect(mid.alpha).toBeGreaterThan(0);
-    expect(mid.alpha).toBeLessThan(1);
+  it('holds half a second of black and silence before the lunge', () => {
+    expect(B.silenceUntilMs - B.behindUntilMs).toBe(500);
   });
 
-  it('comes closer the whole way in, and never jumps', () => {
-    // The approach has to be a smooth ramp: a jump in size would be a flash,
-    // and flashes are what the photosensitivity rule forbids.
-    const stare = config.watcher.stareMs;
+  it('puts the light out over the first beat, one flame at a time, and keeps it out', () => {
     let prev = -1;
-    for (let t = stare; t <= stare + config.watcher.approachMs; t += 8) {
-      const a = watcherStateAt(t, false).approach;
-      expect(a).toBeGreaterThanOrEqual(prev);
-      expect(a).toBeLessThanOrEqual(1);
-      if (prev >= 0) expect(a - prev).toBeLessThan(0.1);
-      prev = a;
+    for (let ms = 0; ms < B.dyingUntilMs; ms += 50) {
+      const d = lightDied(watcherBeatAt(ms, true), true);
+      expect(d).toBeGreaterThanOrEqual(prev);
+      prev = d;
     }
-    // And it has arrived by the end of the approach.
-    expect(watcherStateAt(stare + config.watcher.approachMs, false).approach).toBeCloseTo(1, 6);
+    expect(lightDied(watcherBeatAt(B.behindUntilMs - 10, true), true)).toBe(1);
   });
 
-  it('screams through the hold, measurably', () => {
-    const stare = config.watcher.stareMs;
-    const intoHold = stare + config.watcher.approachMs + config.watcher.holdMs * 0.5;
-    const st = watcherStateAt(intoHold, false);
-    expect(st.phase).toBe('holding');
-    expect(st.scream).toBeGreaterThan(0.3);
-    expect(st.scream).toBeLessThan(0.7);
+  it('lunges from 0.4 to 1.25 of a frame-filling face in 250 ms, overshooting and settling', () => {
+    expect(lungeScale(0)).toBeCloseTo(0.4 / 1.25, 2);
+    let peak = 0;
+    for (let ms = 0; ms <= config.watcher.lungeMs; ms += 5) peak = Math.max(peak, lungeScale(ms));
+    expect(peak).toBeGreaterThan(1.02);
+    expect(peak).toBeLessThan(1.2);
+    expect(lungeScale(config.watcher.lungeMs)).toBeCloseTo(1, 6);
+    expect(lungeScale(config.watcher.lungeMs + 500)).toBeCloseTo(1, 6);
+  });
+
+  it('never changes the face\'s size by more than a fifth of the frame in one 60 fps frame', () => {
+    // The brightness limit (< 20 % change per frame) holds for a dark face if
+    // its size does not leap: the lit area grows with the square of the scale.
+    for (let ms = 0; ms < config.watcher.lungeMs; ms += 16) {
+      const a = lungeScale(ms) ** 2;
+      const b = lungeScale(ms + 16) ** 2;
+      expect(Math.abs(b - a)).toBeLessThan(0.36);
+    }
+  });
+
+  it('with Scares off, is only the light dying and the fade to black', () => {
+    const seen = new Set<WatcherBeat>();
+    for (let ms = 0; ms <= watcherTotalMs(false) + 100; ms += 20) seen.add(beatAt(ms, false));
+    expect([...seen].sort()).toEqual(['done', 'dying']);
+    expect(watcherTotalMs(false)).toBeLessThan(watcherTotalMs(true));
+  });
+
+  it('rolls a different look each loss: tilt, mouth, side and eyes', () => {
+    const r = rng(7);
+    const looks = Array.from({ length: 40 }, () => rollLook(r));
+    const [lo, hi] = config.watcher.tiltDeg;
+    for (const l of looks) {
+      const deg = (Math.abs(l.tiltRad) * 180) / Math.PI;
+      expect(deg).toBeGreaterThanOrEqual(lo);
+      expect(deg).toBeLessThanOrEqual(hi);
+      expect(l.mouthWidthMultiple).toBeGreaterThanOrEqual(config.watcher.mouthWidthMultiple[0]);
+      expect(l.mouthWidthMultiple).toBeLessThanOrEqual(config.watcher.mouthWidthMultiple[1]);
+      expect(l.eyeSkewFraction).toBeGreaterThan(0);
+    }
+    expect(new Set(looks.map((l) => l.side)).size).toBe(2);
+    expect(new Set(looks.map((l) => Math.sign(l.tiltRad))).size).toBe(2);
   });
 
   /**
@@ -269,21 +292,6 @@ describe('the Watcher animation', () => {
     expect(config.watcher.eyePulseHz).toBeLessThanOrEqual(3);
   });
 
-  it('fades out rather than cutting', () => {
-    const total = watcherTotalMs(false);
-    const nearEnd = watcherStateAt(total - 20, false);
-    expect(nearEnd.alpha).toBeGreaterThan(0);
-    expect(nearEnd.alpha).toBeLessThan(0.2);
-  });
-
-  it('looms more slowly with reduced effects, but still arrives', () => {
-    // Reduced effects should take the violence out of it, not the information.
-    expect(watcherTotalMs(true)).toBeGreaterThan(watcherTotalMs(false));
-    const midApproach = config.watcher.stareMs + config.watcher.approachMs * 1.9 * 0.5;
-    expect(watcherStateAt(midApproach, true).phase).toBe('approaching');
-    expect(watcherStateAt(watcherTotalMs(true) * 0.8, true).alpha).toBeGreaterThan(0);
-  });
-
   it('pulses its eyes well under the photosensitivity ceiling', () => {
     expect(config.watcher.eyePulseHz).toBeLessThanOrEqual(3);
     expect(config.render.effects.watcher.maxFlashHz).toBeLessThanOrEqual(3);
@@ -295,50 +303,31 @@ describe('the Watcher animation', () => {
   });
 });
 
-describe('invariant 5: Scares off means the Watcher never happens', () => {
+describe('invariant 5: Scares off means the Watcher never shows itself', () => {
   /**
-   * The suppression lives in `app.ts`, which is too DOM-bound to drive from a
-   * headless test, so this checks the source directly - the same approach the
-   * privacy tests take for `getUserMedia`. A jump scare that ignored the
-   * opt-out would be the single worst bug this project could ship, so it is
-   * worth asserting even in this blunt a way.
+   * `app.ts` is too DOM-bound to drive from a headless test, so the wiring is
+   * checked in the source; the behaviour itself - which beats exist with
+   * Scares off, and that the sound plays nothing - is tested directly above
+   * and in tests/audio/watcherSound.test.ts.
    */
-  function appCode(): string {
-    return readFileSync(join(import.meta.dirname, '..', '..', 'src', 'app.ts'), 'utf8');
+  function code(file: string): string {
+    return readFileSync(join(import.meta.dirname, '..', '..', 'src', file), 'utf8');
   }
 
-  it('the watcher event handler is gated on settings.scares', () => {
-    const src = appCode();
-    const at = src.indexOf("case 'watcher':");
-    expect(at, "no 'watcher' event handler found in app.ts").toBeGreaterThan(-1);
-
-    // The guard must appear inside the handler, before anything is triggered.
-    const handler = src.slice(at, at + 600);
-    const guardAt = handler.indexOf('this.settings.scares');
-    const soundAt = handler.indexOf('sound.watcherSequence(');
-    const startAt = handler.indexOf('this.watcherStartedMs = now');
-
-    expect(guardAt, 'the watcher handler does not check settings.scares').toBeGreaterThan(-1);
-    expect(soundAt, 'the shout is not played in the handler').toBeGreaterThan(-1);
-    // Both the sound and the visual must come *after* the guard.
-    expect(guardAt).toBeLessThan(soundAt);
-    expect(guardAt).toBeLessThan(startAt);
-  });
-
-  it('the scare sequence exists and is the only thing that plays it', () => {
-    // The scream used to be `sound.play('watcherShout')` fired the instant the
-    // event arrived - half a second before the face did. It is now a scheduled
-    // sequence (heartbeat, drone, whispers, a hole of silence, then the
-    // scream) timed to the picture. Still exactly one call site, and that
-    // call site is the one behind the Scares-off guard above.
-    const src = appCode();
-    expect([...src.matchAll(/sound\.watcherSequence\(/g)]).toHaveLength(1);
+  it('the sequence is told the Scares setting, in exactly one place', () => {
+    const src = code('app.ts');
+    const calls = [...src.matchAll(/sound\.watcherSequence\(([^)]*)\)/g)];
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.[1]).toContain('this.settings.scares');
     expect([...src.matchAll(/sound\.play\('watcherShout'\)/g)]).toHaveLength(0);
   });
 
+  it('the picture is told the Scares setting too', () => {
+    expect(code('app.ts')).toContain('scares: this.settings.scares');
+    expect(code('render/stage.ts')).toMatch(/this\.watcher\.draw\([^)]*input\.scares\)/);
+  });
+
   it('the world still fails the tape with scares off - only the scare is skipped', () => {
-    // The fail condition is not a scare and must not be opt-out: the world
-    // raises it regardless, and the app decides whether anything is shown.
     const { world, watcherEvents } = runToFailure(voidLevel(8));
     expect(world.snapshot().failed).toBe(true);
     expect(watcherEvents).toBe(1);

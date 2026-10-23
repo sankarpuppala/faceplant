@@ -42,7 +42,8 @@ import {
   SpeechBubble,
 } from './sprites.ts';
 import { tokens } from './tokens.ts';
-import { Watcher, watcherLeadMs, watcherTotalMs } from './watcher.ts';
+import { lightDied, watcherBeatAt, type WatcherLook } from '../game/watcherBeats.ts';
+import { Watcher } from './watcher.ts';
 
 export interface RenderInput {
   world: World;
@@ -61,6 +62,8 @@ export interface RenderInput {
    * whenever Scares are off, so the app does not have to special-case it.
    */
   watcherElapsedMs: number | null;
+  /** Scares setting, which decides what the Watcher sequence shows. */
+  scares: boolean;
   /** The OSD's top-right mark, e.g. `T02/3`. */
   mark: string;
 }
@@ -219,8 +222,19 @@ export class Stage {
     const reduced = settings.reducedEffects;
     const dtS = input.dtMs / 1000;
 
+    // THE WATCHER's beats reach into the whole picture: the light dies, the
+    // colour drains, the tape starts to go, and from the silence on the OSD
+    // shows nothing but REC.
+    const beat = input.watcherElapsedMs === null ? null : watcherBeatAt(input.watcherElapsedMs, input.scares);
+    const died = beat === null ? 0 : lightDied(beat, input.scares);
+    const trouble =
+      beat === null || !input.scares || reduced ? 0 : beat.beat === 'behind' ? beat.t : beat.beat === 'lunge' ? 1 : 0;
     this.fx.update(dtS, input.timeMs, reduced);
     this.fx.setComposure(world.composureState.fraction);
+    this.fx.setTrouble(trouble);
+    this.grade.setDrain(died);
+    this.lightsDied = died;
+    this.osd.setMinimal(beat !== null && input.scares && (beat.beat === 'silence' || beat.beat === 'lunge' || beat.beat === 'tapeDies'));
     if (!reduced) this.flickerPhase += dtS * Math.PI * 2 * config.light.flickerHz;
 
     // --- post-process and shake ------------------------------------------
@@ -295,7 +309,7 @@ export class Stage {
     // --- THE WATCHER ------------------------------------------------------
     // Drawn last and above the tape effects: it is not part of the footage.
     if (input.watcherElapsedMs !== null) {
-      const shake = this.watcher.draw(input.watcherElapsedMs, this.vp, reduced, input.timeMs);
+      const shake = this.watcher.draw(input.watcherElapsedMs, this.vp, reduced, input.timeMs, input.scares);
       if (shake > 0) this.addShake(shake, input.cal);
     } else {
       this.watcher.hide();
@@ -358,9 +372,12 @@ export class Stage {
       lights.push({ x: p.x, y: p.y, r: config.offering.flareFh * fhPx * (1.4 - left * 0.4), intensity: left });
     }
 
+    // Losing the tape: the flames go out one at a time, then the floor light.
+    if (this.lightsDied > 0) lights.splice(Math.ceil(lights.length * (1 - this.lightsDied)));
+
     // A flicker scare dips the ambient floor, never the whole screen to black,
     // and only at or under 3 Hz (invariant 4).
-    let ambient = 1 - config.light.darknessAlpha;
+    let ambient = (1 - config.light.darknessAlpha) * (1 - this.lightsDied);
     const flickerAllowed = isEffectEnabled('flicker', settings.reducedEffects);
     if (input.scare?.type === 'flicker' && flickerAllowed) {
       const hz = config.render.effects.flicker.maxFlashHz;
@@ -470,11 +487,8 @@ export class Stage {
   }
 
   private osdVisible = false;
-
-  /** How long the Watcher animation runs, so the app knows when to stop it. */
-  watcherDurationMs(reducedEffects: boolean): number {
-    return watcherTotalMs(reducedEffects);
-  }
+  /** 0..1, how much of the light THE WATCHER's first beat has put out. */
+  private lightsDied = 0;
 
   /** Which face THE WATCHER wears this tape. */
   setWatcherVariant(tape: number): void {
@@ -486,8 +500,9 @@ export class Stage {
     return this.watcher.current.voicePitch;
   }
 
-  watcherLeadMs(reducedEffects: boolean): number {
-    return watcherLeadMs(reducedEffects);
+  /** A new look for this loss (tilt, mouth, side, eyes), so it never repeats. */
+  setWatcherLook(look: WatcherLook): void {
+    this.watcher.setLook(look);
   }
 
   setOsdVisible(v: boolean): void {

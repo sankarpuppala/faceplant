@@ -164,6 +164,24 @@ try {
   await esc();
   await press('Main menu')();
 
+  // Losing the tape: the Watcher sequence, which Esc skips to the results,
+  // and which ends on the results by itself when left alone.
+  await press('Play without camera')();
+  await press('Play')();
+  await sleep(2200);
+  await cdp.eval('window.faceplant.startLoss(performance.now())');
+  await expectPhase(cdp, 'losing', 'tape lost');
+  await esc();
+  await expectPhase(cdp, 'results', 'loss -> Esc');
+  await toMainMenu(cdp, 'results (after a loss)', [press('Main menu')]);
+  await press('Play without camera')();
+  await press('Play')();
+  await sleep(2200);
+  await cdp.eval('window.faceplant.startLoss(performance.now())');
+  await sleep(6500);
+  await expectPhase(cdp, 'results', 'loss runs to the results by itself');
+  await esc();
+
   // The ending card, after the last tape.
   await cdp.eval('window.faceplant.showEnding()');
   await expectPhase(cdp, 'ending', 'ending');

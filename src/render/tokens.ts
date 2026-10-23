@@ -60,6 +60,8 @@ export const watcherTokens = {
   tooth: 0xe6dcc6,
   /** The gum line and the shadow between teeth. */
   toothRoot: 0x3a2a22,
+  /** NO SIGNAL: a dead channel's blue, kept dark so the drop is not a flash. */
+  noSignal: 0x0b1840,
 } as const;
 
 /** The face contour line: `candle` at 35% (SPEC section 12.2, `chalk`). */

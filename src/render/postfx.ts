@@ -86,6 +86,15 @@ export class VideoGrade {
   private readonly thermalAdjust = new AdjustmentFilter({ saturation: 0, contrast: 1.15, brightness: 1 });
   private thermalMap: ColorMapFilter | null = null;
 
+  /**
+   * THE WATCHER's first beat drains the picture: `k` 0..1 takes the colour out
+   * and dims it. Changes over a second, so it is a fade, not a flash.
+   */
+  setDrain(k: number): void {
+    this.vhs.saturation = 0.3 * (1 - k);
+    this.vhs.brightness = 0.92 * (1 - 0.45 * k);
+  }
+
   /** Filters for the video layer, in order. Empty for INK (no video at all). */
   forFilter(name: FilterName): Filter[] {
     if (name === 'ink') return [];
@@ -148,6 +157,8 @@ export class TapeFx {
 
   private wobblePhase = 0;
   private shake = 0;
+  /** 0..1: the tape going wrong while THE WATCHER comes. Wider colour split, harder lines. */
+  private trouble = 0;
 
   constructor() {
     // Capped, so a 2x display does not quadruple the cost of every pass.
@@ -169,13 +180,14 @@ export class TapeFx {
       // Only occasionally, so it reads as a tape fault rather than a wave.
       const gate = Math.sin(nowMs / 7000) > 0.86 ? 1 : 0;
       this.crt.verticalLine = false;
-      this.crt.lineContrast = 0.18 + gate * 0.1 * (0.5 + 0.5 * Math.sin(this.wobblePhase));
+      this.crt.lineContrast = 0.18 + gate * 0.1 * (0.5 + 0.5 * Math.sin(this.wobblePhase)) + this.trouble * 0.18;
     }
 
     if (isEffectEnabled('aberration', reducedEffects)) {
       const drift = Math.sin(nowMs / 2400);
-      this.split.red = { x: -1 - drift * 0.6, y: 0 };
-      this.split.blue = { x: 1 + drift * 0.6, y: 0 };
+      const tear = 1 + this.trouble * 5;
+      this.split.red = { x: (-1 - drift * 0.6) * tear, y: 0 };
+      this.split.blue = { x: (1 + drift * 0.6) * tear, y: 0 };
     }
 
     // Screen shake decays exponentially; capped by config.render.maxShakeFh.
@@ -204,6 +216,11 @@ export class TapeFx {
     this.reducedCrt.vignetting = this.crt.vignetting;
     this.reducedCrt.vignettingAlpha = this.crt.vignettingAlpha;
     this.film.noise = c.grainFraction[0] + (c.grainFraction[1] - c.grainFraction[0]) * strain;
+  }
+
+  /** THE WATCHER's tracking trouble, 0..1. Reduce effects passes 0. */
+  setTrouble(k: number): void {
+    this.trouble = Math.min(1, Math.max(0, k));
   }
 
   /** Adds screen shake, in pixels. Clamped so it can never become disorienting. */

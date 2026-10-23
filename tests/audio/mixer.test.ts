@@ -98,7 +98,7 @@ describe('the mixer', () => {
     expect(mod.sound.playSample('screamA')).toBeNull();
     expect(mod.sound.playSample('breath')).toBeNull();
     mod.sound.fakeOut();
-    mod.sound.watcherSequence(1200, 1);
+    mod.sound.watcherSequence(1);
     const started = log.sources.slice(before).filter((s: Source) => s.started > 0);
     expect(started).toHaveLength(0);
     mod.sound.setScaresEnabled(true);

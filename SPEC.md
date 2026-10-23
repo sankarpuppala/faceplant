@@ -426,6 +426,18 @@ moment.
 
 ---
 
+### 10.4 THE WATCHER (`docs/OVERHAUL.md` §5)
+Losing the tape (more than half the roster gone) stops play and runs a
+six-second sequence, timed in `src/game/watcherBeats.ts`: the light dies one
+flame at a time and the picture drains (0–1.2 s); something tall stands at the
+edge of the frame and its eyes catch the light once (1.2–2.6 s); black and
+silence, only `● REC` (2.6–3.1 s); the face fills the frame in 250 ms and
+screams (3.1–4.4 s); the frame freezes and the tape tears, rolls and drops to
+NO SIGNAL (4.4–6.0 s); then results. Each loss rolls its own tilt, mouth
+width, side and eye skew; five faces, one per tape. **Scares off:** only the
+light dying and a fade to black under one soft low tone, then results. Esc
+skips to the results.
+
 ## 11. Modes
 
 ### 11.1 Story

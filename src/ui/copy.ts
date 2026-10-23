@@ -97,6 +97,11 @@ export const copy = {
 
   rewind: '◀◀ REW',
 
+  /** Camcorder text drawn by the renderer. */
+  osd: {
+    noSignal: 'NO SIGNAL',
+  },
+
   pause: {
     heading: 'PAUSE ‖',
     resume: 'Resume',

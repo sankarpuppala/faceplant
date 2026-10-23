@@ -35,6 +35,7 @@ import { WHISPER_LINE } from './game/lines.ts';
 import { displayName } from './game/names.ts';
 import { buildResult, filterUnlocked, type RunResult } from './game/rules.ts';
 import { FaceLooksBack, finaleBlendOverride, ScareDirector, type ActiveScare } from './game/scares.ts';
+import { rollLook, watcherTotalMs } from './game/watcherBeats.ts';
 import { World, type WorldSnapshot } from './physics/world.ts';
 import { tapeMark } from './render/osd.ts';
 import { Stage } from './render/stage.ts';
@@ -81,6 +82,7 @@ type Phase =
   | 'playing'
   | 'paused'
   | 'rewinding'
+  | 'losing'
   | 'results'
   | 'ending'
   | 'credits'
@@ -126,9 +128,8 @@ export class App {
   /** Timestamp of the last face frame actually pushed into the world. */
   private lastConsumedFrameT = -1;
   /**
-   * When THE WATCHER was summoned, on the render clock, or -1. Set by the
-   * world's `watcher` event and cleared when the animation is done. Stays -1
-   * with Scares off, so the fail still happens - just quietly.
+   * When the tape was lost and THE WATCHER sequence began, on the render
+   * clock, or -1. With Scares off the sequence is only the fade to black.
    */
   private watcherStartedMs = -1;
   private practiceRun = false;
@@ -690,6 +691,13 @@ export class App {
       return;
     }
 
+    if (this.phase === 'losing') {
+      // Play has stopped. The sequence runs on its own clock, then the results.
+      if (now - this.watcherStartedMs >= watcherTotalMs(this.settings.scares)) this.finishRun();
+      else this.renderFrame(now, dtMs);
+      return;
+    }
+
     if (this.phase !== 'playing') {
       // Pause, Results and the rewind are see-through, so the stage under them
       // stays live. Every other screen is opaque: drawing the stage and its
@@ -718,6 +726,8 @@ export class App {
     if (scare !== null) this.onScare(scare);
 
     this.drainEvents(world, now);
+    // The tape was just lost: everything stops here and the sequence takes over.
+    if ((this.phase as Phase) === 'losing') return;
     this.updateSound(world);
     this.lines.setMood(world.composureState.mood);
     this.lines.tick(now);
@@ -809,15 +819,23 @@ export class App {
     this.reactions.update(face.blend, face.scale, world.faceSpeedFhPerS, now, config.quake.speedFhPerS);
   }
 
-  /** ms since the Watcher arrived, or null once it has finished. */
+  /** ms into the loss sequence, or null when the tape is not being lost. */
   private watcherElapsed(now: number): number | null {
-    if (this.watcherStartedMs < 0) return null;
-    const elapsed = now - this.watcherStartedMs;
-    if (elapsed > this.stage.watcherDurationMs(this.settings.reducedEffects)) {
-      this.watcherStartedMs = -1;
-      return null;
-    }
-    return elapsed;
+    return this.phase === 'losing' && this.watcherStartedMs >= 0 ? now - this.watcherStartedMs : null;
+  }
+
+  /**
+   * The tape is lost (more than half the roster gone). Play stops and THE
+   * WATCHER sequence runs (OVERHAUL 5). Scares off is honoured inside the
+   * sequence itself: no figure, no black, no lunge, no scream - the picture
+   * fades to black under a soft low tone, and the results come up.
+   */
+  private startLoss(now: number): void {
+    this.phase = 'losing';
+    this.watcherStartedMs = now;
+    this.hudView?.setTracking(false);
+    this.stage.setWatcherLook(rollLook(Math.random));
+    sound.watcherSequence(this.stage.watcherVoicePitch, this.settings.scares);
   }
 
   /** Turns world events into sound, Wick lines and screen effects. */
@@ -885,12 +903,9 @@ export class App {
           sound.play('skitter');
           break;
         case 'watcher':
-          // Earned, not scheduled. Honours Scares off completely - no sound, no
-          // face, the tape just ends.
-          if (this.settings.scares) {
-            this.watcherStartedMs = now;
-            sound.watcherSequence(this.stage.watcherLeadMs(this.settings.reducedEffects), this.stage.watcherVoicePitch);
-          }
+          // Earned, not scheduled: the tape is lost. Scares off still loses
+          // the tape; startLoss shows only the fade.
+          this.startLoss(now);
           break;
         case 'wave':
           sound.play('processionStep', 0.8);
@@ -969,12 +984,14 @@ export class App {
       level,
       cal: this.cal,
       settings: this.settings,
-      line: this.lines.current,
+      // Nobody speaks while the tape is being lost.
+      line: this.phase === 'losing' ? null : this.lines.current,
       scare: this.scares?.current ?? null,
       video: this.webcam?.info().video ?? null,
       timeMs: now,
       dtMs,
       watcherElapsedMs: this.watcherElapsed(now),
+      scares: this.settings.scares,
       mark: tapeMark(level.id, level.mode, snap.wave),
     });
   }
@@ -1001,6 +1018,7 @@ export class App {
     const level = this.level;
     if (world === null || level === null) return;
 
+    this.watcherStartedMs = -1;
     const snap = world.snapshot();
     const result = buildResult(level, snap, world.finalScore());
 
@@ -1098,6 +1116,12 @@ export class App {
       return;
     }
     if (e.key !== 'Escape' && e.key !== 'p' && e.key !== 'P') return;
+    // Esc during the loss goes straight to the results.
+    if (this.phase === 'losing' && e.key === 'Escape') {
+      e.preventDefault();
+      this.finishRun();
+      return;
+    }
     // Already handled by the screen's own focus trap, which may have just
     // changed the phase - handling it again here would undo that (Esc from
     // Settings went back to Pause, then straight on into play).

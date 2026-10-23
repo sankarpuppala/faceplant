@@ -43,14 +43,18 @@ export class FakeNode {
   disconnect(): void {}
 }
 
-class Osc extends FakeNode {
+export class Osc extends FakeNode {
   type = 'sine';
   frequency = new Param();
   detune = new Param();
+  at = 0;
   constructor() {
     super('osc');
+    log.oscs.push(this);
   }
-  start(): void {}
+  start(at = 0): void {
+    this.at = at;
+  }
   stop(): void {}
 }
 export class Gain extends FakeNode {
@@ -79,14 +83,20 @@ export class Source extends FakeNode {
   loop = false;
   playbackRate = new Param();
   started = 0;
+  /** When it was told to start and stop, on the context clock. */
+  at = 0;
+  stopAt = Infinity;
   constructor() {
     super('source');
     log.sources.push(this);
   }
-  start(): void {
+  start(at = 0): void {
     this.started++;
+    this.at = at;
   }
-  stop(): void {}
+  stop(at = 0): void {
+    this.stopAt = at;
+  }
 }
 class Panner extends FakeNode {
   pan = new Param();
@@ -109,10 +119,12 @@ export const log = {
   gains: [] as Param[],
   nodes: [] as FakeNode[],
   sources: [] as Source[],
+  oscs: [] as Osc[],
   reset(): void {
     this.gains.length = 0;
     this.nodes.length = 0;
     this.sources.length = 0;
+    this.oscs.length = 0;
   },
 };
 

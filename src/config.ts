@@ -384,19 +384,35 @@ export const config = {
    */
   watcher: {
     /**
-     * A scare needs anticipation or it is just a loud picture. The sequence is
-     * stare -> rush -> scream -> linger, and the first beat is the one the
-     * original version was missing: a moment where you can tell something is
-     * out there, and not yet what.
+     * The beat sheet of docs/OVERHAUL.md section 5, ms from the loss: the
+     * light dies, something stands behind you, silence, the lunge, the tape
+     * dies, results. `src/game/watcherBeats.ts` reads these.
      */
-    /** Two eyes, far off in the dark. Nothing else is visible yet. */
-    stareMs: 500,
-    /** It closes the distance. */
-    approachMs: 620,
-    /** In your face, screaming. */
-    holdMs: 1100,
-    /** Fade out. */
-    leaveMs: 500,
+    beatsMs: {
+      dyingUntilMs: 1200,
+      behindUntilMs: 2600,
+      silenceUntilMs: 3100,
+      lungeUntilMs: 4400,
+      endMs: 6000,
+    },
+    /** Scares off: the light dies and the picture fades to black over this, ms. */
+    scaresOffFadeMs: 1800,
+    /** The face fills the frame in this long, ms. */
+    lungeMs: 250,
+    /** Its size when it appears, as a fraction of its final size (0.4 of 1.25). */
+    lungeStartFraction: 0.32,
+    /** easeOutBack's overshoot constant: about a 10 % lunge past full size. */
+    lungeOvershootMultiple: 1.7,
+    /** The figure's eyes catch the light once, over this long, ms. */
+    eyeGlowMs: 1000,
+    /** Per-loss variation: head tilt range, degrees. */
+    tiltDeg: [14, 26] as const,
+    /** Per-loss variation: mouth width range, multiple of the face's own. */
+    mouthWidthMultiple: [0.85, 1.3] as const,
+    /** One eye sits up to this much lower than the other, fraction of head height. */
+    eyeSkewFraction: 0.03,
+    /** The tape-dies beat drops to NO SIGNAL at this point through it, 0..1 fraction. */
+    noSignalAtFraction: 0.55,
     /**
      * How much of the frame the head fills at its closest, as fractions of the
      * frame's height and width. Both are applied and the smaller wins, so a
@@ -420,8 +436,6 @@ export const config = {
      * this close to a camera.
      */
     faceLiftFraction: 0.08,
-    /** How far past its final size it lunges before settling; 0..1 fraction. */
-    overshootFraction: 0.12,
     /** Screen shake while it is in your face, FH. Clamped by render.maxShakeFh. */
     shakeFh: 0.14,
     /** Eye glow pulse, Hz. Well under the 3 Hz flash ceiling. */

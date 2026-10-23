@@ -27,11 +27,6 @@ import { fromDb } from './dsp.ts';
 import { renderSample, SAMPLE_NAMES, SAMPLES, type Bus, type SampleName } from './samples.ts';
 import { BEATS_PER_CHORD, THEME_BEAT_S, chordAt, chordStartsAt, melodyAt, midiToHz } from './theme.ts';
 
-/**
- * Every layer of the Watcher's sequence attacks at least this slowly, in
- * seconds. Invariant 6 sets the floor at 30 ms; this is past it.
- */
-export const WATCHER_ATTACK_S = Math.max(config.audio.scareMinAttackMs, 40) / 1000;
 
 export type SoundName =
   | 'squeak'
@@ -603,54 +598,122 @@ export class SoundManager {
   // ------------------------------------------------------------ the Watcher
 
   /**
-   * THE WATCHER, scheduled against the audio clock so it lands on the picture.
-   * Rebuilt to the beat sheet of OVERHAUL 5 in the next step; until then the
-   * sequence below plays on the scare bus, so Scares off silences it.
+   * THE WATCHER, to the beat sheet of OVERHAUL 5, scheduled on the audio
+   * clock so it lands on the picture (`src/game/watcherBeats.ts`):
    *
-   * @param leadMs how long until the face is on screen.
+   *   0.0  the room ducks 18 dB over a second; a heartbeat, then a slower one
+   *   1.2  breathing close in the right ear, a long creak, reversed whispers
+   *   2.6  silence - every bus, nothing at all, half a second
+   *   3.1  the scream: three layers, a 40 Hz boom, a metal scrape
+   *   4.4  the tape stops and winds down; hiss; then nothing
+   *
+   * Everything from beat 2 on is on the scare bus. With Scares off none of it
+   * plays: the room fades out under one soft low tone instead.
+   *
    * @param pitch the face's own register (`voicePitch`).
    */
-  watcherSequence(leadMs: number, pitch = 1): void {
-    if (!this.started || this.muted || !this.scaresOn) return;
+  watcherSequence(pitch = 1, scares = this.scaresOn): void {
+    if (!this.started || this.muted) return;
     const ctx = this.ctx;
-    const scare = this.buses.get('scare');
-    if (ctx === null || scare === undefined) return;
-
+    if (ctx === null) return;
     const t = ctx.currentTime;
-    const riseS = Math.max(0.4, leadMs / 1000);
-    const hitAt = t + riseS;
-    const attack = WATCHER_ATTACK_S;
+    const b = config.watcher.beatsMs;
+    const s = (ms: number): number => ms / 1000;
 
-    let beatAt = t;
-    let gap = 0.62;
-    while (beatAt < hitAt - 0.2) {
-      this.blip(beatAt, 62, 38, 0.24, db(-12), 'sine', attack, scare);
-      this.blip(beatAt + 0.17, 56, 34, 0.22, db(-14), 'sine', attack, scare);
-      beatAt += gap;
-      gap = Math.max(0.3, gap * 0.86);
+    if (!scares) {
+      const fade = s(config.watcher.scaresOffFadeMs);
+      this.automateRoom(t, [
+        [0, 1],
+        [fade, 0],
+        [fade + 2, 1],
+      ]);
+      this.blip(t + 0.1, 55, 52, fade, db(-20), 'sine', 0.4, this.buses.get('sfx'));
+      return;
     }
-    for (const f of [0.08, 0.3, 0.5, 0.66, 0.78, 0.87, 0.93]) {
-      this.noise(t + riseS * f, 0.45, 3400 + f * 1800, db(-26), 'bandpass', 0.12, scare);
+
+    // Beat 1: the room drops away; the heart.
+    this.automateRoom(t, [
+      [0, 1],
+      [1, db(-18)],
+      [s(b.behindUntilMs) - 0.06, db(-18)],
+      [s(b.behindUntilMs), 0],
+      [s(b.endMs) + 0.4, 0],
+      [s(b.endMs) + 2, 1],
+    ]);
+    const before: (AudioBufferSourceNode | null)[] = [];
+    before.push(this.playSample('heartbeat', { bus: 'scare', gainDb: -2 }));
+    before.push(this.playSample('heartbeat', { bus: 'scare', gainDb: -4, rate: 0.82, delayS: 0.8 }));
+
+    // Beat 2: something is behind you.
+    const behind = s(b.dyingUntilMs);
+    before.push(this.playSample('breath', { gainDb: -3, pan: 0.85, delayS: behind }));
+    before.push(this.playSample('creak', { bus: 'scare', gainDb: -4, rate: 0.7, pan: -0.4, delayS: behind + 0.1 }));
+    before.push(this.playSample('whisperRev', { gainDb: -8, pan: -0.8, delayS: behind + 0.25 }));
+
+    // Beat 3: the silence. Everything above is cut dead at its start, and
+    // the room is already at zero. Then beat 4: the lunge.
+    const cut = t + s(b.behindUntilMs);
+    for (const src of before) {
+      try {
+        src?.stop(cut + 0.03);
+      } catch {
+        /* already stopped */
+      }
     }
-    this.scream(hitAt, pitch);
+    // A 30 ms fade into the cut, so it is silence and not a click.
+    const scare = this.buses.get('scare');
+    if (scare !== undefined) {
+      const level = this.busLevel('scare');
+      scare.gain.cancelScheduledValues(t);
+      scare.gain.setValueAtTime(level, cut - 0.03);
+      scare.gain.linearRampToValueAtTime(0, cut);
+      scare.gain.setValueAtTime(0, t + s(b.silenceUntilMs) - 0.05);
+      scare.gain.linearRampToValueAtTime(level, t + s(b.silenceUntilMs) - 0.01);
+    }
+    const hit = s(b.silenceUntilMs);
+    for (const [name, gainDb, at] of [
+      ['screamA', 0, 0],
+      ['shriekB', -6, 0],
+      ['subBoom', 0, 0],
+      ['metalScrape', -8, 0],
+      ['screamTail', -5, 0.5],
+    ] as const) {
+      this.playSample(name, { gainDb, rate: pitch, delayS: hit + at });
+    }
+
+    // Beat 5: the tape dies.
+    const dies = s(b.lungeUntilMs);
+    this.playSample('tapeStop', { bus: 'scare', delayS: dies });
+    this.noise(t + dies + 1.0, 0.55, 4200, db(-24), 'highpass', 0.08, this.buses.get('scare'));
   }
 
-  /** The scream: every layer attacks over `WATCHER_ATTACK_S` or more, on the scare bus. */
+  /**
+   * Automates every bus but the scare bus through `[seconds from now, level]`
+   * points (levels as fractions of the bus's set volume), for the Watcher's
+   * duck, its silence and the room coming back.
+   */
+  private automateRoom(at: number, points: readonly (readonly [number, number])[]): void {
+    for (const [bus, g] of this.buses) {
+      if (bus === 'scare') continue;
+      const level = this.busLevel(bus);
+      g.gain.cancelScheduledValues(at);
+      g.gain.setValueAtTime(Math.max(0.0001, g.gain.value), at);
+      for (const [dt, k] of points) g.gain.linearRampToValueAtTime(Math.max(0, level * k), at + dt);
+    }
+  }
+
+  /** A lone shout, for anything that asks for one: the lunge's layers on their own. */
   private scream(at: number, pitch: number): void {
     const ctx = this.ctx;
-    const scare = this.buses.get('scare');
-    if (ctx === null || scare === undefined) return;
-    const attack = WATCHER_ATTACK_S;
+    if (ctx === null) return;
     for (const [name, gainDb] of [
-      ['screamA', -2],
-      ['shriekB', -8],
-      ['screamTail', -6],
-      ['subBoom', -1],
-      ['metalScrape', -10],
+      ['screamA', 0],
+      ['shriekB', -6],
+      ['subBoom', 0],
+      ['metalScrape', -8],
     ] as const) {
       this.playSample(name, { gainDb, rate: pitch, delayS: Math.max(0, at - ctx.currentTime) });
     }
-    this.blip(at, 64, 26, 1.4, db(-8), 'sine', attack, scare);
   }
 
   // ----------------------------------------------------------- the title
