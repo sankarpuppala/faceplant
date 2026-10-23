@@ -80,7 +80,6 @@ import { worldToScreen } from './terrain/mapping.ts';
 type Phase = 'boot' | 'notice' | 'title' | 'camera' | 'calibrate' | 'shelf' | 'playing' | 'paused' | 'results' | 'ending' | 'menu';
 
 export class App {
-  private readonly host: HTMLElement;
   private readonly stageHost: HTMLElement;
   private readonly uiHost: HTMLElement;
 
@@ -131,7 +130,6 @@ export class App {
   private frameTimes: number[] = [];
 
   constructor(host: HTMLElement) {
-    this.host = host;
     this.stageHost = el('div', { id: 'stage-host' });
     this.uiHost = el('div', { id: 'ui-host' });
     host.appendChild(this.stageHost);
@@ -438,7 +436,16 @@ export class App {
 
   private ensureSynthetic(): void {
     if (this.synthetic !== null) return;
-    this.assistInput.attach(this.host);
+    // Scoped to the game canvas, not `this.host` - which is the shared parent
+    // of *both* the canvas and every DOM menu (How to Play, Shop, Settings,
+    // the Ossuary, a long Results screen...). `onWheel` calls
+    // `e.preventDefault()` unconditionally, and a wheel event fired while the
+    // mouse is over a menu still bubbles up through that shared ancestor, so
+    // attaching here used to kill scrolling on every panel in the game, for
+    // the rest of the session, the moment Assist mode started once - which
+    // for most players is immediately, since U10 starts every first-time
+    // player in Assist regardless of whether they have a camera.
+    this.assistInput.attach(this.stageHost);
     this.synthetic = new SyntheticFaceSource(this.assistInput, config.render.aspect, this.cal);
     void this.synthetic.start();
     if (this.source === null) this.source = this.synthetic;
